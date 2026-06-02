@@ -307,10 +307,19 @@ M.ai = function(opts)
   end
   local rest = raw:sub(prefix_len + 1):gsub("^%s+", "")
 
-  -- `??` / `!!` are rummy's "new run/session" shorthand. We honour it as
-  -- "open a fresh session, then submit the prompt".
+  -- `??` / `!!` are rummy's "new run/session" shorthand. The wire only
+  -- permits one session per connection, so when the connection already
+  -- has one, fall through to a plain prompt (the only honest thing we
+  -- can do without reconnecting).
   if prefix_len >= 2 then
+    if active_session() then
+      return M.prompt({ args = rest, range = opts.range or 0,
+        line1 = opts.line1, line2 = opts.line2 })
+    end
     local client = require("plurnk.client")
+    -- Wrap selection NOW (before session.create's async callback) — the
+    -- marks still hold here; they may not after the round-trip.
+    local wrapped_rest = wrap_with_selection(rest, opts)
     client.send("session.create", { projectRoot = client.get_project_path() }, false, function(result)
       if type(result) ~= "table" or not result.name then return end
       local name = result.name
@@ -318,10 +327,10 @@ M.ai = function(opts)
       require("plurnk.state").set_active_session_name(name)
       associate_buffer(vim.api.nvim_get_current_buf(), name)
       require("plurnk.run_tab").open(name)
-      if rest == "" then
+      if wrapped_rest == "" then
         require("plurnk.input").open(name)
       else
-        send_loop_run(name, rest, client.consume_selected_alias())
+        send_loop_run(name, wrapped_rest, client.consume_selected_alias())
       end
     end)
     return
