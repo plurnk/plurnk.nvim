@@ -65,7 +65,6 @@ M.open = function(session_name)
     vim.api.nvim_set_current_tabpage(rec.tabpage)
     if rec.input_win and vim.api.nvim_win_is_valid(rec.input_win) then
       vim.api.nvim_set_current_win(rec.input_win)
-      vim.cmd("startinsert")
     end
     return
   end
