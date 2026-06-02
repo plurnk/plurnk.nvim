@@ -141,7 +141,7 @@ M.handle_notification = function(payload)
   -- Session name comes from params.sessionName when the daemon supplies
   -- it (issue: it doesn't, the notification is scoped by connection).
   -- We fall back to the most-recently-attached session from state.
-  local session_name = params.sessionName or state.get_active_session_name and state.get_active_session_name()
+  local session_name = params.sessionName or state.get_active_session_name()
 
   if method == "log/entry" then M.handle_log_entry(params, session_name)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, session_name)

@@ -17,6 +17,7 @@ local available_aliases = {}  -- providers.list result
 local selected_alias = nil    -- user-picked, consumed by next loop.run
 local interacted = false
 local persona_path = nil      -- absolute path passed as --persona
+local active_session_name = nil  -- most recently attached session on this connection
 
 -- Per-session state buckets. Keyed by session name.
 local session_states = {}
@@ -53,6 +54,9 @@ M.get_available_aliases = function() return available_aliases end
 M.set_available_aliases = function(aliases) available_aliases = aliases or {} end
 
 M.set_selected_alias = function(alias) selected_alias = alias end
+
+M.get_active_session_name = function() return active_session_name end
+M.set_active_session_name = function(name) active_session_name = name end
 M.consume_selected_alias = function()
   local out = selected_alias
   selected_alias = nil
