@@ -19,8 +19,63 @@ local client = require("plurnk.client")
 local diff = require("plurnk.diff")
 local patch_mod = require("plurnk.patch")
 
+-- Pending-proposal stack. Each entry: { session_name, proposal, focus(), accept_as_proposed(), accept_with_edits(), reject(), cancel() }.
+-- index tracks which proposal :PlurnkNext / :PlurnkPrev are pointing at.
+local stack = {}
+local index = 0
+
 local function notify(text, level)
   pcall(client.notify, text, level or vim.log.levels.INFO)
+end
+
+local function current() return stack[index] end
+
+M.pending_count = function() return #stack end
+M.current_index = function() return index end
+
+M.next = function()
+  if #stack == 0 then notify("No pending proposals", vim.log.levels.WARN); return end
+  index = (index % #stack) + 1
+  local entry = current()
+  if entry and entry.focus then entry.focus() end
+end
+
+M.prev = function()
+  if #stack == 0 then notify("No pending proposals", vim.log.levels.WARN); return end
+  index = ((index - 2) % #stack) + 1
+  local entry = current()
+  if entry and entry.focus then entry.focus() end
+end
+
+local function pop_current()
+  if index < 1 or index > #stack then return end
+  table.remove(stack, index)
+  if #stack == 0 then index = 0
+  elseif index > #stack then index = #stack end
+end
+
+local function dispatch_to_current(method)
+  local entry = current()
+  if not entry then notify("No pending proposal", vim.log.levels.WARN); return end
+  local fn = entry[method]
+  if fn then fn() end
+end
+
+M.accept         = function() dispatch_to_current("accept_as_proposed") end
+M.accept_edits   = function() dispatch_to_current("accept_with_edits") end
+M.reject         = function() dispatch_to_current("reject") end
+M.cancel_current = function() dispatch_to_current("cancel") end
+
+M.cancel_all = function()
+  if #stack == 0 then return 0 end
+  local n = 0
+  while #stack > 0 do
+    local entry = stack[1]
+    if entry and entry.cancel then entry.cancel() end
+    n = n + 1
+  end
+  index = 0
+  return n
 end
 
 local function send_resolve(log_entry_id, decision, opts)
@@ -105,6 +160,19 @@ local function review_edit(session_name, proposal)
     if session_name then
       require("plurnk.state").remove_proposal(session_name, proposal.logEntryId)
     end
+    for i, e in ipairs(stack) do
+      if e.proposal.logEntryId == proposal.logEntryId then
+        table.remove(stack, i)
+        if index > #stack then index = #stack end
+        break
+      end
+    end
+  end
+
+  local function focus()
+    if vim.api.nvim_win_is_valid(left_win) then
+      vim.api.nvim_set_current_win(left_win)
+    end
   end
 
   local function accept_as_proposed()
@@ -139,6 +207,17 @@ local function review_edit(session_name, proposal)
     vim.keymap.set("n", "r", reject, { buffer = b, nowait = true })
     vim.keymap.set("n", "c", cancel, { buffer = b, nowait = true })
   end
+
+  table.insert(stack, {
+    session_name = session_name,
+    proposal = proposal,
+    focus = focus,
+    accept_as_proposed = accept_as_proposed,
+    accept_with_edits = accept_with_edits,
+    reject = reject,
+    cancel = cancel,
+  })
+  index = #stack
 end
 
 -- ── EXEC proposal: scratch buffer ────────────────────────────────────
@@ -157,17 +236,42 @@ local function review_exec(session_name, proposal)
   vim.cmd("botright split")
   local buf = make_scratch("plurnk://exec/" .. tostring(proposal.logEntryId), lines, "sh")
   vim.api.nvim_win_set_buf(0, buf)
+  local win = vim.api.nvim_get_current_win()
 
   local function cleanup()
     if vim.api.nvim_buf_is_valid(buf) then pcall(vim.api.nvim_buf_delete, buf, { force = true }) end
     if session_name then
       require("plurnk.state").remove_proposal(session_name, proposal.logEntryId)
     end
+    for i, e in ipairs(stack) do
+      if e.proposal.logEntryId == proposal.logEntryId then
+        table.remove(stack, i)
+        if index > #stack then index = #stack end
+        break
+      end
+    end
   end
 
-  vim.keymap.set("n", "a", function() send_resolve(proposal.logEntryId, "accept"); cleanup() end, { buffer = buf, nowait = true })
-  vim.keymap.set("n", "r", function() send_resolve(proposal.logEntryId, "reject"); cleanup() end, { buffer = buf, nowait = true })
-  vim.keymap.set("n", "c", function() send_resolve(proposal.logEntryId, "cancel"); cleanup() end, { buffer = buf, nowait = true })
+  local accept_as_proposed = function() send_resolve(proposal.logEntryId, "accept"); cleanup() end
+  local reject = function() send_resolve(proposal.logEntryId, "reject"); cleanup() end
+  local cancel = function() send_resolve(proposal.logEntryId, "cancel"); cleanup() end
+  local focus = function() if vim.api.nvim_win_is_valid(win) then vim.api.nvim_set_current_win(win) end end
+
+  vim.keymap.set("n", "a", accept_as_proposed, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "r", reject, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "c", cancel, { buffer = buf, nowait = true })
+
+  table.insert(stack, {
+    session_name = session_name,
+    proposal = proposal,
+    focus = focus,
+    accept_as_proposed = accept_as_proposed,
+    -- EXEC has no edit semantics — accept-with-edits falls through to accept.
+    accept_with_edits = accept_as_proposed,
+    reject = reject,
+    cancel = cancel,
+  })
+  index = #stack
 end
 
 -- ── Entry point ──────────────────────────────────────────────────────

@@ -250,6 +250,82 @@ M.ping = function()
   end)
 end
 
+-- :PlurnkAccept / :PlurnkAcceptEdits / :PlurnkReject / :PlurnkNext / :PlurnkPrev
+-- Buffer-agnostic proposal review — the same semantics as the in-buffer
+-- <localleader>a / e / r / c, but reachable from anywhere via <leader>a*.
+M.accept       = function() require("plurnk.resolve").accept() end
+M.accept_edits = function() require("plurnk.resolve").accept_edits() end
+M.reject       = function() require("plurnk.resolve").reject() end
+M.next         = function() require("plurnk.resolve").next() end
+M.prev         = function() require("plurnk.resolve").prev() end
+
+-- :AI — the central user command. Mirrors rummy's :AI in spirit; plurnk has
+-- no mode taxonomy so the leading `?` / `:` / `!` prefixes are stripped and
+-- treated as plain prompt text (this keeps muscle memory working for users
+-- migrating from rummy.nvim).
+--
+--   :AI               → open the chat input scratch buffer
+--   :AI <text>        → loop.run with prompt
+--   :AI? :AI: :AI! …  → strip the prefix, submit the rest
+--   :AI?? <text>      → :PlurnkSessionNew then submit
+--   :AI/stop          → cancel pending proposals (best-effort; no service RPC)
+--   :AI/clear         → alias for /stop
+M.ai = function(opts)
+  local raw = opts.args or ""
+  raw = raw:gsub("^%s+", "")
+
+  if raw == "" then
+    -- No args — open input buffer scoped to the buffer's session (or scratch).
+    require("plurnk.input").open(active_session())
+    return
+  end
+
+  if raw:sub(1, 1) == "/" then
+    local cmd = raw:sub(2):match("^(%S+)") or ""
+    if cmd == "stop" or cmd == "clear" then
+      local n = require("plurnk.resolve").cancel_all()
+      require("plurnk.client").notify(string.format("Cancelled %d pending proposal%s",
+        n, n == 1 and "" or "s"), vim.log.levels.INFO)
+      return
+    end
+    require("plurnk.client").notify(":AI/" .. cmd .. " is unknown", vim.log.levels.WARN)
+    return
+  end
+
+  -- Count leading prefix chars (?, :, !) — rummy idiom; plurnk strips them.
+  local first = raw:sub(1, 1)
+  local prefix_len = 0
+  if first == "?" or first == ":" or first == "!" then
+    while raw:sub(prefix_len + 1, prefix_len + 1) == first do
+      prefix_len = prefix_len + 1
+    end
+  end
+  local rest = raw:sub(prefix_len + 1):gsub("^%s+", "")
+
+  -- `??` / `!!` are rummy's "new run/session" shorthand. We honour it as
+  -- "open a fresh session, then submit the prompt".
+  if prefix_len >= 2 then
+    local client = require("plurnk.client")
+    client.send("session.create", { projectRoot = client.get_project_path() }, false, function(result)
+      if type(result) ~= "table" or not result.name then return end
+      local name = result.name
+      require("plurnk.state").set_session_id(name, result.id)
+      associate_buffer(vim.api.nvim_get_current_buf(), name)
+      if rest == "" then
+        require("plurnk.input").open(name)
+      else
+        send_loop_run(name, rest, client.consume_selected_alias())
+      end
+    end)
+    return
+  end
+
+  -- Single-prefix (`?`, `:`, `!`) — drop the prefix, treat as plain prompt.
+  local new_opts = { args = rest, range = opts.range or 0,
+    line1 = opts.line1, line2 = opts.line2 }
+  M.prompt(new_opts)
+end
+
 -- ── Setup ──────────────────────────────────────────────────────────
 
 M.setup = function()
@@ -264,6 +340,16 @@ M.setup = function()
   cmd("PlurnkLog",         M.log,          { nargs = "?" })
   cmd("PlurnkYolo",        M.yolo,         {})
   cmd("PlurnkPing",        M.ping,         {})
+
+  -- Proposal review.
+  cmd("PlurnkAccept",      M.accept,       {})
+  cmd("PlurnkAcceptEdits", M.accept_edits, {})
+  cmd("PlurnkReject",      M.reject,       {})
+  cmd("PlurnkNext",        M.next,         {})
+  cmd("PlurnkPrev",        M.prev,         {})
+
+  -- :AI — central user command (rummy-style surface; plurnk semantics).
+  cmd("AI", M.ai, { nargs = "*", range = true, bang = true })
 
   -- Convenience: a single-buffer scratch transcript without binding to
   -- a file. Useful for "just talk to the model" sessions.
