@@ -52,6 +52,19 @@ end
 -- Render a list of log entries (or a single one) into the session buf.
 -- Format mirrors the npm plurnk CLI's plain trace:
 --   `[<status>] <origin> <op>[<sub>] <path>`
+-- Append-or-replace: replace the initial empty line on the first write
+-- so the buffer doesn't carry a leading blank, then append after that.
+local function write_lines(buf, lines)
+  vim.bo[buf].modifiable = true
+  local current = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  if #current == 1 and current[1] == "" then
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  else
+    vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+  end
+  vim.bo[buf].modifiable = false
+end
+
 M.append_history = function(session_name, entries)
   if not session_name or not entries or #entries == 0 then return end
   local buf = ensure_buffer(session_name)
@@ -62,30 +75,21 @@ M.append_history = function(session_name, entries)
       lines[#lines+1] = ln
     end
   end
-  vim.bo[buf].modifiable = true
-  vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
-  vim.bo[buf].modifiable = false
+  write_lines(buf, lines)
 end
 
--- Append a free-form line (used by telemetry/stream renderers).
 M.append_line = function(session_name, text)
   if not session_name or not text or text == "" then return end
   local buf = ensure_buffer(session_name)
-  vim.bo[buf].modifiable = true
-  vim.api.nvim_buf_set_lines(buf, -1, -1, false, vim.split(text, "\n", { plain = true }))
-  vim.bo[buf].modifiable = false
+  write_lines(buf, vim.split(text, "\n", { plain = true }))
 end
 
--- Reflect terminal-status state in the buffer title or status bar.
--- For v0.1 just a horizontal-rule separator marking the boundary.
-M.close_document = function(session_name)
-  if not session_name then return end
-  local buf = buffers[session_name]
-  if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
-  vim.bo[buf].modifiable = true
-  vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "── loop terminated ──", "" })
-  vim.bo[buf].modifiable = false
-end
+-- The terminal SEND[200] line already signals loop end (and abnormal
+-- terminations get a ❌ on whatever the last entry was). No extra
+-- separator — the statusline carries the rest. If the loop terminated
+-- without a broadcast (rare; e.g., hitMaxTurns with no reply), the
+-- statusline turns to ⚠️/❌ which the user sees there.
+M.close_document = function(_) end
 
 M.update_status = function(_) end  -- statusline polls; no-op here
 

@@ -1,10 +1,6 @@
 -- Glyph-based waterfall renderer, mirroring @plurnk/plurnk's src/render.ts
 -- (TUI mode). Same op / origin / sub-status glyphs so the visual vocabulary
 -- is shared across CLI, TUI, and Neovim clients.
---
--- Color is *not* applied here. The session buffer's filetype is "plurnk_log"
--- and highlight groups (PlurnkOk / PlurnkWarn / PlurnkErr / PlurnkPath /
--- PlurnkDim) are defined in highlights.lua so colorschemes can override.
 
 local M = {}
 
@@ -27,8 +23,9 @@ M.ORIGIN_GLYPHS = {
   plugin = "🔌",
 }
 
-local SEND_SUB = {
+local STATUS_GLYPHS = {
   [102] = "⏳",
+  [120] = "⏳",
   [200] = "✅",
   [201] = "✅",
   [202] = "✅",
@@ -36,14 +33,22 @@ local SEND_SUB = {
   [499] = "✋",
 }
 
-M.send_sub_glyph = function(status)
-  if not status then return "" end
-  if SEND_SUB[status] then return SEND_SUB[status] end
-  if status >= 200 and status < 300 then return "✅" end
-  if status >= 400 and status < 500 then return "⚠️ " end
-  if status >= 500 and status < 600 then return "🔥" end
+-- Status sub-glyph used for EVERY op (not just SEND). SEND's `signal` is
+-- itself the HTTP status, so use it as the primary code; everything else
+-- reads `status_rx`. 4xx and 5xx both render ❌ so the user gets a single
+-- failure signal in the alignment column.
+M.status_glyph = function(status_rx, signal)
+  local code
+  if type(signal) == "number" then code = signal else code = status_rx end
+  if type(code) ~= "number" then return "" end
+  if STATUS_GLYPHS[code] then return STATUS_GLYPHS[code] end
+  if code >= 200 and code < 300 then return "✅" end
+  if code >= 400 and code < 600 then return "❌" end
   return ""
 end
+
+-- Back-compat alias for v0.3 callers.
+M.send_sub_glyph = function(status) return M.status_glyph(nil, status) end
 
 local function ellipsize(s, n)
   if not s or #s <= n then return s or "" end
@@ -51,7 +56,6 @@ local function ellipsize(s, n)
 end
 
 -- Extract the trailing context for an entry, op-specific.
--- Same shapes as the npm client's buildExtra.
 local function build_extra(entry)
   local tx = type(entry.tx) == "table" and entry.tx or nil
 
@@ -89,6 +93,7 @@ local function build_extra(entry)
   end
 
   if entry.op == "SEND" then
+    -- Non-broadcast SEND (path target). Broadcast handled by render_broadcast.
     if entry.scheme == nil and entry.pathname ~= nil then
       return "→ " .. entry.pathname
     end
@@ -100,22 +105,25 @@ local function build_extra(entry)
   return ""
 end
 
--- Render the broadcast SEND (op=SEND, no path) as a multi-line block:
--- one header line then indented body lines. Broadcast SEND[120/200] IS
--- the message-to-user — the body is the signal, not telemetry, so we
--- show it in full (newlines preserved). Other ops stay one-line.
+-- BROADCAST_INLINE_LIMIT: short single-line bodies inline after the status;
+-- anything longer or multi-line falls through to the indented block form.
+-- Picked to comfortably fit "Paris", "4", "yes", short markdown phrases.
+local BROADCAST_INLINE_LIMIT = 80
+
+-- Render the broadcast SEND (op=SEND, no path). For short single-line
+-- bodies, inline after the status. For multi-line or long bodies, header
+-- line + body lines indented under the speaker.
 M.render_broadcast = function(entry)
   local origin = M.ORIGIN_GLYPHS[entry.origin] or "?"
   local op_glyph = M.OP_GLYPHS.SEND
-  local sub_glyph = M.send_sub_glyph(entry.signal)
+  local sub_glyph = M.status_glyph(entry.status_rx, entry.signal)
   local status = tostring(entry.status_rx or "?")
 
-  local header_parts = { "  ", origin, " ", op_glyph }
+  local header_parts = { origin, " ", op_glyph }
   if sub_glyph ~= "" then table.insert(header_parts, " " .. sub_glyph) end
   table.insert(header_parts, " " .. status)
   local header = table.concat(header_parts)
 
-  -- tx.body per plurnk-grammar SendBody: { raw, json } | null.
   local body_text = ""
   local tx = entry.tx
   if type(tx) == "table" and type(tx.body) == "table" then
@@ -125,16 +133,20 @@ M.render_broadcast = function(entry)
   end
   if body_text == "" then return { header } end
 
+  -- Short and single-line: inline.
+  if not body_text:find("\n", 1, true) and #body_text <= BROADCAST_INLINE_LIMIT then
+    return { header .. "  " .. body_text }
+  end
+
   local lines = { header }
   for chunk in (body_text .. "\n"):gmatch("([^\n]*)\n") do
-    lines[#lines+1] = "     " .. chunk
+    lines[#lines+1] = "   " .. chunk
   end
-  if lines[#lines] == "     " then table.remove(lines) end
+  if lines[#lines] == "   " then table.remove(lines) end
   return lines
 end
 
 -- Render a regular (non-broadcast) trace line.
--- Returns a list of strings (always 1 for non-broadcast, multi for broadcast).
 M.render_log_entry = function(entry)
   if entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil then
     return M.render_broadcast(entry)
@@ -142,12 +154,16 @@ M.render_log_entry = function(entry)
 
   local origin = M.ORIGIN_GLYPHS[entry.origin] or "?"
   local op_glyph = M.OP_GLYPHS[entry.op] or "?"
-  local sub_glyph = entry.op == "SEND" and M.send_sub_glyph(entry.signal) or ""
+  local sub_glyph = M.status_glyph(entry.status_rx, entry.signal)
+  local status = tostring(entry.status_rx or "?")
 
-  -- Path: render whatever the daemon supplied. file:// has scheme=null with
-  -- pathname set; render the bare pathname (no synthesis).
+  -- EXEC: signal carries the executor name per grammar SPEC §3 — show it
+  -- in the path column as `[<executor>]`. The synthetic exec:// URI the
+  -- daemon stamps on EXEC entries is noise from the user's perspective.
   local path = ""
-  if entry.pathname ~= nil then
+  if entry.op == "EXEC" then
+    if entry.signal ~= nil then path = "[" .. tostring(entry.signal) .. "]" end
+  elseif entry.pathname ~= nil then
     if entry.scheme ~= nil then
       path = string.format("%s://%s%s%s",
         entry.scheme,
@@ -160,10 +176,9 @@ M.render_log_entry = function(entry)
   end
 
   local extra = build_extra(entry)
-  local status = tostring(entry.status_rx or "?")
 
-  -- Layout: `INDENT ORIGIN OP [SUB] STATUS PATH  EXTRA`
-  local parts = { "  ", origin, " ", op_glyph }
+  -- Layout: ORIGIN OP SUB STATUS PATH  EXTRA  (no leading indent)
+  local parts = { origin, " ", op_glyph }
   if sub_glyph ~= "" then table.insert(parts, " " .. sub_glyph) end
   table.insert(parts, " " .. status)
   if path ~= "" then table.insert(parts, " " .. path) end
@@ -172,8 +187,9 @@ M.render_log_entry = function(entry)
   return { table.concat(parts) }
 end
 
--- Render the per-loop summary line.
--- Same shape as the npm client's renderSummary.
+-- Per-loop summary line (still used by callers; the run_tab waterfall no
+-- longer emits "loop terminated" since SEND[200] already carries that
+-- signal).
 M.render_summary = function(turns, wall_ms, tokens, final_status, hit_max_turns)
   local tag
   if hit_max_turns then
@@ -189,7 +205,7 @@ M.render_summary = function(turns, wall_ms, tokens, final_status, hit_max_turns)
   else
     ms = tostring(wall_ms or 0) .. "ms"
   end
-  return string.format("  %s · %d turn%s · %s · %d tokens",
+  return string.format("%s · %d turn%s · %s · %d tokens",
     tag, turns or 0, (turns == 1) and "" or "s", ms, tokens or 0)
 end
 

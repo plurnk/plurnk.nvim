@@ -27,7 +27,8 @@ local ok, err = pcall(function()
   local content = table.concat(vim.api.nvim_buf_get_lines(session_buf, 0, -1, false), "\n")
   H.assert_match(content, "🤖", "waterfall has model glyph")
   H.assert_match(content, "✅ 200", "waterfall has terminal SEND status")
-  H.assert_match(content, "loop terminated", "footer present")
+  -- The leading line is the SEND[200] header itself, not a blank.
+  H.assert_truthy(content:sub(1, 1) ~= "\n", "no leading blank line")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
