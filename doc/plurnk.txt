@@ -22,7 +22,6 @@ no embedded Node.
 2. Requirements                                           *plurnk-requirements*
 
 - Neovim >= 0.10
-- plenary.nvim
 - A running plurnk-service (default localhost:3044)
 
 ==============================================================================

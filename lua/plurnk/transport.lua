@@ -1,18 +1,26 @@
--- JSON-RPC transport over headless nvim background process.
+-- JSON-RPC 2.0 transport over a headless background nvim subprocess.
+-- Architecture (same as rummy.nvim):
+--   main nvim  <-stdio JSON-RPC->  background headless nvim  <-WebSocket->  daemon
+-- The background nvim holds the WebSocket via vim.loop/libuv; main nvim
+-- never touches the socket.
+--
+-- v0.1.2: dropped plenary.nvim. Modern nvim (>= 0.10) has vim.system as
+-- a built-in; one less dependency for users, smoke-test trivial.
+--
+-- v0.1.2: dropped the rummy/hello handshake. Plurnk has no such
+-- handshake — sends are issued immediately on connection-ready; no
+-- init-pending gate.
 
 local M = {}
-local Job = require("plenary.job")
 local cfg = require("plurnk.config")
-local state = require("plurnk.state")
 
-local background_job = nil
-local is_initialized = false
-local init_pending = false
-local pending_queue = {}
-local last_requests = {}
+local background_proc = nil  -- the vim.system handle
+local pending_queue = {}     -- requests queued before subprocess is up
+local last_requests = {}     -- id -> { method, callback } for response routing
+local stdout_buf = ""        -- partial line carry-over for stdout
 
 -- Normalize server data at the JSON boundary.
--- vim.NIL → nil, \r stripped from strings.
+-- vim.NIL -> nil, \r stripped from strings.
 local function normalize(val)
   if val == vim.NIL then return nil end
   if type(val) == "string" then return val:gsub("\r", "") end
@@ -24,6 +32,8 @@ local function normalize(val)
   return val
 end
 
+M.normalize = normalize
+
 M.log = function(msg)
   local f = io.open(cfg.get("log_path"), "a")
   if f then
@@ -33,102 +43,126 @@ M.log = function(msg)
   end
 end
 
-M.normalize = normalize
+local function process_line(line)
+  if not line or line == "" then return end
+  M.log("RECV: " .. line)
+  local decode_ok, payload = pcall(vim.json.decode, line)
+  if not decode_ok or not payload or payload.jsonrpc ~= "2.0" then return end
+  payload = normalize(payload)
 
-local function start_background_job()
-  if background_job then return end
   local dispatch = require("plurnk.dispatch")
-  local script_path = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":h") .. "/background_client.lua"
-  background_job = Job:new({
-    command = vim.v.progpath,
-    args = { "--headless", "-u", "NONE", "--noplugin", "-c", "luafile " .. script_path },
-    env = vim.tbl_extend("force", vim.fn.environ(), {
-      LUA_PATH = package.path,
-      LUA_CPATH = package.cpath,
-      PLURNK_HOST = cfg.get("host"),
-      PLURNK_PORT = tostring(cfg.get("port")),
-      PLURNK_LOG_PATH = cfg.get("background_log_path"),
-    }),
-    on_stdout = function(_, line)
-      if not line or line == "" then return end
-      M.log("RECV: " .. line)
-      local decode_ok, payload = pcall(vim.json.decode, line)
-      if not decode_ok or not payload or payload.jsonrpc ~= "2.0" then return end
 
-      payload = normalize(payload)
-
-      if payload.id then
-        local req_meta = last_requests[payload.id]
-        local result = payload.result
-        if req_meta and result then
-          M.log("DISPATCH response: method=" .. tostring(req_meta.method):upper() .. " id=" .. tostring(payload.id))
-          is_initialized = true
-          init_pending = false
-          vim.schedule(function() M.flush_queue() end)
-
-          local ok, err = pcall(dispatch.handle_response, req_meta, result)
-          if not ok then M.log("HANDLER ERROR (response): " .. tostring(err)) end
-
-          if req_meta.callback then
-            vim.schedule(function()
-              local cb_ok, cb_err = pcall(req_meta.callback, result)
-              if not cb_ok then M.log("CALLBACK ERROR: " .. tostring(cb_err)) end
-            end)
-          end
-        end
-      end
-      if payload.method then
+  if payload.id ~= nil then
+    local req_meta = last_requests[payload.id]
+    last_requests[payload.id] = nil
+    if req_meta and payload.result then
+      M.log("DISPATCH response: method=" .. tostring(req_meta.method) .. " id=" .. tostring(payload.id))
+      local ok, err = pcall(dispatch.handle_response, req_meta, payload.result)
+      if not ok then M.log("HANDLER ERROR (response): " .. tostring(err)) end
+      if req_meta.callback then
         vim.schedule(function()
-          local ok, err = pcall(dispatch.handle_notification, payload)
-          if not ok then M.log("HANDLER ERROR (notification): " .. tostring(err)) end
+          local cb_ok, cb_err = pcall(req_meta.callback, payload.result)
+          if not cb_ok then M.log("CALLBACK ERROR: " .. tostring(cb_err)) end
         end)
       end
-      if payload.error then
-        pcall(dispatch.handle_error, payload)
-      end
-    end,
-    on_stderr = function(_, line)
-      if not line or line == "" or line:match("^E%d+:") or line:match("deadly signal") or line:match("Nvim: Finished") or line:match("^From Nvim:") or line:match("^Valid frame received") then return end
-      vim.schedule(function() vim.notify("Plurnk Background Error: " .. line, vim.log.levels.ERROR) end)
-    end,
-    on_exit = function(_, code)
-      background_job = nil
-      is_initialized = false
-      init_pending = false
-      vim.schedule(function()
-        if code and code ~= 0 and code ~= 143 and code ~= 129 then
-          M.log("Background process exited with code " .. tostring(code) .. " — will reconnect on next command")
-          state.set_run_status("disconnected")
-          state.set_run_status_text("Server disconnected")
-          vim.notify("Rummy: disconnected — will reconnect on next command", vim.log.levels.WARN)
-        else
-          state.set_run_status(nil)
-          state.set_run_status_text(nil)
-        end
-        vim.cmd("redrawstatus! | redrawtabline")
-      end)
-    end,
+    end
+  end
+
+  if payload.method then
+    vim.schedule(function()
+      local ok, err = pcall(dispatch.handle_notification, payload)
+      if not ok then M.log("HANDLER ERROR (notification): " .. tostring(err)) end
+    end)
+  end
+
+  if payload.error then
+    pcall(dispatch.handle_error, payload)
+  end
+end
+
+-- Stdout from the subprocess arrives in arbitrary chunks. Split on \n,
+-- carrying over any partial trailing line until the next chunk.
+local function feed_stdout(data)
+  if not data or data == "" then return end
+  stdout_buf = stdout_buf .. data
+  while true do
+    local nl = stdout_buf:find("\n", 1, true)
+    if not nl then break end
+    local line = stdout_buf:sub(1, nl - 1)
+    stdout_buf = stdout_buf:sub(nl + 1)
+    pcall(process_line, line)
+  end
+end
+
+local function start_background_proc()
+  if background_proc then return end
+  local script_path = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":h") .. "/background_client.lua"
+  local env = vim.tbl_extend("force", vim.fn.environ(), {
+    LUA_PATH = package.path,
+    LUA_CPATH = package.cpath,
+    PLURNK_HOST = cfg.get("host"),
+    PLURNK_PORT = tostring(cfg.get("port")),
+    PLURNK_LOG_PATH = cfg.get("background_log_path"),
   })
-  background_job:start()
+  -- Translate env from { K=V table } to { "K=V", ... } list — vim.system
+  -- accepts both but the list form is what its docs guarantee.
+  local env_list = {}
+  for k, v in pairs(env) do env_list[#env_list+1] = k .. "=" .. tostring(v) end
+
+  background_proc = vim.system(
+    { vim.v.progpath, "--headless", "-u", "NONE", "--noplugin", "-c", "luafile " .. script_path },
+    {
+      stdin = true,
+      env = env_list,
+      stdout = vim.schedule_wrap(function(_, data)
+        if data then feed_stdout(data) end
+      end),
+      stderr = vim.schedule_wrap(function(_, data)
+        if not data or data == "" then return end
+        for line in (data .. "\n"):gmatch("([^\n]*)\n") do
+          if line ~= "" and not line:match("^E%d+:") and not line:match("deadly signal")
+             and not line:match("^From Nvim:") and not line:match("^Valid frame received") then
+            vim.notify("Plurnk Background: " .. line, vim.log.levels.WARN)
+          end
+        end
+      end),
+    },
+    vim.schedule_wrap(function(obj)
+      background_proc = nil
+      stdout_buf = ""
+      last_requests = {}
+      if obj.code ~= 0 and obj.code ~= 143 and obj.code ~= 129 then
+        M.log("Background subprocess exited code=" .. tostring(obj.code) .. " — will reconnect on next send")
+      end
+    end)
+  )
+
+  -- Flush anything queued during boot.
+  vim.defer_fn(function() M.flush_queue() end, 50)
+end
+
+local function next_id()
+  return string.format("%d-%d", vim.loop.hrtime(), math.random(1000, 9999))
 end
 
 M.send = function(method, params, is_notification, callback)
-  state.mark_interacted()
-  start_background_job()
+  start_background_proc()
   local request = { jsonrpc = "2.0", method = method, params = params or {} }
   if not is_notification then
-    local id = method .. "-" .. vim.fn.strftime("%Y%m%d%H%M%S") .. tostring(math.random(1000, 9999))
+    local id = next_id()
     request.id = id
-    last_requests[id] = { method = method:upper(), prompt = params.prompt, callback = callback }
+    last_requests[id] = { method = method, callback = callback }
   end
   local json = vim.json.encode(request)
   M.log("SEND: " .. json)
-  if not is_initialized and method ~= "rummy/hello" then
+  if not background_proc then
     table.insert(pending_queue, json)
-    require("plurnk.client").init_project()
     return
   end
-  if background_job then background_job:send(json .. "\n") end
+  -- vim.system's write may not be available immediately after spawn —
+  -- queue and flush on first stdout (or defer_fn above).
+  local ok = pcall(function() background_proc:write(json .. "\n") end)
+  if not ok then table.insert(pending_queue, json) end
 end
 
 M.send_async = function(method, params, is_notification)
@@ -136,38 +170,27 @@ M.send_async = function(method, params, is_notification)
 end
 
 M.flush_queue = function()
-  if not background_job then return end
+  if not background_proc then return end
   while #pending_queue > 0 do
-    background_job:send(table.remove(pending_queue, 1) .. "\n")
+    local item = table.remove(pending_queue, 1)
+    local ok = pcall(function() background_proc:write(item .. "\n") end)
+    if not ok then table.insert(pending_queue, 1, item); break end
   end
 end
 
 M.stop = function()
-  if background_job then
-    background_job:shutdown()
-    background_job = nil
-    is_initialized = false
-    init_pending = false
+  if background_proc then
+    pcall(function() background_proc:kill(15) end)
+    background_proc = nil
     pending_queue = {}
+    last_requests = {}
+    stdout_buf = ""
   end
 end
 
 M.reset_connection = function()
-  init_pending = false
-  is_initialized = false
   pending_queue = {}
-end
-
-M.init_project = function()
-  if init_pending or is_initialized then return end
-  init_pending = true
-  local project_path = vim.fn.fnamemodify(vim.fn.getcwd(), ":p")
-  state.set_project_path(project_path)
-  M.send("rummy/hello", {
-    name = vim.fn.fnamemodify(project_path, ":p:h:t"),
-    projectRoot = project_path,
-    clientVersion = "2.0.0",
-  })
+  last_requests = {}
 end
 
 return M

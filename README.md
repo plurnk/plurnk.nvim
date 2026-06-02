@@ -40,7 +40,6 @@ The background nvim holds the WebSocket via `vim.loop`/libuv; the main nvim only
 -- lazy.nvim
 {
   "plurnk/plurnk.nvim",
-  dependencies = { "nvim-lua/plenary.nvim" },
   config = function()
     require("plurnk").setup({
       host = "127.0.0.1",
@@ -55,7 +54,6 @@ The background nvim holds the WebSocket via `vim.loop`/libuv; the main nvim only
 -- packer.nvim
 use {
   "plurnk/plurnk.nvim",
-  requires = { "nvim-lua/plenary.nvim" },
   config = function()
     require("plurnk").setup()
     require("plurnk").apply_default_keymaps()
@@ -90,7 +88,6 @@ Reports the buffer's bound session, current model alias, current loop id, and fi
 ## Requirements
 
 - Neovim ≥ 0.10
-- [plenary.nvim](https://github.com/nvim-lua/plenary.nvim)
 - A running [plurnk-service](https://github.com/plurnk/plurnk-service)
 
 ## Distribution
