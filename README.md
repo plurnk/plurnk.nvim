@@ -7,7 +7,7 @@ Neovim client for [plurnk-service](https://github.com/plurnk/plurnk-service), th
 
 ## Status
 
-v0.1.0 — wire fully working, commands and basic transcript surface in place. The rich rummy.nvim UX (`:diffsplit` proposal resolution, statusline polish, virtual-text HUD, stream rendering) is being ported one piece at a time. See `:Plurnk*` commands below for what's wired today.
+v0.2.0 — wire end-to-end with glyph waterfall, polished statusline, `:diffsplit`-based proposal review, and a headless e2e test suite. The virtual-text HUD and deeper `:checkhealth` are still being ported from rummy.nvim.
 
 ## Architecture
 
@@ -98,13 +98,19 @@ This plugin does **not** publish to npm. It's installed via your Neovim plugin m
 
 Still to port from [rummy.nvim](https://github.com/possumtech/rummy.nvim):
 
-- `:diffsplit`-based proposal review with accept-with-edits
 - Virtual-text HUD per-buffer
-- Telemetry events rendered inline in the session waterfall (currently they fall back to `vim.notify`)
-- Rich statusline with token counts and cost
 - `:checkhealth plurnk` deeper checks (provider config, model alias resolution, etc.)
 
-Already ported as of v0.1.1:
+Ported as of v0.2.0:
+
+- Glyph waterfall renderer shared with the npm `@plurnk/plurnk` TUI (🤖 ✏️ 📖 🔍 ✉️ ⚙️ 📋 📦 ➕ ➖) — `lua/plurnk/render.lua`.
+- `:diffsplit`-based proposal review with accept-as-proposed / accept-with-edits / reject / cancel — `lua/plurnk/resolve.lua`.
+- Polished statusline reporting session, model, loop·turn, status glyph, cost, and YOLO state.
+- Inline telemetry (`📡 source:kind`) in the session waterfall.
+- Isolated-XDG `demo.sh` for trying the plugin without touching your real config.
+- Headless e2e test suite under `tests/specs/` driven by `tests/runner.sh`.
+
+Ported as of v0.1.1:
 
 - Streaming (`stream/event` + `stream/concluded`) — daemon-pushed channel growth is fetched via `entry.read` and rendered into a split.
 
