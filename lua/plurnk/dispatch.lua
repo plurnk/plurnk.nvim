@@ -65,6 +65,9 @@ M.handle_log_entry = function(params, session_name)
   local entry = params.entry
   apply_entry_to_state(session_name, entry)
 
+  -- Note the entry's id ↔ target URI for the stream module's lookup.
+  pcall(function() require("plurnk.stream").note_log_entry(entry) end)
+
   vim.schedule(function()
     local ok, run_tab = pcall(require, "plurnk.run_tab")
     if ok and session_name then run_tab.append_history(session_name, { entry }) end
@@ -140,6 +143,10 @@ M.handle_notification = function(payload)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, session_name)
   elseif method == "loop/terminated" then M.handle_loop_terminated(params, session_name)
   elseif method == "telemetry/event" then M.handle_telemetry_event(params, session_name)
+  elseif method == "stream/event" then
+    pcall(function() require("plurnk.stream").on_event(params, session_name) end)
+  elseif method == "stream/concluded" then
+    pcall(function() require("plurnk.stream").on_concluded(params, session_name) end)
   elseif method == "session/created" then M.handle_session_created(params)
   end
 end

@@ -97,16 +97,19 @@ Reports the buffer's bound session, current model alias, current loop id, and fi
 
 This plugin does **not** publish to npm. It's installed via your Neovim plugin manager from the GitHub repo, like every other Neovim plugin.
 
-## Not in v0.1.0 (port roadmap)
+## Roadmap
+
+Still to port from [rummy.nvim](https://github.com/possumtech/rummy.nvim):
 
 - `:diffsplit`-based proposal review with accept-with-edits
-- Streaming `stream/event` rendering
 - Virtual-text HUD per-buffer
 - Telemetry events rendered inline in the session waterfall (currently they fall back to `vim.notify`)
 - Rich statusline with token counts and cost
 - `:checkhealth plurnk` deeper checks (provider config, model alias resolution, etc.)
 
-These were all present in [rummy.nvim](https://github.com/possumtech/rummy.nvim) and are being ported piece-by-piece.
+Already ported as of v0.1.1:
+
+- Streaming (`stream/event` + `stream/concluded`) — daemon-pushed channel growth is fetched via `entry.read` and rendered into a split.
 
 ## License
 
