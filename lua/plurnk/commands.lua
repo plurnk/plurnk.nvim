@@ -280,8 +280,17 @@ M.ai = function(opts)
   raw = raw:gsub("^%s+", "")
 
   if raw == "" then
-    -- No args — open input buffer scoped to the buffer's session (or scratch).
-    require("plurnk.input").open(active_session())
+    -- No args — open the run tab (waterfall + input split). If the buffer
+    -- already has a session, just focus it; otherwise create one first so
+    -- the user lands in a real session, not a "scratch" sentinel.
+    local existing = active_session()
+    if existing then
+      require("plurnk.run_tab").open(existing)
+      return
+    end
+    resolve_session_then(function(session_name)
+      require("plurnk.run_tab").open(session_name)
+    end)
     return
   end
 
