@@ -11,13 +11,15 @@ local M = {}
 
 -- ── Buffer helpers ──────────────────────────────────────────────────
 
--- This buffer's session name, or nil.
+-- This buffer's session name, or nil. The buffer-local variable is the
+-- one source of truth; rummy's URL-parse fallback (`plurnk://input/<x>`)
+-- is unsafe here because `:AI` with no args opens `plurnk://input/scratch`
+-- where "scratch" is a sentinel, not a real session.
 local function active_session()
   local tab = require("plurnk.run_tab").current_alias()
   if tab then return tab end
   if vim.b.plurnk_session then return vim.b.plurnk_session end
-  local name = vim.api.nvim_buf_get_name(0)
-  return name:match("^plurnk://input/(.+)$")
+  return require("plurnk.state").get_active_session_name()
 end
 
 local function is_real_buffer()
@@ -68,6 +70,7 @@ local function resolve_session_then(callback)
     if type(result) ~= "table" or not result.name then return end
     local name = result.name
     require("plurnk.state").set_session_id(name, result.id)
+    require("plurnk.state").set_active_session_name(name)
     associate_buffer(origin_buf, name)
     local model = client.consume_selected_alias()
     callback(name, model)
@@ -128,6 +131,7 @@ M.sessions = function()
     }, function(choice)
       if not choice then return end
       require("plurnk.state").set_session_id(choice.name, choice.id)
+      require("plurnk.state").set_active_session_name(choice.name)
       associate_buffer(vim.api.nvim_get_current_buf(), choice.name)
       require("plurnk.run_tab").open(choice.name)
     end)
@@ -142,6 +146,7 @@ M.session_new = function(opts)
   client.send("session.create", params, false, function(result)
     if type(result) ~= "table" or not result.name then return end
     require("plurnk.state").set_session_id(result.name, result.id)
+    require("plurnk.state").set_active_session_name(result.name)
     associate_buffer(vim.api.nvim_get_current_buf(), result.name)
     require("plurnk.run_tab").open(result.name)
     client.notify("Session created: " .. result.name, vim.log.levels.INFO)
@@ -310,7 +315,9 @@ M.ai = function(opts)
       if type(result) ~= "table" or not result.name then return end
       local name = result.name
       require("plurnk.state").set_session_id(name, result.id)
+      require("plurnk.state").set_active_session_name(name)
       associate_buffer(vim.api.nvim_get_current_buf(), name)
+      require("plurnk.run_tab").open(name)
       if rest == "" then
         require("plurnk.input").open(name)
       else
