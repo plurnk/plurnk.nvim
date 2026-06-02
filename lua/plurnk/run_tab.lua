@@ -55,29 +55,24 @@ end
 M.append_history = function(session_name, entries)
   if not session_name or not entries or #entries == 0 then return end
   local buf = ensure_buffer(session_name)
+  local render = require("plurnk.render")
   local lines = {}
   for _, entry in ipairs(entries) do
-    local sub = ""
-    if entry.op == "SEND" and type(entry.signal) == "number" then
-      sub = "[" .. tostring(entry.signal) .. "]"
+    for _, ln in ipairs(render.render_log_entry(entry)) do
+      lines[#lines+1] = ln
     end
-    local path = ""
-    if entry.pathname then
-      if entry.scheme then
-        path = string.format(" %s://%s%s", entry.scheme, entry.hostname or "", entry.pathname)
-      else
-        path = " " .. entry.pathname
-      end
-    end
-    lines[#lines+1] = string.format("[%s] %s %s%s%s",
-      tostring(entry.status_rx or "?"),
-      tostring(entry.origin or "?"),
-      tostring(entry.op or "?"),
-      sub,
-      path)
   end
   vim.bo[buf].modifiable = true
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+  vim.bo[buf].modifiable = false
+end
+
+-- Append a free-form line (used by telemetry/stream renderers).
+M.append_line = function(session_name, text)
+  if not session_name or not text or text == "" then return end
+  local buf = ensure_buffer(session_name)
+  vim.bo[buf].modifiable = true
+  vim.api.nvim_buf_set_lines(buf, -1, -1, false, vim.split(text, "\n", { plain = true }))
   vim.bo[buf].modifiable = false
 end
 

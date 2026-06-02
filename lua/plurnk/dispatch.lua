@@ -105,9 +105,13 @@ M.handle_telemetry_event = function(params, session_name)
   if not params or type(params.event) ~= "table" then return end
   local event = params.event
   vim.schedule(function()
-    local headline = string.format("📡 %s:%s", tostring(event.source or "?"), tostring(event.kind or "?"))
+    local headline = string.format("  📡 %s:%s", tostring(event.source or "?"), tostring(event.kind or "?"))
     if type(event.message) == "string" and #event.message > 0 then
       headline = headline .. ' "' .. event.message .. '"'
+    end
+    if session_name then
+      local ok, run_tab = pcall(require, "plurnk.run_tab")
+      if ok then run_tab.append_line(session_name, headline) end
     end
     local ok, hud = pcall(require, "plurnk.hud")
     if ok then hud.show(headline) end
