@@ -42,12 +42,22 @@ local ok, err = pcall(function()
   ai({ args = "plain", range = 0 })
   H.assert_eq(captured[1].params.prompt, "plain", ":AI plain text")
 
-  -- :AI?? prompt → fresh session.create followed by loop.run.
+  -- :AI?? on a session-attached buffer: just submits a prompt (the wire
+  -- only allows one session per connection).
   captured = {}
   ai({ args = "?? new chat", range = 0 })
-  H.assert_eq(captured[1].method, "session.create", ":AI?? creates session")
+  H.assert_eq(captured[1].method, "loop.run", ":AI?? on attached buffer goes straight to loop.run")
+  H.assert_eq(captured[1].params.prompt, "new chat", ":AI?? carries prompt")
+
+  -- :AI?? on a fresh buffer with no session: session.create then loop.run.
+  -- Move to a fresh empty buffer so no plurnk_session is bound here.
+  vim.cmd("enew")
+  require("plurnk.state").set_active_session_name(nil)
+  captured = {}
+  ai({ args = "?? fresh chat", range = 0 })
+  H.assert_eq(captured[1].method, "session.create", ":AI?? creates session when none attached")
   H.assert_eq(captured[2].method, "loop.run", ":AI?? then loop.run")
-  H.assert_eq(captured[2].params.prompt, "new chat", ":AI?? carries prompt")
+  H.assert_eq(captured[2].params.prompt, "fresh chat", ":AI?? carries prompt after session.create")
 
   -- :AI/stop with empty stack — must not error, must not call any RPC.
   captured = {}

@@ -19,7 +19,10 @@ end
 
 M.setup = function()
   -- ── Prompt entry (rummy mode-prefix layout, plurnk strips the prefix) ──
-  map_if_empty({ "n", "x" }, "<leader>aa", ":AI<CR>",   "Plurnk: chat (open input)")
+  -- <leader>aa is normal-mode only: in visual mode it would drop the
+  -- selection silently because `:AI` with no args opens the input buffer.
+  -- Selection-aware prompts go through <leader>a? / a: / a! instead.
+  map_if_empty("n",          "<leader>aa", ":AI<CR>",     "Plurnk: chat (open input)")
   map_if_empty({ "n", "x" }, "<leader>a?", ":AI? ",      "Plurnk: prompt (rummy: ask)")
   map_if_empty({ "n", "x" }, "<leader>a:", ":AI: ",      "Plurnk: prompt (rummy: act)")
   map_if_empty({ "n", "x" }, "<leader>a!", ":AI! ",      "Plurnk: prompt (rummy: run)")
