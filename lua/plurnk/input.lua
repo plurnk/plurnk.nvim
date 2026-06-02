@@ -1,6 +1,6 @@
--- Chat input scratch buffer. Triggered by `:AI` with no args (mirrors
--- rummy.nvim/main/lua/rummy/input.lua). Anchored bottom-split, single-
--- line by default; <CR> in normal mode submits via loop.run.
+-- Chat input scratch buffer. Lives at the bottom of the session tab.
+-- <CR> in normal mode submits via loop.run; <Esc> in insert returns to
+-- normal so vim keybindings work; the buffer auto-clears after submit.
 
 local M = {}
 local INPUT_HEIGHT = 3
@@ -21,37 +21,16 @@ local function submit(buf, session_name)
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
 
-  local commands = require("plurnk.commands")
-  commands.prompt({ args = text, range = 0 })
+  -- Ensure plurnk_session is bound to this buffer so commands.prompt's
+  -- active_session() picks it up — the buffer-local var is the source
+  -- of truth for which session the prompt is going to.
+  if session_name then vim.b[buf].plurnk_session = session_name end
+
+  require("plurnk.commands").prompt({ args = text, range = 0 })
 end
 
-M.open = function(session_name)
-  -- Reuse existing input buffer for this session if there is one.
-  local existing = vim.fn.bufnr(buffer_name(session_name))
-  if existing ~= -1 and vim.api.nvim_buf_is_valid(existing) then
-    -- Find a window showing it; if none, create the bottom split.
-    for _, w in ipairs(vim.api.nvim_list_wins()) do
-      if vim.api.nvim_win_get_buf(w) == existing then
-        vim.api.nvim_set_current_win(w)
-        vim.cmd("startinsert")
-        return existing
-      end
-    end
-    vim.cmd("botright " .. INPUT_HEIGHT .. "split")
-    vim.api.nvim_win_set_buf(0, existing)
-    vim.cmd("startinsert")
-    return existing
-  end
-
-  vim.cmd("botright " .. INPUT_HEIGHT .. "split")
-  local win = vim.api.nvim_get_current_win()
-  local buf = vim.api.nvim_create_buf(false, true)
-  pcall(vim.api.nvim_buf_set_name, buf, buffer_name(session_name))
-  vim.bo[buf].buftype = "nofile"
-  vim.bo[buf].bufhidden = "hide"
-  vim.bo[buf].swapfile = false
-  vim.api.nvim_win_set_buf(win, buf)
-
+-- Decorate the input window (no numbers, wrap on, fixed-height, winbar).
+local function decorate_input_win(win)
   vim.wo[win].wrap = true
   vim.wo[win].winfixheight = true
   vim.wo[win].number = false
@@ -59,21 +38,76 @@ M.open = function(session_name)
   vim.wo[win].signcolumn = "no"
   vim.wo[win].cursorline = true
   pcall(vim.api.nvim_set_option_value, "winbar",
-    " plurnk · type prompt · <CR> submit · <Esc> close ",
-    { win = win })
+    " plurnk · <CR> submit · <Esc><Esc> back to waterfall ", { win = win })
+end
 
-  if session_name then vim.b[buf].plurnk_session = session_name end
-
+local function bind_keymaps(buf, session_name, input_win, waterfall_win)
   vim.keymap.set("n", "<CR>", function() submit(buf, session_name) end,
     { buffer = buf, silent = true, desc = "Plurnk: submit prompt" })
-  vim.keymap.set("i", "<C-CR>", function()
-    vim.cmd("stopinsert")
-    submit(buf, session_name)
-  end, { buffer = buf, silent = true, desc = "Plurnk: submit prompt (insert)" })
-  vim.keymap.set("n", "<Esc>", function()
-    pcall(vim.api.nvim_win_close, win, true)
-  end, { buffer = buf, silent = true, desc = "Plurnk: close input" })
 
+  vim.keymap.set("i", "<C-CR>", function()
+    vim.cmd("stopinsert"); submit(buf, session_name)
+  end, { buffer = buf, silent = true, desc = "Plurnk: submit (insert)" })
+
+  -- Double-Esc from normal: jump to the waterfall window. Single Esc
+  -- keeps default behavior (clear cmdline / leave insert).
+  vim.keymap.set("n", "<Esc><Esc>", function()
+    if waterfall_win and vim.api.nvim_win_is_valid(waterfall_win) then
+      vim.api.nvim_set_current_win(waterfall_win)
+    end
+  end, { buffer = buf, silent = true, desc = "Plurnk: focus waterfall" })
+end
+
+-- Create the input split in the CURRENT tab (assumes the waterfall
+-- window is already set up — called from run_tab.open). Returns
+-- buf, win.
+M.create_in_tab = function(session_name)
+  -- Reuse an existing input buffer for this session.
+  local existing = vim.fn.bufnr(buffer_name(session_name))
+  local buf
+  if existing ~= -1 and vim.api.nvim_buf_is_valid(existing) then
+    buf = existing
+  else
+    buf = vim.api.nvim_create_buf(false, true)
+    pcall(vim.api.nvim_buf_set_name, buf, buffer_name(session_name))
+    vim.bo[buf].buftype = "nofile"
+    vim.bo[buf].bufhidden = "hide"
+    vim.bo[buf].swapfile = false
+  end
+
+  local waterfall_win = vim.api.nvim_get_current_win()
+  vim.cmd("botright " .. INPUT_HEIGHT .. "split")
+  local win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(win, buf)
+  decorate_input_win(win)
+
+  if session_name then vim.b[buf].plurnk_session = session_name end
+  bind_keymaps(buf, session_name, win, waterfall_win)
+
+  vim.cmd("startinsert")
+  return buf, win
+end
+
+-- Back-compat wrapper. Called by `:AI` (no args) — opens the full
+-- run-tab layout (waterfall on top, input on the bottom) and focuses
+-- the input. If no session is attached, the caller is expected to
+-- resolve one first; if none was passed we just open a scratch input.
+M.open = function(session_name)
+  if session_name then
+    require("plurnk.run_tab").open(session_name)
+    return
+  end
+  -- No session — fallback: a lone scratch input split. This path is
+  -- used very early in :AI flows before session.create returns.
+  vim.cmd("botright " .. INPUT_HEIGHT .. "split")
+  local win = vim.api.nvim_get_current_win()
+  local buf = vim.api.nvim_create_buf(false, true)
+  pcall(vim.api.nvim_buf_set_name, buf, buffer_name(nil))
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].bufhidden = "hide"
+  vim.api.nvim_win_set_buf(win, buf)
+  decorate_input_win(win)
+  bind_keymaps(buf, nil, win, nil)
   vim.cmd("startinsert")
   return buf
 end
