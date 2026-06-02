@@ -100,17 +100,20 @@ local function build_extra(entry)
   return ""
 end
 
--- Render the broadcast SEND (op=SEND, no path) as ONE line, body inlined
--- with newlines collapsed to spaces and ellipsized. Mirrors the trace-line
--- pattern used for every other op so the waterfall stays one-line-per-op.
--- (The npm TUI multi-line block is appropriate for a chat REPL; in the
--- nvim run_tab the user already has the full transcript via :PlurnkLog
--- and other surfaces — here we want a tight visual log.)
+-- Render the broadcast SEND (op=SEND, no path) as a multi-line block:
+-- one header line then indented body lines. Broadcast SEND[120/200] IS
+-- the message-to-user — the body is the signal, not telemetry, so we
+-- show it in full (newlines preserved). Other ops stay one-line.
 M.render_broadcast = function(entry)
   local origin = M.ORIGIN_GLYPHS[entry.origin] or "?"
   local op_glyph = M.OP_GLYPHS.SEND
   local sub_glyph = M.send_sub_glyph(entry.signal)
   local status = tostring(entry.status_rx or "?")
+
+  local header_parts = { "  ", origin, " ", op_glyph }
+  if sub_glyph ~= "" then table.insert(header_parts, " " .. sub_glyph) end
+  table.insert(header_parts, " " .. status)
+  local header = table.concat(header_parts)
 
   -- tx.body per plurnk-grammar SendBody: { raw, json } | null.
   local body_text = ""
@@ -120,16 +123,14 @@ M.render_broadcast = function(entry)
   elseif type(tx) == "table" and type(tx.body) == "string" then
     body_text = tx.body
   end
-  local body_inline = ""
-  if body_text ~= "" then
-    body_inline = '  "' .. ellipsize(body_text:gsub("[\r\n]+", " "), 80) .. '"'
-  end
+  if body_text == "" then return { header } end
 
-  local parts = { "  ", origin, " ", op_glyph }
-  if sub_glyph ~= "" then table.insert(parts, " " .. sub_glyph) end
-  table.insert(parts, " " .. status)
-  if body_inline ~= "" then table.insert(parts, body_inline) end
-  return { table.concat(parts) }
+  local lines = { header }
+  for chunk in (body_text .. "\n"):gmatch("([^\n]*)\n") do
+    lines[#lines+1] = "     " .. chunk
+  end
+  if lines[#lines] == "     " then table.remove(lines) end
+  return lines
 end
 
 -- Render a regular (non-broadcast) trace line.

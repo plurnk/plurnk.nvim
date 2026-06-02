@@ -22,24 +22,24 @@ local ok, err = pcall(function()
   H.assert_match(find_lines[1], "🔍", "FIND glyph")
   H.assert_match(find_lines[1], "→ 3 results", "FIND count")
 
-  -- Broadcast SEND renders ONE line, body inlined.
+  -- Broadcast SEND[200] — message to user. Multi-line: header + body lines.
   local bc = r.render_log_entry({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "hi\nthere" } },
   })
-  H.assert_eq(#bc, 1, "broadcast single line")
+  H.assert_eq(#bc, 3, "broadcast header + 2 body lines")
   H.assert_match(bc[1], "✉", "SEND glyph")
   H.assert_match(bc[1], "✅", "SEND ✅ sub-glyph")
-  H.assert_match(bc[1], "hi there", "newline collapsed to space")
-  H.assert_match(bc[1], '"hi there"', "body inlined and quoted")
+  H.assert_eq(bc[2], "     hi", "body line 1 indented 5")
+  H.assert_eq(bc[3], "     there", "body line 2 indented 5")
 
-  -- Broadcast SEND with no body — just header.
+  -- Broadcast SEND with no body — header only.
   local empty = r.render_log_entry({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
   })
-  H.assert_eq(#empty, 1, "empty broadcast single line")
+  H.assert_eq(#empty, 1, "empty broadcast = header only")
 
   -- Origin glyph fallback
   local client_line = r.render_log_entry({
