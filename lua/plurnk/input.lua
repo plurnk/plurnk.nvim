@@ -1,6 +1,9 @@
 -- Chat input scratch buffer. Lives at the bottom of the session tab.
--- <CR> in normal mode submits via loop.run; <Esc> in insert returns to
--- normal so vim keybindings work; the buffer auto-clears after submit.
+-- Vim-canonical: <CR> from NORMAL mode submits. The user enters insert
+-- mode with `i`/`a`/`o` like any other buffer, leaves with <Esc>, then
+-- hits <CR> to send. Window nav is `<C-w>k` (vim's own), not a custom
+-- shortcut. We don't `startinsert` on open either — the user chooses
+-- their mode.
 
 local M = {}
 local INPUT_HEIGHT = 3
@@ -38,24 +41,12 @@ local function decorate_input_win(win)
   vim.wo[win].signcolumn = "no"
   vim.wo[win].cursorline = true
   pcall(vim.api.nvim_set_option_value, "winbar",
-    " plurnk · <CR> submit · <Esc><Esc> back to waterfall ", { win = win })
+    " plurnk · <CR> submit ", { win = win })
 end
 
-local function bind_keymaps(buf, session_name, input_win, waterfall_win)
+local function bind_keymaps(buf, session_name)
   vim.keymap.set("n", "<CR>", function() submit(buf, session_name) end,
     { buffer = buf, silent = true, desc = "Plurnk: submit prompt" })
-
-  vim.keymap.set("i", "<C-CR>", function()
-    vim.cmd("stopinsert"); submit(buf, session_name)
-  end, { buffer = buf, silent = true, desc = "Plurnk: submit (insert)" })
-
-  -- Double-Esc from normal: jump to the waterfall window. Single Esc
-  -- keeps default behavior (clear cmdline / leave insert).
-  vim.keymap.set("n", "<Esc><Esc>", function()
-    if waterfall_win and vim.api.nvim_win_is_valid(waterfall_win) then
-      vim.api.nvim_set_current_win(waterfall_win)
-    end
-  end, { buffer = buf, silent = true, desc = "Plurnk: focus waterfall" })
 end
 
 -- Create the input split in the CURRENT tab (assumes the waterfall
@@ -75,16 +66,13 @@ M.create_in_tab = function(session_name)
     vim.bo[buf].swapfile = false
   end
 
-  local waterfall_win = vim.api.nvim_get_current_win()
   vim.cmd("botright " .. INPUT_HEIGHT .. "split")
   local win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(win, buf)
   decorate_input_win(win)
 
   if session_name then vim.b[buf].plurnk_session = session_name end
-  bind_keymaps(buf, session_name, win, waterfall_win)
-
-  vim.cmd("startinsert")
+  bind_keymaps(buf, session_name)
   return buf, win
 end
 
@@ -107,8 +95,7 @@ M.open = function(session_name)
   vim.bo[buf].bufhidden = "hide"
   vim.api.nvim_win_set_buf(win, buf)
   decorate_input_win(win)
-  bind_keymaps(buf, nil, win, nil)
-  vim.cmd("startinsert")
+  bind_keymaps(buf, nil)
   return buf
 end
 

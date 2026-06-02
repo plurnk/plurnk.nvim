@@ -34,7 +34,8 @@ local ok, err = pcall(function()
     if m.lhs == "<CR>" and m.callback then m.callback() end
   end
 
-  H.wait_for(function() return terminated ~= nil end, 20000, "loop terminated")
+  -- Model latency varies; give the provider room to respond.
+  H.wait_for(function() return terminated ~= nil end, 45000, "loop terminated")
   vim.wait(300, function() return false end, 50)
 
   -- Waterfall has the response; input was cleared; focus stayed on input.
