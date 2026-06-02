@@ -7,7 +7,7 @@ Neovim client for [plurnk-service](https://github.com/plurnk/plurnk-service), th
 
 ## Status
 
-v0.2.0 — wire end-to-end with glyph waterfall, polished statusline, `:diffsplit`-based proposal review, and a headless e2e test suite. The virtual-text HUD and deeper `:checkhealth` are still being ported from rummy.nvim.
+v0.3.0 — full rummy-parity command surface: `:AI` with rummy mode-prefix passthrough, buffer-agnostic proposal review commands, chat input scratch buffer. Glyph waterfall, polished statusline, `:diffsplit` proposals, headless e2e suite all carry over from v0.2.0. The virtual-text HUD and deeper `:checkhealth` are still being ported from rummy.nvim.
 
 ## Architecture
 
@@ -23,6 +23,11 @@ The background nvim holds the WebSocket via `vim.loop`/libuv; the main nvim only
 
 | Command | What |
 |---|---|
+| `:AI` | Open the chat input scratch buffer scoped to the current session. |
+| `:AI {text}` | Submit `{text}` as a prompt (alias of `:PlurnkPrompt`). |
+| `:AI? {text}` / `:AI: {text}` / `:AI! {text}` | Same as `:AI {text}` — the rummy mode prefixes are stripped (plurnk has no modes; the model decides what ops to emit). |
+| `:AI?? {text}` | Create a fresh session, then submit `{text}`. |
+| `:AI/stop`, `:AI/clear` | Cancel all currently pending proposals on this connection. |
 | `:PlurnkPrompt {text}` | Fire a `loop.run` with `{text}` (visual selection auto-prepended). Creates a session if needed. |
 | `:PlurnkSessions` | Picker over `session.list`, attach to selection. |
 | `:PlurnkSessionNew [name]` | Create a fresh session (`session.create`) with optional name. |
@@ -33,6 +38,8 @@ The background nvim holds the WebSocket via `vim.loop`/libuv; the main nvim only
 | `:PlurnkYolo` | Toggle client-side auto-accept of proposals. |
 | `:PlurnkOpen` | Open (or focus) the active session's transcript tab. |
 | `:PlurnkPing` | Sanity check the wire. |
+| `:PlurnkAccept` / `:PlurnkAcceptEdits` / `:PlurnkReject` | Resolve the current proposal as accept-as-proposed / accept-with-edits / reject — works from any buffer. |
+| `:PlurnkNext` / `:PlurnkPrev` | Step through the pending-proposal stack. |
 
 ## Installation
 
@@ -65,17 +72,29 @@ use {
 
 `apply_default_keymaps()` binds (only if the keys aren't already mapped):
 
+The layout mirrors [rummy.nvim](https://github.com/possumtech/rummy.nvim) so muscle memory carries over. Plurnk strips rummy's mode prefixes (`?`/`:`/`!`) because plurnk has no mode taxonomy.
+
 | Key | Mode | Command |
 |---|---|---|
-| `<leader>aa` | n, x | `:PlurnkPrompt ` |
+| `<leader>aa` | n, x | `:AI<CR>` — open chat input |
+| `<leader>a?` | n, x | `:AI? ` — prompt (rummy "ask") |
+| `<leader>a:` | n, x | `:AI: ` — prompt (rummy "act") |
+| `<leader>a!` | n, x | `:AI! ` — prompt (rummy "run") |
+| `<leader>aN` | n | `:AI?? ` — fresh session + prompt |
+| `<leader>ax` | n | `:AI/stop` — cancel pending proposals |
+| `<leader>aX` | n | `:AI/clear` — cancel pending proposals |
 | `<leader>am` | n | `:PlurnkModels` |
 | `<leader>as` | n | `:PlurnkSessions` |
 | `<leader>aR` | n | `:PlurnkSessionRuns` |
-| `<leader>aY` | n | `:PlurnkYolo` |
 | `<leader>aP` | n | `:PlurnkPersona ` |
-| `<leader>aN` | n | `:PlurnkSessionNew` |
 | `<leader>aL` | n | `:PlurnkLog` |
 | `<leader>aO` | n | `:PlurnkOpen` |
+| `<leader>aY` | n | `:PlurnkYolo` |
+| `<leader>ay` | n | `:PlurnkAccept` |
+| `<leader>ae` | n | `:PlurnkAcceptEdits` |
+| `<leader>an` | n | `:PlurnkReject` |
+| `<leader>a]` | n | `:PlurnkNext` |
+| `<leader>a[` | n | `:PlurnkPrev` |
 
 ## Statusline
 

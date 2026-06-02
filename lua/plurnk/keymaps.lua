@@ -1,11 +1,14 @@
--- Default keymaps. Plurnk doesn't have rummy's ask/act/run mode taxonomy,
--- so the keymap set is much smaller: one prompt key, a few pickers, yolo
--- toggle. Users override via require("plurnk").apply_default_keymaps or
--- by wiring their own.
+-- Default keymaps. The layout mirrors rummy.nvim/main/lua/rummy/keymaps.lua
+-- so muscle memory carries over. Plurnk-only differences:
+--   * The `?` / `:` / `!` mode prefixes have no mode semantics (the model
+--     decides what ops to emit) — they are stripped and the rest is sent
+--     as a plain prompt. Users still get to type `<leader>a?` and have
+--     things work.
+--   * Skills, temperature, context-mgmt, fork, file-attribute commands are
+--     dropped per AGENTS.md.
 
 local M = {}
 
--- mapcheck() requires a string mode; accept a table here and check each.
 local function map_if_empty(modes, lhs, rhs, desc)
   if type(modes) == "string" then modes = { modes } end
   for _, m in ipairs(modes) do
@@ -15,24 +18,30 @@ local function map_if_empty(modes, lhs, rhs, desc)
 end
 
 M.setup = function()
-  -- Plurnk prompt key — works in normal AND visual modes.
-  map_if_empty({ "n", "x" }, "<leader>aa", ":PlurnkPrompt ", "Plurnk: Prompt")
+  -- ── Prompt entry (rummy mode-prefix layout, plurnk strips the prefix) ──
+  map_if_empty({ "n", "x" }, "<leader>aa", ":AI<CR>",   "Plurnk: chat (open input)")
+  map_if_empty({ "n", "x" }, "<leader>a?", ":AI? ",      "Plurnk: prompt (rummy: ask)")
+  map_if_empty({ "n", "x" }, "<leader>a:", ":AI: ",      "Plurnk: prompt (rummy: act)")
+  map_if_empty({ "n", "x" }, "<leader>a!", ":AI! ",      "Plurnk: prompt (rummy: run)")
+  map_if_empty("n",          "<leader>aN", ":AI?? ",     "Plurnk: new session + prompt")
+  map_if_empty("n",          "<leader>ax", ":AI/stop<CR>",  "Plurnk: cancel pending")
+  map_if_empty("n",          "<leader>aX", ":AI/clear<CR>", "Plurnk: cancel pending")
 
-  -- Pickers.
+  -- ── Pickers / settings ──
   map_if_empty("n", "<leader>am", ":PlurnkModels<CR>",       "Plurnk: Models")
   map_if_empty("n", "<leader>as", ":PlurnkSessions<CR>",     "Plurnk: Sessions")
   map_if_empty("n", "<leader>aR", ":PlurnkSessionRuns<CR>",  "Plurnk: Runs in session")
-
-  -- Toggles.
-  map_if_empty("n", "<leader>aY", ":PlurnkYolo<CR>",         "Plurnk: Toggle YOLO")
   map_if_empty("n", "<leader>aP", ":PlurnkPersona ",         "Plurnk: Persona file")
-
-  -- New session.
-  map_if_empty("n", "<leader>aN", ":PlurnkSessionNew<CR>",   "Plurnk: New session")
-
-  -- Buffer/log inspection.
   map_if_empty("n", "<leader>aL", ":PlurnkLog<CR>",          "Plurnk: Log")
   map_if_empty("n", "<leader>aO", ":PlurnkOpen<CR>",         "Plurnk: Open session tab")
+  map_if_empty("n", "<leader>aY", ":PlurnkYolo<CR>",         "Plurnk: Toggle YOLO")
+
+  -- ── Proposal review (matches rummy a-y / a-e / a-n / a-] / a-[) ──
+  map_if_empty("n", "<leader>ay", ":PlurnkAccept<CR>",       "Plurnk: Accept proposal")
+  map_if_empty("n", "<leader>ae", ":PlurnkAcceptEdits<CR>",  "Plurnk: Accept with edits")
+  map_if_empty("n", "<leader>an", ":PlurnkReject<CR>",       "Plurnk: Reject proposal")
+  map_if_empty("n", "<leader>a]", ":PlurnkNext<CR>",         "Plurnk: Next proposal")
+  map_if_empty("n", "<leader>a[", ":PlurnkPrev<CR>",         "Plurnk: Prev proposal")
 end
 
 return M
