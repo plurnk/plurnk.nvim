@@ -1,0 +1,109 @@
+*plurnk.txt*  Neovim client for plurnk-service
+
+==============================================================================
+CONTENTS                                                      *plurnk-contents*
+
+  1. Introduction ......................... |plurnk-intro|
+  2. Requirements ......................... |plurnk-requirements|
+  3. Setup ................................ |plurnk-setup|
+  4. Commands ............................. |plurnk-commands|
+  5. Keymaps .............................. |plurnk-keymaps|
+  6. Statusline ........................... |plurnk-statusline|
+  7. Architecture ......................... |plurnk-architecture|
+
+==============================================================================
+1. Introduction                                                  *plurnk-intro*
+
+plurnk.nvim is a Neovim client for plurnk-service, an AI agent daemon. It
+speaks JSON-RPC 2.0 over WebSocket from inside Neovim, with no shell-out and
+no embedded Node.
+
+==============================================================================
+2. Requirements                                           *plurnk-requirements*
+
+- Neovim >= 0.10
+- plenary.nvim
+- A running plurnk-service (default localhost:3044)
+
+==============================================================================
+3. Setup                                                         *plurnk-setup*
+
+>lua
+    require("plurnk").setup({
+      host = "127.0.0.1",
+      port = 3044,
+    })
+    require("plurnk").apply_default_keymaps()
+<
+
+==============================================================================
+4. Commands                                                   *plurnk-commands*
+
+                                                              *:PlurnkPrompt*
+:PlurnkPrompt {text}    Fire loop.run with {text}. Visual selection is
+                        prepended automatically.
+
+                                                            *:PlurnkSessions*
+:PlurnkSessions         Picker over session.list; attach to selection.
+
+                                                          *:PlurnkSessionNew*
+:PlurnkSessionNew [name]    Create a fresh session, optionally named.
+
+                                                         *:PlurnkSessionRuns*
+:PlurnkSessionRuns      Picker over session.runs of the active session.
+
+                                                              *:PlurnkModels*
+:PlurnkModels           Picker over providers.list; selection feeds the next
+                        loop.run.
+
+                                                             *:PlurnkPersona*
+:PlurnkPersona [path]   Set persona file used on subsequent loop.run.
+
+                                                                 *:PlurnkLog*
+:PlurnkLog [limit]      Show recent log entries from the active session.
+
+                                                                *:PlurnkYolo*
+:PlurnkYolo             Toggle client-side auto-accept of proposals.
+
+                                                                *:PlurnkOpen*
+:PlurnkOpen             Open (or focus) the active session's transcript tab.
+
+                                                                *:PlurnkPing*
+:PlurnkPing             Sanity-check the wire.
+
+==============================================================================
+5. Keymaps                                                     *plurnk-keymaps*
+
+require("plurnk").apply_default_keymaps() binds, only when free:
+
+  <leader>aa  (n, x)  PlurnkPrompt
+  <leader>am  (n)     PlurnkModels
+  <leader>as  (n)     PlurnkSessions
+  <leader>aR  (n)     PlurnkSessionRuns
+  <leader>aY  (n)     PlurnkYolo
+  <leader>aP  (n)     PlurnkPersona
+  <leader>aN  (n)     PlurnkSessionNew
+  <leader>aL  (n)     PlurnkLog
+  <leader>aO  (n)     PlurnkOpen
+
+==============================================================================
+6. Statusline                                              *plurnk-statusline*
+
+>lua
+    vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()}"
+<
+
+Reports the current buffer's bound session, model alias, loop id, final
+status.
+
+==============================================================================
+7. Architecture                                          *plurnk-architecture*
+
+>
+    main nvim  <-stdio JSON-RPC->  background headless nvim  <-WS->  daemon
+<
+
+The background nvim holds the WebSocket via vim.loop/libuv. The main nvim
+never touches the socket. Pattern adapted from rummy.nvim.
+
+vim:tw=78:ts=8:ft=help:norl:
