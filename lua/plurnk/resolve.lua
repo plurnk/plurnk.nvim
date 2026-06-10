@@ -1,8 +1,10 @@
 -- Proposal review (loop/proposal → loop.resolve).
 --
 -- Wire (plurnk-grammar 0.17): the proposal payload carries
---   { logEntryId, loopId, turnId, op, target {scheme, pathname}, body, attrs }
--- where `body` is a udiff for EDIT and a shell command for EXEC.
+--   { logEntryId, loopId, turnId, op, target {scheme, pathname}, body, attrs, flags }
+-- where `body` is a udiff for EDIT and a shell command for EXEC. Server-
+-- resolved proposals (flags.yolo / flags.noProposals) never reach this module
+-- — dispatch.handle_loop_proposal drops them before review.
 -- loop.resolve takes { logEntryId, decision: "accept"|"reject"|"cancel", body?, outcome? }.
 --
 -- EDIT: opens a diffsplit — left = disk content, right = post-patch content.

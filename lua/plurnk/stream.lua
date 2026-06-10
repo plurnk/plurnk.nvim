@@ -3,17 +3,13 @@
 --
 -- The daemon owns the subprocess (exec scheme, etc.); we receive notifications
 -- when a channel's content grows or its state transitions. The notification
--- carries only metadata (entryId, channel name, state, contentLength) — we
--- fetch the actual content with entry.read.
---
--- entry.read takes the entry's URI (`scheme://pathname`), not its id. So we
--- maintain a small entry_id → target lookup populated by log/entry as the
--- stream's entry is born. (Filed upstream: stream/event could carry `target`
--- directly so a mid-stream-connecting client doesn't need the lookup.)
+-- carries metadata only (entryId, target URI, channel name, state,
+-- contentLength) — we fetch the actual content with entry.read({target}).
+-- `target` arrived in plurnk-service #179 (the upstream request we filed);
+-- no entry_id → URI lookup is needed anymore.
 
 local M = {}
 
-local id_to_target = {}     -- entry_id (number)  → target URI (string)
 local stream_state = {}     -- entry_id (number)  → { last_length, channel, buf, win }
 
 local function get_or_create_buf(entry_id, target, channel)
@@ -51,26 +47,13 @@ local function ensure_window(st)
   return st.win
 end
 
--- Called by dispatch.handle_log_entry for every log/entry. Populates the
--- entry_id → target map so stream/event can look up the URI later.
-M.note_log_entry = function(entry)
-  if not entry or type(entry.id) ~= "number" then return end
-  if not entry.scheme or not entry.pathname then return end
-  local target = string.format("%s://%s%s", entry.scheme, entry.hostname or "", entry.pathname)
-  id_to_target[entry.id] = target
-end
-
 -- stream/event: a channel grew or transitioned state. Metadata-only —
--- we fetch the body via entry.read.
+-- we fetch the body via entry.read on the carried target URI.
 M.on_event = function(params, _session_name)
   if not params or type(params.entryId) ~= "number" then return end
+  if type(params.target) ~= "string" or #params.target == 0 then return end
   local entry_id = params.entryId
-  local target = id_to_target[entry_id]
-  if not target then
-    -- No URI yet (we haven't seen log/entry for this one). Best-effort:
-    -- defer rendering until we do; the next stream/event will retry.
-    return
-  end
+  local target = params.target
 
   local content_length = tonumber(params.contentLength) or 0
   local st = get_or_create_buf(entry_id, target, params.channel)
@@ -140,7 +123,6 @@ end
 
 -- Test/teardown hook.
 M.reset = function()
-  id_to_target = {}
   stream_state = {}
 end
 

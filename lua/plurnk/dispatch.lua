@@ -65,9 +65,6 @@ M.handle_log_entry = function(params, session_name)
   local entry = params.entry
   apply_entry_to_state(session_name, entry)
 
-  -- Note the entry's id ↔ target URI for the stream module's lookup.
-  pcall(function() require("plurnk.stream").note_log_entry(entry) end)
-
   vim.schedule(function()
     local ok, run_tab = pcall(require, "plurnk.run_tab")
     if ok and session_name then run_tab.append_history(session_name, { entry }) end
@@ -77,8 +74,15 @@ end
 
 -- loop/proposal: a side-effecting op is paused awaiting client resolution
 -- per SPEC §6.1. We hand it off to resolve.lua.
+--
+-- Server-resolved proposals (loop flags.yolo = server-side YOLO auto-accept,
+-- flags.noProposals = server-side auto-reject) settle in-process before any
+-- human can react — review UI and a loop.resolve would race the already-
+-- settled entry. Skip; the lifecycle still shows in the log/entry waterfall.
 M.handle_loop_proposal = function(params, session_name)
   if not params or type(params.logEntryId) ~= "number" then return end
+  local flags = params.flags
+  if type(flags) == "table" and (flags.yolo == true or flags.noProposals == true) then return end
   if session_name then state.add_proposal(session_name, params.logEntryId, params) end
   vim.schedule(function()
     local ok, resolve = pcall(require, "plurnk.resolve")
