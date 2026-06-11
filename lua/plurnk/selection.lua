@@ -1,5 +1,13 @@
 local M = {}
 
+-- Raw selected text (no XML wrapper) — `:AI!` execs the selected lines
+-- verbatim; wrapping a shell command in <selection> would corrupt it.
+function M.get_selection_text(start_pos, end_pos, forced_mode)
+  local wrapped = M.get_selection(start_pos, end_pos, forced_mode)
+  if not wrapped then return nil end
+  return wrapped:match("^<selection[^>]*>\n(.*)\n</selection>$")
+end
+
 function M.get_selection(start_pos, end_pos, forced_mode)
   local mode = forced_mode or vim.fn.mode()
   -- If we're in command mode but came from visual, use marks

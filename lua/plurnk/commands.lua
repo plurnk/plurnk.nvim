@@ -128,6 +128,31 @@ local function fork_run_then(session_name, callback)
   end)
 end
 
+-- ── op.exec helper (`:AI!`) ─────────────────────────────────────────
+
+-- Raw selection text mirroring wrap_with_selection's two entry paths
+-- (live visual marks vs a :{range} command).
+local function selection_text(opts)
+  local sel = require("plurnk.selection")
+  if vim.fn.mode():match("[vV\22]") then return sel.get_selection_text() end
+  if opts and opts.range and opts.range > 0 then
+    return sel.get_selection_text({ 0, opts.line1, 1, 0 }, { 0, opts.line2, 1000, 0 }, "V")
+  end
+  return nil
+end
+
+-- Run a shell command through the engine (§6.8): the exec scheme spawns
+-- it, output streams over stream/event into the stream split, and the
+-- model learns the outcome over the wire — rummy's Run mode, daemon-owned.
+local function send_exec(command)
+  local client = require("plurnk.client")
+  client.send("op.exec", { command = command }, false, function(result)
+    if type(result) == "table" and type(result.status) == "number" and result.status >= 400 then
+      client.notify("exec rejected: " .. tostring(result.status), vim.log.levels.WARN)
+    end
+  end)
+end
+
 -- ── loop.run helper ────────────────────────────────────────────────
 
 local function send_loop_run(session_name, prompt, model_alias)
@@ -399,7 +424,9 @@ local SLASH = {
 --   :AI                 → toggle: session tab ⇄ where you came from
 --   :AI <text>          → loop.run with prompt (visual selection prepended)
 --   :AI? / :AI: <text>  → same; prefix is rummy flavor, stripped
---   :AI! <text>         → same for now; op.exec when #16 phase 2 lands
+--   :AI! <cmd>          → op.exec — daemon-owned shell, output streams
+--                         into the stream split; no <cmd> execs the
+--                         visual selection verbatim
 --   :AI?? <text>        → NEW session, then prompt
 --   :AI??? <text>       → new HEADLESS session (no projectRoot), then prompt
 --   :AI???? <text>      → new RUN in the current session (fork-lite)
@@ -409,6 +436,10 @@ local SLASH = {
 -- Cmdline abbreviations (M.setup) make the no-space forms work: `:AI?? hi`.
 M.ai = function(opts)
   local raw = (opts.args or ""):gsub("^%s+", "")
+
+  -- `:AI!cmd` parses as bang=true args="cmd" (the abbrev only catches
+  -- the spaced form) — fold the bang back into the prefix language.
+  if opts.bang then raw = "!" .. raw end
 
   if raw == "" then return M.toggle() end
 
@@ -437,6 +468,29 @@ M.ai = function(opts)
     end
   end
   local rest = raw:sub(prefix_len + 1):gsub("^%s+", "")
+
+  if first == "!" then
+    -- Command text wins; bare `:AI!` over a visual selection execs the
+    -- selected lines verbatim. Captured before any async hop.
+    local command = rest ~= "" and rest or selection_text(opts)
+    if not command or command == "" then
+      require("plurnk.client").notify(":AI! needs a command (text or visual selection)", vim.log.levels.WARN)
+      return
+    end
+    local go = function(session_name)
+      require("plurnk.run_tab").open(session_name)
+      send_exec(command)
+    end
+    if prefix_len >= 4 then
+      local session = active_session()
+      if session then return fork_run_then(session, go) end
+      return create_session_then({}, go)
+    end
+    if prefix_len >= 2 then
+      return create_session_then({ headless = prefix_len == 3 }, go)
+    end
+    return resolve_session_then(function(session_name) go(session_name) end)
+  end
 
   if prefix_len >= 2 then
     -- Wrap selection NOW (before any async hop) — the marks still hold

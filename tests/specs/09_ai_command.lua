@@ -32,10 +32,17 @@ local ok, err = pcall(function()
   ai({ args = "? what is france", range = 0 })
   H.assert_eq(captured[1].params.prompt, "what is france", ":AI? strips ?")
 
-  -- :AI! cmd
+  -- :AI! cmd → op.exec (daemon-owned Run mode, #16 phase 2)
   captured = {}
-  ai({ args = "! show repo", range = 0 })
-  H.assert_eq(captured[1].params.prompt, "show repo", ":AI! strips !")
+  ai({ args = "! git status", range = 0 })
+  H.assert_eq(captured[1].method, "op.exec", ":AI! routes to op.exec")
+  H.assert_eq(captured[1].params.command, "git status", ":AI! carries the command")
+
+  -- :AI!cmd via bang (the unabbreviated parse: bang=true, args="cmd")
+  captured = {}
+  ai({ args = "git diff", bang = true, range = 0 })
+  H.assert_eq(captured[1].method, "op.exec", ":AI! bang form routes to op.exec")
+  H.assert_eq(captured[1].params.command, "git diff", ":AI! bang form carries the command")
 
   -- :AI no prefix
   captured = {}
