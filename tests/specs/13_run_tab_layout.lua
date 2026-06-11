@@ -29,7 +29,7 @@ local ok, err = pcall(function()
   H.assert_eq(vim.api.nvim_get_current_win(), rec.input_win, "focus is on input")
 
   -- Type + submit via the <CR> mapping.
-  vim.api.nvim_buf_set_lines(rec.input_buf, 0, -1, false, { "What is the capital of France?" })
+  vim.api.nvim_buf_set_lines(rec.input_buf, 0, -1, false, { "? What is the capital of France?" })
   for _, m in ipairs(vim.api.nvim_buf_get_keymap(rec.input_buf, "n")) do
     if m.lhs == "<CR>" and m.callback then m.callback() end
   end
