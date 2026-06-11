@@ -72,6 +72,30 @@ local ok, err = pcall(function()
   })
   H.assert_match(client_line[1], "👤", "client glyph")
 
+  -- Prompt entry (plurnk://prompt/*) renders as USER SPEECH, not an EDIT trace.
+  local prompt_block = r.render_log_entry({
+    op = "EDIT", origin = "system", scheme = "plurnk", pathname = "prompt/3/1",
+    status_rx = 201, tx = { body = "What is the capital of France?" },
+  })
+  H.assert_match(prompt_block[1], "👤", "prompt speaks as the user")
+  H.assert_match(prompt_block[1], "✉️", "prompt is speech, not an op")
+  H.assert_match(prompt_block[1], "What is the capital", "short prompt inlines")
+  H.assert_truthy(not prompt_block[1]:match("✏️"), "no EDIT glyph on prompts")
+
+  local long_prompt = r.render_log_entry({
+    op = "EDIT", origin = "system", scheme = "plurnk", pathname = "prompt/3/1",
+    status_rx = 201, tx = { body = "line one\nline two" },
+  })
+  H.assert_eq(#long_prompt, 3, "multi-line prompt = header + body lines")
+  H.assert_match(long_prompt[2], "line one", "prompt body present")
+
+  -- Non-prompt plurnk:// EDIT stays an op trace.
+  local manifest = r.render_log_entry({
+    op = "EDIT", origin = "system", scheme = "plurnk", pathname = "manifest.json",
+    status_rx = 201, tx = { body = "{}" },
+  })
+  H.assert_match(manifest[1], "✏️", "non-prompt plurnk EDIT keeps the EDIT glyph")
+
   -- Summary
   H.assert_match(r.render_summary(3, 850, 200, 200, false), "done", "summary tag")
   H.assert_match(r.render_summary(3, 1500, 200, 200, false), "1.50s", "summary seconds")
