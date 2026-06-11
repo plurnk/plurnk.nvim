@@ -14,7 +14,12 @@ local ok, err = pcall(function()
     table.insert(sent, { method = method, params = params })
     if method == "session.create" and cb then cb({ id = 7, name = "lang-" .. #sent }) end
     if method == "session.attach" and cb then cb({ id = 7, runId = 42, runName = "auto-run" }) end
+    if method == "session.runs" and cb then cb({ runs = { { id = 42, name = "auto-run" } } }) end
     if method == "loop.cancel" and cb then cb({ cancelled = true, runId = 9 }) end
+  end
+  local function find(list, method)
+    for _, m in ipairs(list) do if m.method == method then return m end end
+    return nil
   end
   require("plurnk.state").set_project_path("/tmp/lang-proj")
 
@@ -22,8 +27,9 @@ local ok, err = pcall(function()
   -- Without the cabbrev this is E492 (`?` can't be in a command name).
   vim.api.nvim_feedkeys(":AI? hello\r", "x", false)
   H.assert_eq(sent[1].method, "session.create", "abbrev :AI? creates session")
-  H.assert_eq(sent[2].method, "loop.run", "abbrev :AI? runs loop")
-  H.assert_eq(sent[2].params.prompt, "hello", "abbrev :AI? strips prefix")
+  local lr = find(sent, "loop.run")
+  H.assert_truthy(lr, "abbrev :AI? runs loop")
+  H.assert_eq(lr.params.prompt, "hello", "abbrev :AI? strips prefix")
 
   local ai = require("plurnk.commands").ai
 
@@ -33,7 +39,9 @@ local ok, err = pcall(function()
   H.assert_eq(stops, 1, ":AI??? drops the bound connection")
   H.assert_eq(sent[1].method, "session.create", ":AI??? creates a session")
   H.assert_eq(sent[1].params.projectRoot, nil, ":AI??? omits projectRoot")
-  H.assert_eq(sent[2].params.prompt, "bare metal", ":AI??? carries prompt")
+  local lr3 = find(sent, "loop.run")
+  H.assert_truthy(lr3, ":AI??? then loop.run")
+  H.assert_eq(lr3.params.prompt, "bare metal", ":AI??? carries prompt")
 
   -- ── `????` — fork-lite: new run in the CURRENT session ─────────────
   sent = {}

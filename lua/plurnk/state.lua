@@ -84,6 +84,19 @@ M.set_run_id = function(name, id) local s = ensure_session(name); if s then s.ru
 M.get_run_name = function(name) local s = ensure_session(name); return s and s.run_name end
 M.set_run_name = function(name, run) local s = ensure_session(name); if s then s.run_name = run end end
 
+-- Per-run display labels (run_id → name) for waterfall titles/winbars —
+-- the current run_name only covers the bound run.
+M.get_run_label = function(name, run_id)
+  local s = ensure_session(name)
+  return s and s.run_labels and s.run_labels[run_id]
+end
+M.set_run_label = function(name, run_id, label)
+  local s = ensure_session(name)
+  if not s or type(run_id) ~= "number" or not label then return end
+  s.run_labels = s.run_labels or {}
+  s.run_labels[run_id] = label
+end
+
 M.get_model_alias = function(name) local s = ensure_session(name); return s and s.model_alias end
 M.set_model_alias = function(name, alias) local s = ensure_session(name); if s then s.model_alias = alias end end
 
