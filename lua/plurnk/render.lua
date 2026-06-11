@@ -148,10 +148,38 @@ M.render_broadcast = function(entry)
   return lines
 end
 
+-- The user's prompt is conversation, not an op record. The engine writes
+-- it as a system-origin EDIT to plurnk://prompt/<loop>/<turn> (service
+-- SPEC §15); render it as the user speaking — 👤 ✉️ with the prompt body
+-- — instead of an EDIT trace. Arrives on hydration/log.read today; live
+-- the moment plurnk-service#198 (prompt broadcast) lands.
+M.is_prompt_entry = function(entry)
+  return entry.op == "EDIT" and entry.scheme == "plurnk"
+    and type(entry.pathname) == "string" and entry.pathname:sub(1, 7) == "prompt/"
+end
+
+M.render_prompt = function(entry)
+  local body = type(entry.tx) == "table" and type(entry.tx.body) == "string" and entry.tx.body or ""
+  local header = M.ORIGIN_GLYPHS.client .. " " .. M.OP_GLYPHS.SEND
+  if body == "" then return { header } end
+  if not body:find("\n", 1, true) and #body <= BROADCAST_INLINE_LIMIT then
+    return { header .. "  " .. body }
+  end
+  local lines = { header }
+  for chunk in (body .. "\n"):gmatch("([^\n]*)\n") do
+    lines[#lines+1] = "   " .. chunk
+  end
+  if lines[#lines] == "   " then table.remove(lines) end
+  return lines
+end
+
 -- Render a regular (non-broadcast) trace line.
 M.render_log_entry = function(entry)
   if entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil then
     return M.render_broadcast(entry)
+  end
+  if M.is_prompt_entry(entry) then
+    return M.render_prompt(entry)
   end
 
   local origin = M.ORIGIN_GLYPHS[entry.origin] or "?"
