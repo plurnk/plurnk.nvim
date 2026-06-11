@@ -128,6 +128,20 @@ M.add_tokens = function(name, n)
   if s then s.tokens_total = (s.tokens_total or 0) + n end
 end
 
+-- Real provider usage (plurnk-service #197), accumulated per session
+-- from loop/terminated — the ONE accumulation point (loop.run's result
+-- carries the same numbers; adding both would double-count).
+M.get_usage = function(name) local s = ensure_session(name); return s and s.usage end
+M.add_usage = function(name, u)
+  if type(u) ~= "table" then return end
+  local s = ensure_session(name)
+  if not s then return end
+  s.usage = s.usage or { prompt = 0, completion = 0 }
+  if type(u.promptTokens) == "number" then s.usage.prompt = s.usage.prompt + u.promptTokens end
+  if type(u.completionTokens) == "number" then s.usage.completion = s.usage.completion + u.completionTokens end
+  if type(u.costPico) == "number" then s.cost_pico = (s.cost_pico or 0) + u.costPico end
+end
+
 -- True between loop.run dispatch and loop/terminated — drives the
 -- "switching away from a live loop" notify.
 M.is_loop_inflight = function(name) local s = ensure_session(name); return s and s.loop_inflight or false end

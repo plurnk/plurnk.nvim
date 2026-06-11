@@ -24,6 +24,17 @@ local ok, err = pcall(function()
   H.assert_match(line, "1%.5k tok", "statusline shows the k-formatted gauge")
   H.assert_match(line, "plurnk%[gauge", "statusline names the session")
 
+  -- Real usage (loop/terminated, svc#197) replaces the content-token
+  -- gauge and accumulates cost.
+  dispatch.handle_loop_terminated({ loopId = 1, finalStatus = 200, hitMaxTurns = false,
+    usage = { promptTokens = 2000, completionTokens = 500, costPico = 7e9 } }, "gauge")
+  dispatch.handle_loop_terminated({ loopId = 2, finalStatus = 200, hitMaxTurns = false,
+    usage = { promptTokens = 1000, completionTokens = 250, costPico = 3e9 } }, "gauge")
+  line = require("plurnk.statusline").text()
+  H.assert_match(line, "↑3%.0k ↓750", "statusline shows accumulated real usage")
+  H.assert_truthy(not line:match("tok"), "content gauge yields to real usage")
+  H.assert_eq(state.get_cost_pico("gauge"), 1e10, "cost accumulates from usage")
+
   -- Zero-token session shows NO gauge (no fake zeros).
   vim.cmd("enew")
   vim.b.plurnk_session = "empty"

@@ -13,7 +13,10 @@ local ok, err = pcall(function()
   local orig = dispatch.handle_loop_terminated
   dispatch.handle_loop_terminated = function(p, sn) terminated = p; orig(p, sn) end
 
-  vim.cmd("AI: Hello, world.")
+  -- Ask mode: grammar-constrained sampling (svc#189) makes bare prompts
+  -- provoke EXEC attempts → proposal pauses this spec never resolves.
+  -- Ask 403s exec at dispatch — deterministic AND dogfoods the habit.
+  vim.cmd("AI ? Hello, world.")
   H.wait_for(function() return terminated ~= nil end, 20000, "loop/terminated")
   vim.wait(300, function() return false end, 50) -- flush appended-history schedules
 

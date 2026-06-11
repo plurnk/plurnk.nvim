@@ -44,14 +44,20 @@ M.text = function()
   local final = state.get_final_status(session)
   parts[#parts+1] = status_glyph(final) .. (final and (" " .. tostring(final)) or "")
 
-  -- Session token total (content tokens from log rows; real ↑/↓ usage
-  -- arrives with plurnk-service#197). Omitted at zero — no fake gauges.
-  local tok = state.get_tokens(session)
-  if tok > 0 then
-    local txt = tok >= 1e6 and string.format("%.1fM", tok / 1e6)
-      or tok >= 1000 and string.format("%.1fk", tok / 1000)
-      or tostring(tok)
-    parts[#parts+1] = txt .. " tok"
+  -- Token gauge. Real provider usage (↑prompt ↓completion, from
+  -- loop/terminated — plurnk-service#197) wins; content-token sum from
+  -- log rows is the fallback for older daemons. Omitted at zero.
+  local function fmt_count(n)
+    if n >= 1e6 then return string.format("%.1fM", n / 1e6) end
+    if n >= 1000 then return string.format("%.1fk", n / 1000) end
+    return tostring(n)
+  end
+  local usage = state.get_usage(session)
+  if usage and (usage.prompt > 0 or usage.completion > 0) then
+    parts[#parts+1] = "↑" .. fmt_count(usage.prompt) .. " ↓" .. fmt_count(usage.completion)
+  else
+    local tok = state.get_tokens(session)
+    if tok > 0 then parts[#parts+1] = fmt_count(tok) .. " tok" end
   end
 
   local cost = format_cost(state.get_cost_pico(session))

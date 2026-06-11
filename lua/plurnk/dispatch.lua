@@ -100,6 +100,7 @@ end
 M.handle_loop_terminated = function(params, session_name)
   if not params or not session_name then return end
   state.set_loop_inflight(session_name, false)
+  state.add_usage(session_name, params.usage)
   if type(params.finalStatus) == "number" then
     state.set_final_status(session_name, params.finalStatus)
   end
