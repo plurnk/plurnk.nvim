@@ -18,6 +18,15 @@ local function submit(buf, session_name)
   local text = vim.fn.trim(table.concat(lines, "\n"))
   if text == "" then return end
 
+  -- Raw DSL passthrough (TUI parity, plurnk SPEC §3.1): input starting
+  -- `<<` goes to op.parse — the daemon parses and dispatches each
+  -- statement as actions of one turn; results arrive as log/entry.
+  if text:sub(1, 2) == "<<" then
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
+    require("plurnk.client").send("op.parse", { text = text }, false)
+    return
+  end
+
   -- Strip rummy mode prefixes that users still reach for out of habit
   -- (?, :, ! — plurnk has no modes, the model decides what ops to emit).
   text = text:gsub("^[%?%:%!]+%s*", "")

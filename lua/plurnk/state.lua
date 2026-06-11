@@ -159,4 +159,14 @@ M.all_session_names = function()
   return names
 end
 
+-- Reverse lookup for notification routing: the daemon stamps sessionId
+-- on every notification (plurnk-service #191); we key state by name.
+M.session_name_for_id = function(id)
+  if type(id) ~= "number" then return nil end
+  for name, s in pairs(session_states) do
+    if s.id == id then return name end
+  end
+  return nil
+end
+
 return M
