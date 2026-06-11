@@ -43,6 +43,13 @@ local ok, err = pcall(function()
   last = sent[#sent]
   H.assert_eq(last.method, "op.exec", "! input routes to op.exec")
   H.assert_eq(last.params.command, "git status", "! carries the command")
+
+  -- `/` prefix is the verb surface — the input buffer IS the TUI in vim.
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "/ping" })
+  vim.api.nvim_feedkeys("\r", "x", false)
+  last = sent[#sent]
+  H.assert_eq(last.method, "ping", "/verb input routes through :AI/ dispatch")
+  H.assert_eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1], "", "input cleared after /verb")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
