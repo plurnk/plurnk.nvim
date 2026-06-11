@@ -27,8 +27,19 @@ local function submit(buf, session_name)
     return
   end
 
-  -- Strip rummy mode prefixes that users still reach for out of habit
-  -- (?, :, ! — plurnk has no modes, the model decides what ops to emit).
+  -- Prefix language, same as :AI — `?` is ASK (flags.mode="ask"; the
+  -- engine 403s excludedInAsk schemes), `:` is act (default), `!` execs
+  -- the rest through the daemon (op.exec).
+  local first = text:sub(1, 1)
+  if first == "!" then
+    local cmd = text:gsub("^!+%s*", "")
+    if cmd ~= "" then
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
+      require("plurnk.client").send("op.exec", { command = cmd }, false)
+      return
+    end
+  end
+  local flags = first == "?" and { mode = "ask" } or nil
   text = text:gsub("^[%?%:%!]+%s*", "")
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
@@ -44,12 +55,12 @@ local function submit(buf, session_name)
   local current_run = session_name and require("plurnk.state").get_run_id(session_name)
   if target_run and current_run and target_run ~= current_run then
     require("plurnk.commands").switch_run(session_name, target_run, function()
-      require("plurnk.commands").prompt({ args = text, range = 0 })
+      require("plurnk.commands").prompt({ args = text, range = 0, flags = flags })
     end)
     return
   end
 
-  require("plurnk.commands").prompt({ args = text, range = 0 })
+  require("plurnk.commands").prompt({ args = text, range = 0, flags = flags })
 end
 
 -- Decorate the input window (no numbers, wrap on, fixed-height). No

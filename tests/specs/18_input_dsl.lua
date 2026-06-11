@@ -27,6 +27,22 @@ local ok, err = pcall(function()
   local last = sent[#sent]
   H.assert_eq(last.method, "loop.run", "plain input routes to loop.run")
   H.assert_eq(last.params.prompt, "hello there", "prompt carries the text")
+  H.assert_eq(last.params.flags, nil, "plain input is act (no flags)")
+
+  -- `? ` prefix is ASK — flags.mode=ask rides loop.run.
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "? what changed" })
+  vim.api.nvim_feedkeys("\r", "x", false)
+  last = sent[#sent]
+  H.assert_eq(last.method, "loop.run", "? input routes to loop.run")
+  H.assert_eq(last.params.flags and last.params.flags.mode, "ask", "? input sends mode=ask")
+  H.assert_eq(last.params.prompt, "what changed", "? stripped from prompt")
+
+  -- `! ` prefix execs through the daemon.
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "! git status" })
+  vim.api.nvim_feedkeys("\r", "x", false)
+  last = sent[#sent]
+  H.assert_eq(last.method, "op.exec", "! input routes to op.exec")
+  H.assert_eq(last.params.command, "git status", "! carries the command")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

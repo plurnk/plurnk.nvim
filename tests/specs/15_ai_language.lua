@@ -53,6 +53,25 @@ local ok, err = pcall(function()
   H.assert_eq(sent[2].method, "loop.run", ":AI???? then loop.run")
   H.assert_eq(sent[2].params.prompt, "take two", ":AI???? carries prompt")
 
+  -- ── `?` is ASK: flags.mode="ask" rides loop.run; `:` is act ────────
+  sent = {}
+  ai({ args = "? read only please", range = 0 })
+  local ask = find(sent, "loop.run")
+  H.assert_truthy(ask, ":AI? runs a loop")
+  H.assert_eq(ask.params.flags and ask.params.flags.mode, "ask", ":AI? sends flags.mode=ask")
+
+  sent = {}
+  ai({ args = ": change things", range = 0 })
+  local act = find(sent, "loop.run")
+  H.assert_truthy(act, ":AI: runs a loop")
+  H.assert_eq(act.params.flags, nil, ":AI: sends no flags (act is the daemon default)")
+
+  -- ask survives scope repetition: `??` = new session, still ask
+  sent = {}
+  ai({ args = "?? fresh ask", range = 0 })
+  local ask2 = find(sent, "loop.run")
+  H.assert_eq(ask2.params.flags and ask2.params.flags.mode, "ask", ":AI?? carries ask into the new session")
+
   -- ── `/` routing ────────────────────────────────────────────────────
   sent = {}
   ai({ args = "/ping", range = 0 })
