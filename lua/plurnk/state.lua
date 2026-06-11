@@ -118,6 +118,16 @@ M.set_current_turn = function(name, t) local s = ensure_session(name); if s then
 M.get_final_status = function(name) local s = ensure_session(name); return s and s.final_status end
 M.set_final_status = function(name, st) local s = ensure_session(name); if s then s.final_status = st end end
 
+-- Session-total content tokens, summed from log/entry rows
+-- (log_entries.tokens — write-time counts; real provider usage arrives
+-- with plurnk-service#197). Statusline fuel gauge.
+M.get_tokens = function(name) local s = ensure_session(name); return s and s.tokens_total or 0 end
+M.add_tokens = function(name, n)
+  if type(n) ~= "number" or n <= 0 then return end
+  local s = ensure_session(name)
+  if s then s.tokens_total = (s.tokens_total or 0) + n end
+end
+
 -- True between loop.run dispatch and loop/terminated — drives the
 -- "switching away from a live loop" notify.
 M.is_loop_inflight = function(name) local s = ensure_session(name); return s and s.loop_inflight or false end
