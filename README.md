@@ -1,138 +1,52 @@
 # plurnk.nvim
 
-Neovim client for [plurnk-service](https://github.com/plurnk/plurnk-service), the AI agent daemon. Talks JSON-RPC 2.0 over WebSocket directly from inside Neovim — no subprocess shelling out to the `@plurnk/plurnk` CLI, no embedded Node.
+Neovim client for [plurnk-service](https://github.com/plurnk/plurnk-service). JSON-RPC 2.0 over WebSocket from inside Neovim; no Node, no CLI subprocess. The pitch: **use LLMs the vim way** — your buffers, your motions, your `:` line.
 
-> [!NOTE]
-> Requires a running [plurnk-service](https://github.com/plurnk/plurnk-service) (default `localhost:3044`). See the service repo for setup.
+Requires: Neovim ≥ 0.10, a running plurnk-service daemon (default `127.0.0.1:3044`).
 
-## Status
-
-v0.3.0 — full rummy-parity command surface: `:AI` with rummy mode-prefix passthrough, buffer-agnostic proposal review commands, chat input scratch buffer. Glyph waterfall, polished statusline, `:diffsplit` proposals, headless e2e suite all carry over from v0.2.0. The virtual-text HUD and deeper `:checkhealth` are still being ported from rummy.nvim.
-
-## Architecture
-
-Same pattern as [rummy.nvim](https://github.com/possumtech/rummy.nvim) — the deliberate trick for keeping off Neovim's main event loop:
-
-```
-   main nvim  ←─stdio JSON-RPC─→  background headless nvim  ←─WebSocket─→  plurnk-service
+```lua
+require("plurnk").setup({ host = "127.0.0.1", port = 3044 })
+require("plurnk").apply_default_keymaps()  -- optional; only fills unmapped keys
 ```
 
-The background nvim holds the WebSocket via `vim.loop`/libuv; the main nvim only ever reads and writes JSON-RPC frames over stdio. Main nvim never touches the socket directly, never blocks on I/O.
+## The `:AI` language
 
-## Commands
+`:AI/` prints this table in-editor.
 
-| Command | What |
+| Form | Effect |
 |---|---|
-| `:AI` | Open the chat input scratch buffer scoped to the current session. |
-| `:AI {text}` | Submit `{text}` as a prompt (alias of `:PlurnkPrompt`). |
-| `:AI? {text}` / `:AI: {text}` / `:AI! {text}` | Same as `:AI {text}` — the rummy mode prefixes are stripped (plurnk has no modes; the model decides what ops to emit). |
-| `:AI?? {text}` | Create a fresh session, then submit `{text}`. |
-| `:AI/stop`, `:AI/clear` | Cancel all currently pending proposals on this connection. |
-| `:PlurnkPrompt {text}` | Fire a `loop.run` with `{text}` (visual selection auto-prepended). Creates a session if needed. |
-| `:PlurnkSessions` | Picker over `session.list`, attach to selection. |
-| `:PlurnkSessionNew [name]` | Create a fresh session (`session.create`) with optional name. |
-| `:PlurnkSessionRuns` | Picker over `session.runs` of the active session, attach the chosen run. |
-| `:PlurnkModels` | Picker over `providers.list`. Selection feeds `alias` on the next `loop.run`. |
-| `:PlurnkPersona [path]` | Set the persona file used on subsequent `loop.run`. No arg clears it. |
-| `:PlurnkLog [limit]` | Show recent entries (`log.read`) from the active session in the session buffer. |
-| `:PlurnkYolo` | Toggle client-side auto-accept of proposals. |
-| `:PlurnkOpen` | Open (or focus) the active session's transcript tab. |
-| `:PlurnkPing` | Sanity check the wire. |
-| `:PlurnkAccept` / `:PlurnkAcceptEdits` / `:PlurnkReject` | Resolve the current proposal as accept-as-proposed / accept-with-edits / reject — works from any buffer. |
-| `:PlurnkNext` / `:PlurnkPrev` | Step through the pending-proposal stack. |
+| `:AI` | toggle session tab ⇄ where you came from |
+| `:AI {text}` | prompt (act) |
+| `:AI? {text}` | **ask** — read-only loop: `flags.mode="ask"`, the engine 403s edits/exec |
+| `:AI: {text}` | act (the default) |
+| `:AI! {cmd}` | exec `{cmd}` via the daemon; bare `:AI!` execs the visual selection |
+| `:AI??` / `::` | new session, then prompt |
+| `:AI???` | new headless session (no project root) |
+| `:AI????` | new run in the current session (fork) |
+| `:AI... {text}` | inject into the running loop (pending plurnk-service#193) |
+| `:AI/{verb}` | `models sessions runs new persona log yolo ping open accept reject next prev stop clear` |
 
-## Installation
+Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:AI?? hi`) work via cmdline abbreviations.
 
-```lua
--- lazy.nvim
-{
-  "plurnk/plurnk.nvim",
-  config = function()
-    require("plurnk").setup({
-      host = "127.0.0.1",
-      port = 3044,
-    })
-    require("plurnk").apply_default_keymaps()
-  end,
-}
-```
+## Layout
 
-```lua
--- packer.nvim
-use {
-  "plurnk/plurnk.nvim",
-  config = function()
-    require("plurnk").setup()
-    require("plurnk").apply_default_keymaps()
-  end,
-}
-```
+One tab per **run** (a conversation); a **session** is the workspace containing runs. One session is live per Neovim instance; switching notifies. Each run tab: glyph waterfall on top (the run's log, exactly what the model sees), 3-line input below — `<CR>` in normal mode submits; `? `/`: `/`! ` prefixes and raw `<<DSL` work there too. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.
 
-## Default keymaps
+## Proposals
 
-`apply_default_keymaps()` binds (only if the keys aren't already mapped):
-
-The layout mirrors [rummy.nvim](https://github.com/possumtech/rummy.nvim) so muscle memory carries over. Plurnk strips rummy's mode prefixes (`?`/`:`/`!`) because plurnk has no mode taxonomy.
-
-| Key | Mode | Command |
-|---|---|---|
-| `<leader>aa` | n, x | `:AI<CR>` — open chat input |
-| `<leader>a?` | n, x | `:AI? ` — prompt (rummy "ask") |
-| `<leader>a:` | n, x | `:AI: ` — prompt (rummy "act") |
-| `<leader>a!` | n, x | `:AI! ` — prompt (rummy "run") |
-| `<leader>aN` | n | `:AI?? ` — fresh session + prompt |
-| `<leader>ax` | n | `:AI/stop` — cancel pending proposals |
-| `<leader>aX` | n | `:AI/clear` — cancel pending proposals |
-| `<leader>am` | n | `:PlurnkModels` |
-| `<leader>as` | n | `:PlurnkSessions` |
-| `<leader>aR` | n | `:PlurnkSessionRuns` |
-| `<leader>aP` | n | `:PlurnkPersona ` |
-| `<leader>aL` | n | `:PlurnkLog` |
-| `<leader>aO` | n | `:PlurnkOpen` |
-| `<leader>aY` | n | `:PlurnkYolo` |
-| `<leader>ay` | n | `:PlurnkAccept` |
-| `<leader>ae` | n | `:PlurnkAcceptEdits` |
-| `<leader>an` | n | `:PlurnkReject` |
-| `<leader>a]` | n | `:PlurnkNext` |
-| `<leader>a[` | n | `:PlurnkPrev` |
+Side-effecting ops pause for review. EDIT opens a diffsplit (left disk, right proposed): `<localleader>a` accept, `<localleader>e` accept-with-edits, `r` reject, `c` cancel. EXEC opens a scratch: `a`/`r`/`c`. Global: `<leader>ay/ae/an`, `<leader>a]`/`a[` cycle pending, `:PlurnkYolo` auto-accepts.
 
 ## Statusline
 
 ```lua
-vim.opt.statusline = "%f %h%w%m%r %=%{v:lua.require('plurnk').statusline()} %y %l/%L"
+vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
+-- plurnk[session·run] · 🤖 alias · L3·T2 · ✅ 200 · $0.0042
 ```
 
-Reports the buffer's bound session, current model alias, current loop id, and final status when present.
+## Internals (for agents)
 
-## Requirements
-
-- Neovim ≥ 0.10
-- A running [plurnk-service](https://github.com/plurnk/plurnk-service)
-
-## Distribution
-
-This plugin does **not** publish to npm. It's installed via your Neovim plugin manager from the GitHub repo, like every other Neovim plugin.
-
-## Roadmap
-
-Still to port from [rummy.nvim](https://github.com/possumtech/rummy.nvim):
-
-- Virtual-text HUD per-buffer
-- `:checkhealth plurnk` deeper checks (provider config, model alias resolution, etc.)
-
-Ported as of v0.2.0:
-
-- Glyph waterfall renderer shared with the npm `@plurnk/plurnk` TUI (🤖 ✏️ 📖 🔍 ✉️ ⚙️ 📋 📦 ➕ ➖) — `lua/plurnk/render.lua`.
-- `:diffsplit`-based proposal review with accept-as-proposed / accept-with-edits / reject / cancel — `lua/plurnk/resolve.lua`.
-- Polished statusline reporting session, model, loop·turn, status glyph, cost, and YOLO state.
-- Inline telemetry (`📡 source:kind`) in the session waterfall.
-- Isolated-XDG `demo.sh` for trying the plugin without touching your real config.
-- Headless e2e test suite under `tests/specs/` driven by `tests/runner.sh`.
-
-Ported as of v0.1.1:
-
-- Streaming (`stream/event` + `stream/concluded`) — daemon-pushed channel growth is fetched via `entry.read` and rendered into a split.
-
-## License
-
-MIT.
+- Transport: main nvim ←stdio JSON-RPC→ background headless nvim ←WebSocket→ daemon. Main nvim never touches the socket.
+- Wire contract: plurnk-service `SPEC.md §13`. One session per connection; session/run switches reconnect the background transport.
+- Notifications consumed: `log/entry` (routed per-run by `entry.run_id`), `loop/proposal` (server-resolved `flags.yolo/noProposals` are skipped), `loop/terminated`, `telemetry/event`, `stream/event`, `stream/concluded`.
+- Tests: `./tests/runner.sh` — one headless nvim per spec; boots a private daemon from the sibling `../plurnk-service` checkout (tmp DB, ephemeral port) unless `PLURNK_PORT` is set. `PLURNK_SERVICE_DIR` overrides the daemon location.
+- Project management: `AGENTS.md` (local). Audit + roadmap: [#16](https://github.com/plurnk/plurnk.nvim/issues/16).
