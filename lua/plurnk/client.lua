@@ -65,4 +65,30 @@ M.notify = function(msg, level, session)
   pcall(vim.cmd, "redrawstatus! | redrawtabline")
 end
 
+-- Daemon staleness check, once per nvim instance. Clients track HEAD
+-- (service SPEC §13.9); a silently-old daemon produced 10 days of
+-- confusion once. Probe `discover` for wire markers this client depends
+-- on and warn bluntly when one is missing.
+local daemon_checked = false
+M.check_daemon_once = function()
+  if daemon_checked then return end
+  daemon_checked = true
+  transport.send("discover", {}, false, function(result)
+    if type(result) ~= "table" or type(result.methods) ~= "table" then return end
+    local missing = {}
+    for _, m in ipairs({ "loop.cancel", "op.exec" }) do
+      if result.methods[m] == nil then missing[#missing + 1] = m end
+    end
+    local notifs = result.notifications
+    if type(notifs) ~= "table" or notifs["stream/concluded"] == nil then
+      missing[#missing + 1] = "stream/concluded"
+    end
+    if #missing > 0 then
+      M.notify("daemon looks OLDER than this client (missing: "
+        .. table.concat(missing, ", ")
+        .. ") — restart plurnk-service from a current checkout", vim.log.levels.WARN)
+    end
+  end)
+end
+
 return M

@@ -30,6 +30,13 @@ local ok, err = pcall(function()
   H.assert_match(captured, "first", "line 1 in selection")
   H.assert_match(captured, "second", "line 2 in selection")
   H.assert_match(captured, "recap", "user prompt appended")
+
+  -- This spec only needed the wire capture — cancel the loop so its
+  -- drain doesn't hold the shared model server hostage while later
+  -- specs (13's live loop) wait on it.
+  local cancelled
+  original("loop.cancel", { reason = "spec_done" }, false, function() cancelled = true end)
+  vim.wait(5000, function() return cancelled end, 50)
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
