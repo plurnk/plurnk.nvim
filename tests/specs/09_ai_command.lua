@@ -42,12 +42,17 @@ local ok, err = pcall(function()
   ai({ args = "plain", range = 0 })
   H.assert_eq(captured[1].params.prompt, "plain", ":AI plain text")
 
-  -- :AI?? on a session-attached buffer: just submits a prompt (the wire
-  -- only allows one session per connection).
+  -- :AI?? on a session-attached buffer: drops the bound connection and
+  -- creates a NEW session (the wire allows one session per connection;
+  -- switching = reconnect).
+  local stops = 0
+  require("plurnk.transport").stop = function() stops = stops + 1 end
   captured = {}
   ai({ args = "?? new chat", range = 0 })
-  H.assert_eq(captured[1].method, "loop.run", ":AI?? on attached buffer goes straight to loop.run")
-  H.assert_eq(captured[1].params.prompt, "new chat", ":AI?? carries prompt")
+  H.assert_eq(stops, 1, ":AI?? on attached buffer drops the connection")
+  H.assert_eq(captured[1].method, "session.create", ":AI?? creates a new session")
+  H.assert_eq(captured[2].method, "loop.run", ":AI?? then loop.run")
+  H.assert_eq(captured[2].params.prompt, "new chat", ":AI?? carries prompt")
 
   -- :AI?? on a fresh buffer with no session: session.create then loop.run.
   -- Move to a fresh empty buffer so no plurnk_session is bound here.
@@ -59,10 +64,19 @@ local ok, err = pcall(function()
   H.assert_eq(captured[2].method, "loop.run", ":AI?? then loop.run")
   H.assert_eq(captured[2].params.prompt, "fresh chat", ":AI?? carries prompt after session.create")
 
-  -- :AI/stop with empty stack — must not error, must not call any RPC.
+  -- :AI/stop with an active session — cancels the run's loop over the
+  -- wire (loop.cancel landed in plurnk-service 0.8.0).
   captured = {}
   ai({ args = "/stop", range = 0 })
-  H.assert_eq(#captured, 0, ":AI/stop on empty stack")
+  H.assert_eq(captured[1].method, "loop.cancel", ":AI/stop sends loop.cancel")
+
+  -- :AI/stop with NO session — proposal cleanup only, no RPC.
+  vim.cmd("enew")
+  require("plurnk.state").set_active_session_name(nil)
+  vim.b.plurnk_session = nil
+  captured = {}
+  ai({ args = "/stop", range = 0 })
+  H.assert_eq(#captured, 0, ":AI/stop without session sends nothing")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

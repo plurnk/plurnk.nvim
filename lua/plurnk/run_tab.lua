@@ -149,4 +149,31 @@ M.setup = function() end
 -- on the input window, not jump to the waterfall).
 M.get_record = function(session_name) return valid_record(session_name) end
 
+-- Which session owns this tabpage, if any. Tabpage identity beats
+-- buffer-local vars here: the input window's buffer also lives in the
+-- session tab, and toggle must treat both windows as "in the tab".
+M.session_for_tabpage = function(tabpage)
+  for session, rec in pairs(tabs) do
+    if vim.api.nvim_tabpage_is_valid(rec.tabpage) and rec.tabpage == tabpage then
+      return session
+    end
+  end
+  return nil
+end
+
+-- Close the session's tabpage (`:AI/clear`). Buffers persist (bufhidden=
+-- hide) so reopening the session keeps its waterfall history.
+M.close = function(session_name)
+  local rec = valid_record(session_name)
+  if not rec then return end
+  tabs[session_name] = nil
+  if #vim.api.nvim_list_tabpages() == 1 then return end
+  local current = vim.api.nvim_get_current_tabpage()
+  vim.api.nvim_set_current_tabpage(rec.tabpage)
+  vim.cmd("tabclose")
+  if current ~= rec.tabpage and vim.api.nvim_tabpage_is_valid(current) then
+    vim.api.nvim_set_current_tabpage(current)
+  end
+end
+
 return M
