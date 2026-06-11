@@ -44,6 +44,16 @@ M.text = function()
   local final = state.get_final_status(session)
   parts[#parts+1] = status_glyph(final) .. (final and (" " .. tostring(final)) or "")
 
+  -- Session token total (content tokens from log rows; real ↑/↓ usage
+  -- arrives with plurnk-service#197). Omitted at zero — no fake gauges.
+  local tok = state.get_tokens(session)
+  if tok > 0 then
+    local txt = tok >= 1e6 and string.format("%.1fM", tok / 1e6)
+      or tok >= 1000 and string.format("%.1fk", tok / 1000)
+      or tostring(tok)
+    parts[#parts+1] = txt .. " tok"
+  end
+
   local cost = format_cost(state.get_cost_pico(session))
   if cost then parts[#parts+1] = cost end
 

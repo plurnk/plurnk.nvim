@@ -49,6 +49,7 @@ local function apply_entry_to_state(session_name, entry)
   if type(entry.id) == "number" then
     state.set_last_seen_log_id(session_name, entry.id)
   end
+  state.add_tokens(session_name, entry.tokens)
   -- Current loop/turn feed the statusline's "what's happening now" —
   -- only the bound run's activity counts; another run's entries (wake
   -- loops etc.) must not masquerade as the current conversation.
