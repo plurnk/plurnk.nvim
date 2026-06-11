@@ -37,6 +37,10 @@ local function associate_buffer(bufnr, session_name)
   end
 end
 
+-- Forward declaration — defined with the connection helpers below;
+-- referenced from resolve_session_then's create path.
+local resolve_initial_run
+
 local function wrap_with_selection(prompt, opts)
   local mode = vim.fn.mode()
   local selection = nil
@@ -72,6 +76,7 @@ local function resolve_session_then(callback)
     require("plurnk.state").set_session_id(name, result.id)
     require("plurnk.state").set_active_session_name(name)
     associate_buffer(origin_buf, name)
+    resolve_initial_run(name)
     local model = client.consume_selected_alias()
     callback(name, model)
   end)
@@ -106,7 +111,34 @@ local function create_session_then(copts, callback)
     state.set_session_id(result.name, result.id)
     state.set_active_session_name(result.name)
     associate_buffer(origin_buf, result.name)
+    resolve_initial_run(result.name)
     callback(result.name)
+  end)
+end
+
+-- Record an attach result's run identity (current run + display label)
+-- and let run_tab adopt any pending record.
+local function note_attached_run(session_name, att)
+  local state = require("plurnk.state")
+  state.set_run_id(session_name, att.runId)
+  state.set_run_name(session_name, att.runName)
+  state.set_run_label(session_name, att.runId, att.runName)
+  require("plurnk.run_tab").note_run_resolved(session_name)
+end
+
+-- session.create doesn't return the auto-created run's id — resolve it
+-- with one session.runs round-trip (most-recent first, §13.5) so the
+-- pending run record adopts without waiting for a log/entry.
+resolve_initial_run = function(session_name)
+  local state = require("plurnk.state")
+  local id = state.get_session_id(session_name)
+  if not id then return end
+  require("plurnk.client").send("session.runs", { id = id }, false, function(result)
+    if type(result) ~= "table" or type(result.runs) ~= "table" then return end
+    local newest = result.runs[1]
+    if not newest or type(newest.id) ~= "number" then return end
+    if state.get_run_id(session_name) ~= nil then return end
+    note_attached_run(session_name, { runId = newest.id, runName = newest.name })
   end)
 end
 
@@ -122,9 +154,38 @@ local function fork_run_then(session_name, callback)
   fresh_connection()
   require("plurnk.client").send("session.attach", { id = id }, false, function(att)
     if type(att) ~= "table" then return end
-    state.set_run_id(session_name, att.runId)
-    state.set_run_name(session_name, att.runName)
+    note_attached_run(session_name, att)
     callback(session_name)
+  end)
+end
+
+-- Rebind the connection to a specific run of the session (submitting in
+-- a historical run's input means "switch there, then speak").
+M.switch_run = function(session_name, run_id, callback)
+  local state = require("plurnk.state")
+  if state.get_run_id(session_name) == run_id then return callback() end
+  local id = state.get_session_id(session_name)
+  if not id then
+    require("plurnk.client").notify("Session " .. session_name .. " not resolved", vim.log.levels.WARN)
+    return
+  end
+  fresh_connection()
+  require("plurnk.client").send("session.attach", { id = id, runId = run_id }, false, function(att)
+    if type(att) ~= "table" then return end
+    note_attached_run(session_name, att)
+    callback()
+  end)
+end
+
+-- Repaint the bound run's waterfall from the canonical log (log.read
+-- reads the BOUND run — §13.5). Used when opening a historical run.
+local function hydrate_current_run(session_name)
+  local state = require("plurnk.state")
+  local run_id = state.get_run_id(session_name)
+  if not run_id then return end
+  require("plurnk.client").send("log.read", { limit = 500 }, false, function(result)
+    if type(result) ~= "table" or type(result.entries) ~= "table" then return end
+    require("plurnk.run_tab").hydrate(session_name, run_id, result.entries)
   end)
 end
 
@@ -214,10 +275,10 @@ M.sessions = function()
         local state = require("plurnk.state")
         state.set_session_id(choice.name, choice.id)
         state.set_active_session_name(choice.name)
-        state.set_run_id(choice.name, att.runId)
-        state.set_run_name(choice.name, att.runName)
+        note_attached_run(choice.name, att)
         associate_buffer(vim.api.nvim_get_current_buf(), choice.name)
-        require("plurnk.run_tab").open(choice.name)
+        require("plurnk.run_tab").open(choice.name, att.runId)
+        hydrate_current_run(choice.name)
       end)
     end)
   end)
@@ -259,10 +320,10 @@ M.session_runs = function()
       -- fresh one (see fresh_connection).
       fresh_connection()
       client.send("session.attach", { id = id, runName = choice.name }, false, function(att)
-        if type(att) == "table" then
-          require("plurnk.state").set_run_id(session, att.runId)
-          require("plurnk.state").set_run_name(session, att.runName)
-        end
+        if type(att) ~= "table" then return end
+        note_attached_run(session, att)
+        require("plurnk.run_tab").open(session, att.runId)
+        hydrate_current_run(session)
       end)
     end)
   end)

@@ -13,6 +13,13 @@ local ok, err = pcall(function()
     if method == "session.create" and cb then
       cb({ id = 99, name = "ai-test-session" })
     end
+    if method == "session.runs" and cb then
+      cb({ runs = { { id = 7, name = "auto-run" } } })
+    end
+  end
+  local function find(list, method)
+    for _, m in ipairs(list) do if m.method == method then return m end end
+    return nil
   end
 
   -- Bind a session so prompt() can resolve.
@@ -58,8 +65,9 @@ local ok, err = pcall(function()
   ai({ args = "?? new chat", range = 0 })
   H.assert_eq(stops, 1, ":AI?? on attached buffer drops the connection")
   H.assert_eq(captured[1].method, "session.create", ":AI?? creates a new session")
-  H.assert_eq(captured[2].method, "loop.run", ":AI?? then loop.run")
-  H.assert_eq(captured[2].params.prompt, "new chat", ":AI?? carries prompt")
+  local lr = find(captured, "loop.run")
+  H.assert_truthy(lr, ":AI?? then loop.run")
+  H.assert_eq(lr.params.prompt, "new chat", ":AI?? carries prompt")
 
   -- :AI?? on a fresh buffer with no session: session.create then loop.run.
   -- Move to a fresh empty buffer so no plurnk_session is bound here.
@@ -68,8 +76,9 @@ local ok, err = pcall(function()
   captured = {}
   ai({ args = "?? fresh chat", range = 0 })
   H.assert_eq(captured[1].method, "session.create", ":AI?? creates session when none attached")
-  H.assert_eq(captured[2].method, "loop.run", ":AI?? then loop.run")
-  H.assert_eq(captured[2].params.prompt, "fresh chat", ":AI?? carries prompt after session.create")
+  local lr2 = find(captured, "loop.run")
+  H.assert_truthy(lr2, ":AI?? then loop.run")
+  H.assert_eq(lr2.params.prompt, "fresh chat", ":AI?? carries prompt after session.create")
 
   -- :AI/stop with an active session — cancels the run's loop over the
   -- wire (loop.cancel landed in plurnk-service 0.8.0).

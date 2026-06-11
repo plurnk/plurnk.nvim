@@ -26,7 +26,10 @@ M.text = function()
   local session = vim.b[buf].plurnk_session
   if not session then return "" end
 
-  local parts = { "plurnk[" .. session .. "]" }
+  -- Session·run pair — the session is the workspace, the run is the
+  -- conversation; neither alone identifies what you're looking at.
+  local run = state.get_run_name(session)
+  local parts = { "plurnk[" .. session .. (run and ("·" .. run) or "") .. "]" }
 
   local model = state.get_model_alias(session)
   if model then parts[#parts+1] = "🤖 " .. model end

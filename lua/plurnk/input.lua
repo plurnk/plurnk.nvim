@@ -8,8 +8,8 @@
 local M = {}
 local INPUT_HEIGHT = 3
 
-local function buffer_name(session_name)
-  return "plurnk://input/" .. (session_name or "scratch")
+local function buffer_name(session_name, run_id)
+  return "plurnk://input/" .. (session_name or "scratch") .. "/" .. (run_id or "pending")
 end
 
 local function submit(buf, session_name)
@@ -38,6 +38,17 @@ local function submit(buf, session_name)
   -- of truth for which session the prompt is going to.
   if session_name then vim.b[buf].plurnk_session = session_name end
 
+  -- Prompts go to the connection's BOUND run. Submitting in another
+  -- run's input means "switch to that run, then speak" — rebind first.
+  local target_run = vim.b[buf].plurnk_run_id
+  local current_run = session_name and require("plurnk.state").get_run_id(session_name)
+  if target_run and current_run and target_run ~= current_run then
+    require("plurnk.commands").switch_run(session_name, target_run, function()
+      require("plurnk.commands").prompt({ args = text, range = 0 })
+    end)
+    return
+  end
+
   require("plurnk.commands").prompt({ args = text, range = 0 })
 end
 
@@ -60,17 +71,19 @@ local function bind_keymaps(buf, session_name)
 end
 
 -- Create the input split in the CURRENT tab (assumes the waterfall
--- window is already set up — called from run_tab.open). Returns
+-- window is already set up — called from run_tab.open). One input per
+-- (session, run); run_id may be nil pre-resolution (run_tab adopts the
+-- record and restamps plurnk_run_id when the id is learned). Returns
 -- buf, win.
-M.create_in_tab = function(session_name)
-  -- Reuse an existing input buffer for this session.
-  local existing = vim.fn.bufnr(buffer_name(session_name))
+M.create_in_tab = function(session_name, run_id)
+  -- Reuse an existing input buffer for this (session, run).
+  local existing = vim.fn.bufnr(buffer_name(session_name, run_id))
   local buf
   if existing ~= -1 and vim.api.nvim_buf_is_valid(existing) then
     buf = existing
   else
     buf = vim.api.nvim_create_buf(false, true)
-    pcall(vim.api.nvim_buf_set_name, buf, buffer_name(session_name))
+    pcall(vim.api.nvim_buf_set_name, buf, buffer_name(session_name, run_id))
     vim.bo[buf].buftype = "nofile"
     vim.bo[buf].bufhidden = "hide"
     vim.bo[buf].swapfile = false
@@ -82,6 +95,7 @@ M.create_in_tab = function(session_name)
   decorate_input_win(win)
 
   if session_name then vim.b[buf].plurnk_session = session_name end
+  if run_id then vim.b[buf].plurnk_run_id = run_id end
   bind_keymaps(buf, session_name)
   return buf, win
 end
