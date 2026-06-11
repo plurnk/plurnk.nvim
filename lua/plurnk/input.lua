@@ -41,7 +41,10 @@ local function submit(buf, session_name)
   require("plurnk.commands").prompt({ args = text, range = 0 })
 end
 
--- Decorate the input window (no numbers, wrap on, fixed-height, winbar).
+-- Decorate the input window (no numbers, wrap on, fixed-height). No
+-- winbar: it spent a third of the 3-line split on a static hint; the
+-- session identity lives on the waterfall winbar, <CR> submit lives in
+-- the docs. All 3 rows are for typing.
 local function decorate_input_win(win)
   vim.wo[win].wrap = true
   vim.wo[win].winfixheight = true
@@ -49,8 +52,6 @@ local function decorate_input_win(win)
   vim.wo[win].relativenumber = false
   vim.wo[win].signcolumn = "no"
   vim.wo[win].cursorline = true
-  pcall(vim.api.nvim_set_option_value, "winbar",
-    " plurnk · <CR> submit ", { win = win })
 end
 
 local function bind_keymaps(buf, session_name)
