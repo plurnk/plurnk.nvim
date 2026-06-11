@@ -12,6 +12,8 @@ M.OP_GLYPHS = {
   MOVE = "📦",
   SHOW = "➕",
   HIDE = "➖",
+  OPEN = "➕",
+  FOLD = "➖",
   SEND = "✉️ ",
   EXEC = "⚙️ ",
 }

@@ -27,6 +27,14 @@ local function submit(buf, session_name)
     return
   end
 
+  -- Verb surface, same as :AI/ — the input buffer IS the TUI inside vim;
+  -- one language across both.
+  if text:sub(1, 1) == "/" then
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
+    require("plurnk.commands").ai({ args = text, range = 0 })
+    return
+  end
+
   -- Prefix language, same as :AI — `?` is ASK (flags.mode="ask"; the
   -- engine 403s excludedInAsk schemes), `:` is act (default), `!` execs
   -- the rest through the daemon (op.exec).
