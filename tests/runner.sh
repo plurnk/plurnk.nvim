@@ -28,10 +28,14 @@ cleanup() {
 trap cleanup EXIT
 
 if [ -z "${PLURNK_PORT:-}" ]; then
+  # PLURNK_SERVICE_DIR overrides where the daemon is launched from —
+  # CI, or a clean worktree while the sibling checkout is mid-edit.
   SERVICE_BIN=""
-  for cand in "$REPO_DIR/../plurnk-service/bin/plurnk-service.ts" \
-              "$REPO_DIR/../plurnk-service/bin/plurnk-service.js"; do
-    if [ -r "$cand" ]; then SERVICE_BIN="$cand"; break; fi
+  for dir in "${PLURNK_SERVICE_DIR:-}" "$REPO_DIR/../plurnk-service"; do
+    [ -z "$dir" ] && continue
+    for name in plurnk-service.ts plurnk-service.js; do
+      if [ -r "$dir/bin/$name" ]; then SERVICE_BIN="$dir/bin/$name"; break 2; fi
+    done
   done
   if [ -z "$SERVICE_BIN" ]; then
     echo "plurnk-service sibling not found; set PLURNK_PORT to use an existing daemon" >&2

@@ -216,11 +216,12 @@ end
 
 -- ── loop.run helper ────────────────────────────────────────────────
 
-local function send_loop_run(session_name, prompt, model_alias)
+local function send_loop_run(session_name, prompt, model_alias, flags)
   local client = require("plurnk.client")
   local persona_path = client.get_persona_path()
   local params = { prompt = prompt }
   if model_alias then params.alias = model_alias end
+  if flags then params.flags = flags end
   if persona_path then
     local ok, contents = pcall(function() return vim.fn.readfile(persona_path, "", 1024) end)
     if ok and type(contents) == "table" then params.persona = table.concat(contents, "\n") end
@@ -237,7 +238,8 @@ end
 
 -- ── Public command entry points ────────────────────────────────────
 
--- :PlurnkPrompt {text}
+-- :PlurnkPrompt {text}. opts.flags rides loop.run verbatim (LoopRunFlags;
+-- ask mode arrives here from the `:AI?` prefix).
 M.prompt = function(opts)
   local text = wrap_with_selection(opts.args, opts)
   if not text or text == "" then
@@ -246,7 +248,7 @@ M.prompt = function(opts)
   end
   resolve_session_then(function(session_name, model_alias)
     require("plurnk.run_tab").open(session_name)
-    send_loop_run(session_name, text, model_alias)
+    send_loop_run(session_name, text, model_alias, opts.flags)
   end)
 end
 
@@ -484,7 +486,10 @@ local SLASH = {
 --
 --   :AI                 → toggle: session tab ⇄ where you came from
 --   :AI <text>          → loop.run with prompt (visual selection prepended)
---   :AI? / :AI: <text>  → same; prefix is rummy flavor, stripped
+--   :AI? <text>         → ASK: loop.run with flags.mode="ask" — schemes
+--                         declaring excludedInAsk (file edits, exec, …)
+--                         403 at dispatch; read-only conversation
+--   :AI: <text>         → act (the default posture)
 --   :AI! <cmd>          → op.exec — daemon-owned shell, output streams
 --                         into the stream split; no <cmd> execs the
 --                         visual selection verbatim
@@ -530,6 +535,11 @@ M.ai = function(opts)
   end
   local rest = raw:sub(prefix_len + 1):gsub("^%s+", "")
 
+  -- `?` is ASK — the engine enforces it (#checkFlagsGate: schemes with
+  -- excludedInAsk go 403 under flags.mode="ask"); the client just
+  -- states the posture. `:` is act, the daemon default — send nothing.
+  local flags = first == "?" and { mode = "ask" } or nil
+
   if first == "!" then
     -- Command text wins; bare `:AI!` over a visual selection execs the
     -- selected lines verbatim. Captured before any async hop.
@@ -560,7 +570,7 @@ M.ai = function(opts)
     local after = function(session_name)
       require("plurnk.run_tab").open(session_name)
       if wrapped ~= "" then
-        send_loop_run(session_name, wrapped, require("plurnk.client").consume_selected_alias())
+        send_loop_run(session_name, wrapped, require("plurnk.client").consume_selected_alias(), flags)
       end
     end
     if prefix_len >= 4 then
@@ -573,9 +583,10 @@ M.ai = function(opts)
     return create_session_then({ headless = prefix_len == 3 }, after)
   end
 
-  -- Single-prefix (`?`, `:`, `!`) or bare text — plain prompt.
+  -- Single-prefix (`?`, `:`) or bare text — prompt, with ask flags when
+  -- the prefix says so.
   M.prompt({ args = rest, range = opts.range or 0,
-    line1 = opts.line1, line2 = opts.line2 })
+    line1 = opts.line1, line2 = opts.line2, flags = flags })
 end
 
 -- ── Setup ──────────────────────────────────────────────────────────
