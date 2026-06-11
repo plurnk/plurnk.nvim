@@ -118,6 +118,11 @@ M.set_current_turn = function(name, t) local s = ensure_session(name); if s then
 M.get_final_status = function(name) local s = ensure_session(name); return s and s.final_status end
 M.set_final_status = function(name, st) local s = ensure_session(name); if s then s.final_status = st end end
 
+-- True between loop.run dispatch and loop/terminated — drives the
+-- "switching away from a live loop" notify.
+M.is_loop_inflight = function(name) local s = ensure_session(name); return s and s.loop_inflight or false end
+M.set_loop_inflight = function(name, v) local s = ensure_session(name); if s then s.loop_inflight = not not v end end
+
 M.get_status_text = function(name) local s = ensure_session(name); return s and s.status_text end
 M.set_status_text = function(name, text) local s = ensure_session(name); if s then s.status_text = text end end
 

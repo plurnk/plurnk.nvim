@@ -63,6 +63,7 @@ local function resolve_session_then(callback)
   local client = require("plurnk.client")
   local session = active_session()
   if session then
+    client.check_daemon_once()
     local model = client.consume_selected_alias() or client.get_session_model(session)
     callback(session, model)
     return
@@ -77,6 +78,7 @@ local function resolve_session_then(callback)
     require("plurnk.state").set_active_session_name(name)
     associate_buffer(origin_buf, name)
     resolve_initial_run(name)
+    client.check_daemon_once()
     local model = client.consume_selected_alias()
     callback(name, model)
   end)
@@ -92,6 +94,18 @@ end
 -- the old connection are abandoned deliberately — the user asked to
 -- switch.
 local function fresh_connection()
+  -- Dropping the socket while a loop drains: the loop CONTINUES on the
+  -- daemon, but its live view goes stale here. Say so — silently
+  -- vanishing runs were the #1 confusion footgun (2026-06-10 boundaries).
+  local state = require("plurnk.state")
+  local session = state.get_active_session_name()
+  if session and state.is_loop_inflight(session) then
+    local run = state.get_run_name(session)
+    require("plurnk.client").notify(
+      "switching away — the running loop in " .. session .. (run and ("·" .. run) or "")
+      .. " continues on the daemon; reopen the run to catch up",
+      vim.log.levels.WARN)
+  end
   require("plurnk.transport").stop()
 end
 
@@ -100,7 +114,10 @@ end
 -- headless = no projectRoot → file ops 400; rummy's "no repo context".
 local function create_session_then(copts, callback)
   local client = require("plurnk.client")
-  if active_session() then fresh_connection() end
+  -- v1 model (operator-ratified 2026-06-11): ONE live session per nvim
+  -- instance. Switching moves liveness; old session tabs become static.
+  local prev = active_session()
+  if prev then fresh_connection() end
   local params = {}
   if not copts.headless then params.projectRoot = client.get_project_path() end
   if copts.name and copts.name ~= "" then params.name = copts.name end
@@ -112,6 +129,10 @@ local function create_session_then(copts, callback)
     state.set_active_session_name(result.name)
     associate_buffer(origin_buf, result.name)
     resolve_initial_run(result.name)
+    if prev and prev ~= result.name then
+      client.notify("live session: " .. result.name .. " — tabs for " .. prev .. " are now static", vim.log.levels.INFO)
+    end
+    client.check_daemon_once()
     callback(result.name)
   end)
 end
@@ -226,7 +247,9 @@ local function send_loop_run(session_name, prompt, model_alias, flags)
     local ok, contents = pcall(function() return vim.fn.readfile(persona_path, "", 1024) end)
     if ok and type(contents) == "table" then params.persona = table.concat(contents, "\n") end
   end
+  require("plurnk.state").set_loop_inflight(session_name, true)
   client.send("loop.run", params, false, function(result)
+    require("plurnk.state").set_loop_inflight(session_name, false)
     if type(result) ~= "table" then return end
     if type(result.finalStatus) == "number" then
       require("plurnk.state").set_final_status(session_name, result.finalStatus)
@@ -459,6 +482,26 @@ M.toggle = function()
   end)
 end
 
+-- `:AI/` bare (or /help) — the whole language on one screen. This is
+-- the entire discoverability budget: no menus, no tutorial mode.
+local HELP = table.concat({
+  ":AI                toggle session tab ⇄ where you came from",
+  ":AI <text>         prompt (act)",
+  ":AI? <text>        ASK — read-only loop; edits/exec 403 at dispatch",
+  ":AI: <text>        act (the default)",
+  ":AI! <cmd>         exec via the daemon; bare ! execs the visual selection",
+  ":AI?? / ::         new session    ??? headless    ???? new run (fork)",
+  ":AI... <text>      inject into the running loop (pending service#193)",
+  ":AI/<verb>         models sessions runs new persona log yolo ping",
+  "                   open accept reject next prev stop clear",
+  "visual             '<,'>AI? … prepends the selection",
+  "input buffer       ? ask · : act · ! exec · << raw DSL · <CR> submits",
+}, "\n")
+
+local function show_help()
+  vim.api.nvim_echo({ { HELP, "None" } }, false, {})
+end
+
 -- `/` subcommand routing — rummy's full surface, plurnk verbs. Wrapped
 -- as functions so the M.* lookups resolve at call time.
 local SLASH = {
@@ -519,9 +562,10 @@ M.ai = function(opts)
 
   if raw:sub(1, 1) == "/" then
     local sub, sub_args = raw:match("^/(%S+)%s*(.*)$")
-    local handler = sub and SLASH[sub]
+    if sub == nil or sub == "help" then return show_help() end
+    local handler = SLASH[sub]
     if handler then return handler(sub_args or "") end
-    require("plurnk.client").notify(":AI/" .. tostring(sub) .. " is unknown", vim.log.levels.WARN)
+    require("plurnk.client").notify(":AI/" .. tostring(sub) .. " is unknown — :AI/ for the language", vim.log.levels.WARN)
     return
   end
 
