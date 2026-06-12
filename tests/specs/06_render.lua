@@ -96,6 +96,18 @@ local ok, err = pcall(function()
   })
   H.assert_match(manifest[1], "✏️", "non-prompt plurnk EDIT keeps the EDIT glyph")
 
+  -- Coordinate prefix (svc#208): 01/02/03 when seqs present; never from ids.
+  local coorded = r.render_log_entry({
+    op = "READ", origin = "model", scheme = "known", pathname = "/x",
+    status_rx = 200, loop_seq = 1, turn_seq = 2, sequence = 3, tx = {}, rx = {},
+  })
+  H.assert_match(coorded[1], "01/02/03 ", "coordinate prefix renders padded")
+  local uncoorded = r.render_log_entry({
+    op = "READ", origin = "model", scheme = "known", pathname = "/x",
+    status_rx = 200, loop_id = 38, turn_id = 412, sequence = 3, tx = {}, rx = {},
+  })
+  H.assert_truthy(not uncoorded[1]:match("%d+/%d+/%d+ "), "DB ids never masquerade as coordinates")
+
   -- Summary
   H.assert_match(r.render_summary(3, 850, 200, 200, false), "done", "summary tag")
   H.assert_match(r.render_summary(3, 1500, 200, 200, false), "1.50s", "summary seconds")
