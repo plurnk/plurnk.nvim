@@ -112,6 +112,16 @@ end
 -- Picked to comfortably fit "Paris", "4", "yes", short markdown phrases.
 local BROADCAST_INLINE_LIMIT = 80
 
+-- `01/02/03 ` coordinate prefix — the model's log://L/T/S address,
+-- zero-padded min-2 for alignment. Empty until the wire carries the
+-- seqs (plurnk-service#208); DB ids are NOT the user's loop/turn
+-- numbers and are never substituted.
+local function coord_prefix(entry)
+  if type(entry.loop_seq) ~= "number" or type(entry.turn_seq) ~= "number"
+     or type(entry.sequence) ~= "number" then return "" end
+  return string.format("%02d/%02d/%02d ", entry.loop_seq, entry.turn_seq, entry.sequence)
+end
+
 -- Render the broadcast SEND (op=SEND, no path). For short single-line
 -- bodies, inline after the status. For multi-line or long bodies, header
 -- line + body lines indented under the speaker.
@@ -121,7 +131,7 @@ M.render_broadcast = function(entry)
   local sub_glyph = M.status_glyph(entry.status_rx, entry.signal)
   local status = tostring(entry.status_rx or "?")
 
-  local header_parts = { origin, " ", op_glyph }
+  local header_parts = { coord_prefix(entry), origin, " ", op_glyph }
   if sub_glyph ~= "" then table.insert(header_parts, " " .. sub_glyph) end
   table.insert(header_parts, " " .. status)
   local header = table.concat(header_parts)
@@ -160,7 +170,7 @@ end
 
 M.render_prompt = function(entry)
   local body = type(entry.tx) == "table" and type(entry.tx.body) == "string" and entry.tx.body or ""
-  local header = M.ORIGIN_GLYPHS.client .. " " .. M.OP_GLYPHS.SEND
+  local header = coord_prefix(entry) .. M.ORIGIN_GLYPHS.client .. " " .. M.OP_GLYPHS.SEND
   if body == "" then return { header } end
   if not body:find("\n", 1, true) and #body <= BROADCAST_INLINE_LIMIT then
     return { header .. "  " .. body }
@@ -208,7 +218,7 @@ M.render_log_entry = function(entry)
   local extra = build_extra(entry)
 
   -- Layout: ORIGIN OP SUB STATUS PATH  EXTRA  (no leading indent)
-  local parts = { origin, " ", op_glyph }
+  local parts = { coord_prefix(entry), origin, " ", op_glyph }
   if sub_glyph ~= "" then table.insert(parts, " " .. sub_glyph) end
   table.insert(parts, " " .. status)
   if path ~= "" then table.insert(parts, " " .. path) end
