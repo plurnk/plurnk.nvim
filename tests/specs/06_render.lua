@@ -24,7 +24,7 @@ local ok, err = pcall(function()
     tx = { body = "capital of France" },
   })
   H.assert_eq(#exec_lines, 1, "EXEC single line")
-  H.assert_match(exec_lines[1], "⚙", "EXEC glyph")
+  H.assert_match(exec_lines[1], "🔧", "EXEC glyph")
   H.assert_match(exec_lines[1], "❌", "EXEC ❌ on 5xx")
   H.assert_match(exec_lines[1], "%[search%]", "EXEC shows executor in brackets")
   H.assert_match(exec_lines[1], "capital of France", "EXEC shows command body")
@@ -44,7 +44,7 @@ local ok, err = pcall(function()
     tx = { body = { raw = "Paris" } },
   })
   H.assert_eq(#bc_short, 1, "short broadcast inline")
-  H.assert_match(bc_short[1], "✉", "SEND glyph")
+  H.assert_match(bc_short[1], "💬", "SEND glyph")
   H.assert_match(bc_short[1], "✅", "SEND ✅ sub-glyph")
   H.assert_match(bc_short[1], "200  Paris", "200 then 2sp then body")
 
@@ -78,9 +78,9 @@ local ok, err = pcall(function()
     status_rx = 201, tx = { body = "What is the capital of France?" },
   })
   H.assert_match(prompt_block[1], "👤", "prompt speaks as the user")
-  H.assert_match(prompt_block[1], "✉️", "prompt is speech, not an op")
+  H.assert_match(prompt_block[1], "💬", "prompt is speech, not an op")
   H.assert_match(prompt_block[1], "What is the capital", "short prompt inlines")
-  H.assert_truthy(not prompt_block[1]:match("✏️"), "no EDIT glyph on prompts")
+  H.assert_truthy(not prompt_block[1]:match("📝"), "no EDIT glyph on prompts")
 
   local long_prompt = r.render_log_entry({
     op = "EDIT", origin = "system", scheme = "plurnk", pathname = "prompt/3/1",
@@ -94,7 +94,7 @@ local ok, err = pcall(function()
     op = "EDIT", origin = "system", scheme = "plurnk", pathname = "manifest.json",
     status_rx = 201, tx = { body = "{}" },
   })
-  H.assert_match(manifest[1], "✏️", "non-prompt plurnk EDIT keeps the EDIT glyph")
+  H.assert_match(manifest[1], "📝", "non-prompt plurnk EDIT keeps the EDIT glyph")
 
   -- Coordinate prefix (svc#208): 01/02/03 when seqs present; never from ids.
   local coorded = r.render_log_entry({

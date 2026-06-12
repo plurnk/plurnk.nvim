@@ -7,21 +7,21 @@ local M = {}
 M.OP_GLYPHS = {
   FIND = "🔍",
   READ = "📖",
-  EDIT = "✏️ ",
+  EDIT = "📝",
   COPY = "📋",
   MOVE = "📦",
   SHOW = "➕",
   HIDE = "➖",
   OPEN = "➕",
   FOLD = "➖",
-  SEND = "✉️ ",
-  EXEC = "⚙️ ",
+  SEND = "💬",
+  EXEC = "🔧",
 }
 
 M.ORIGIN_GLYPHS = {
   model = "🤖",
   client = "👤",
-  system = "⚙️ ",
+  system = "🧰",
   plugin = "🔌",
 }
 
@@ -31,7 +31,7 @@ local STATUS_GLYPHS = {
   [200] = "✅",
   [201] = "✅",
   [202] = "✅",
-  [410] = "🗑",
+  [410] = "💥",
   [499] = "✋",
 }
 
@@ -160,7 +160,7 @@ end
 
 -- The user's prompt is conversation, not an op record. The engine writes
 -- it as a system-origin EDIT to plurnk://prompt/<loop>/<turn> (service
--- SPEC §15); render it as the user speaking — 👤 ✉️ with the prompt body
+-- SPEC §15); render it as the user speaking — 👤 💬 with the prompt body
 -- — instead of an EDIT trace. Arrives on hydration/log.read today; live
 -- the moment plurnk-service#198 (prompt broadcast) lands.
 M.is_prompt_entry = function(entry)
