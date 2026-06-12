@@ -16,8 +16,8 @@ end
 local function status_glyph(final)
   if not final then return "⏳" end
   if final == 200 then return "✅" end
-  if final >= 400 and final < 500 then return "⚠️" end
-  if final >= 500 then return "🔥" end
+  if final >= 400 and final < 500 then return "❌" end
+  if final >= 500 then return "❌" end
   return "·"
 end
 

@@ -20,6 +20,6 @@ local ok, err = pcall(function()
   state.set_final_status("s1", 200)
   H.assert_match(require("plurnk.statusline").text(), "✅", "done glyph")
   state.set_final_status("s1", 504)
-  H.assert_match(require("plurnk.statusline").text(), "🔥", "error glyph")
+  H.assert_match(require("plurnk.statusline").text(), "❌", "error glyph")
 end)
 if ok then H.finish(NAME) else H.fail(NAME, err) end
