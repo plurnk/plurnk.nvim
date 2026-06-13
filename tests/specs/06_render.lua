@@ -74,7 +74,7 @@ local ok, err = pcall(function()
 
   -- Prompt entry (plurnk://prompt/*) renders as USER SPEECH, not an EDIT trace.
   local prompt_block = r.render_log_entry({
-    op = "EDIT", origin = "system", scheme = "plurnk", pathname = "prompt/3/1",
+    op = "EDIT", origin = "plurnk", scheme = "plurnk", pathname = "prompt/3/1",
     status_rx = 201, tx = { body = "What is the capital of France?" },
   })
   H.assert_match(prompt_block[1], "👤", "prompt speaks as the user")
@@ -83,7 +83,7 @@ local ok, err = pcall(function()
   H.assert_truthy(not prompt_block[1]:match("📝"), "no EDIT glyph on prompts")
 
   local long_prompt = r.render_log_entry({
-    op = "EDIT", origin = "system", scheme = "plurnk", pathname = "prompt/3/1",
+    op = "EDIT", origin = "plurnk", scheme = "plurnk", pathname = "prompt/3/1",
     status_rx = 201, tx = { body = "line one\nline two" },
   })
   H.assert_eq(#long_prompt, 3, "multi-line prompt = header + body lines")
@@ -91,7 +91,7 @@ local ok, err = pcall(function()
 
   -- Non-prompt plurnk:// EDIT stays an op trace.
   local manifest = r.render_log_entry({
-    op = "EDIT", origin = "system", scheme = "plurnk", pathname = "manifest.json",
+    op = "EDIT", origin = "plurnk", scheme = "plurnk", pathname = "manifest.json",
     status_rx = 201, tx = { body = "{}" },
   })
   H.assert_match(manifest[1], "📝", "non-prompt plurnk EDIT keeps the EDIT glyph")
