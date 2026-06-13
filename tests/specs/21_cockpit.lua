@@ -11,36 +11,23 @@ local ok, err = pcall(function()
   state.set_active_session_name("gauge")
   vim.b.plurnk_session = "gauge"
 
-  local entry = function(id, tokens)
-    return { entry = { id = id, run_id = 1, loop_id = 1, turn_id = 1, tokens = tokens,
-      op = "READ", origin = "model", status_rx = 200, scheme = "known", pathname = "/x",
-      tx = {}, rx = {} }, sessionId = 3 }
-  end
-  dispatch.handle_log_entry(entry(1, 700), "gauge")
-  dispatch.handle_log_entry(entry(2, 800), "gauge")
-  H.assert_eq(state.get_tokens("gauge"), 1500, "tokens accumulate per session")
-
-  local line = require("plurnk.statusline").text()
-  H.assert_match(line, "1%.5k tok", "statusline shows the k-formatted gauge")
-  H.assert_match(line, "plurnk%[gauge", "statusline names the session")
-
-  -- Real usage (loop/terminated, svc#197) replaces the content-token
-  -- gauge and accumulates cost.
+  -- Real usage (loop/terminated, svc#197) — the ONLY token source;
+  -- accumulates ↑/↓ and cost per session. No content-token fallback.
   dispatch.handle_loop_terminated({ loopId = 1, finalStatus = 200, hitMaxTurns = false,
     usage = { promptTokens = 2000, completionTokens = 500, costPico = 7e9 } }, "gauge")
   dispatch.handle_loop_terminated({ loopId = 2, finalStatus = 200, hitMaxTurns = false,
     usage = { promptTokens = 1000, completionTokens = 250, costPico = 3e9 } }, "gauge")
-  line = require("plurnk.statusline").text()
+  local line = require("plurnk.statusline").text()
+  H.assert_match(line, "plurnk%[gauge", "statusline names the session")
   H.assert_match(line, "↑3%.0k ↓750", "statusline shows accumulated real usage")
-  H.assert_truthy(not line:match("tok"), "content gauge yields to real usage")
   H.assert_eq(state.get_cost_pico("gauge"), 1e10, "cost accumulates from usage")
 
-  -- Zero-token session shows NO gauge (no fake zeros).
+  -- A session with no loop yet shows NO gauge (no fake zeros).
   vim.cmd("enew")
   vim.b.plurnk_session = "empty"
   state.set_session_id("empty", 4)
-  H.assert_truthy(not require("plurnk.statusline").text():match("tok"),
-    "no token segment without data")
+  H.assert_truthy(not require("plurnk.statusline").text():match("↑"),
+    "no token segment before any loop runs")
 
   -- HUD: headless (no UI) falls back to vim.notify — message still lands.
   local notes = {}

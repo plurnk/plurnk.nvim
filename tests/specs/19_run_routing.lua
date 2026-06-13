@@ -9,7 +9,8 @@ H.setup()
 
 local function entry(id, run_id, path)
   return {
-    id = id, run_id = run_id, loop_id = 1, turn_id = 1, sequence = 1,
+    id = id, run_id = run_id, loop_id = 1, turn_id = 1,
+    loop_seq = 1, turn_seq = 1, sequence = 1,
     op = "READ", suffix = "", origin = "model", signal = nil,
     scheme = "known", pathname = path or ("/e" .. id), hostname = nil,
     fragment = nil, status_rx = 200,
