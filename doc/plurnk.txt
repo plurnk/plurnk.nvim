@@ -52,8 +52,9 @@ model sees. One tab per run by default; buffers are named
 machinery.
 
 One session is live per Neovim instance. Switching sessions (or runs)
-reconnects and notifies; a loop mid-flight continues on the daemon and the
-notify says so.
+rebinds the connection in place and notifies; a loop mid-flight continues on
+the daemon (and still completes) — you just stop seeing its live events, so
+the notify says to reopen the run to catch up.
 
 The input split (bottom, 3 lines): `<CR>` in normal mode submits. Prefixes
 match :AI — `? ` ask, `: ` act, `! ` exec, `<<` raw DSL.
@@ -96,7 +97,7 @@ content tokens (real provider usage arrives with service#197).
   main nvim  <-stdio JSON-RPC->  background headless nvim  <-WS->  daemon
 
 Main nvim never touches the socket. Wire contract: plurnk-service SPEC §13.
-One session per connection; switches reconnect the background transport.
+One live session per instance; switches rebind the connection in place.
 Tests: `./tests/runner.sh` boots a private daemon (tmp DB, ephemeral port)
 from the sibling checkout; `PLURNK_SERVICE_DIR` overrides; `PLURNK_PORT`
 targets an existing daemon.

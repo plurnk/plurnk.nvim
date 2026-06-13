@@ -8,13 +8,11 @@ local ok, err = pcall(function()
   local captured = {}
   require("plurnk.client").send = function(method, params, _, cb)
     table.insert(captured, { method = method, params = params })
-    -- For session.create called by `??`, fire the callback so the
-    -- second send (loop.run) actually happens.
+    -- For session.create called by `??`, fire the callback (returning the
+    -- run identity directly, §13.5-session-create) so the second send
+    -- (loop.run) actually happens.
     if method == "session.create" and cb then
-      cb({ id = 99, name = "ai-test-session" })
-    end
-    if method == "session.runs" and cb then
-      cb({ runs = { { id = 7, name = "auto-run" } } })
+      cb({ id = 99, name = "ai-test-session", runId = 7, runName = "auto-run" })
     end
   end
   local function find(list, method)
@@ -57,13 +55,13 @@ local ok, err = pcall(function()
   H.assert_eq(captured[1].params.prompt, "plain", ":AI plain text")
 
   -- :AI?? on a session-attached buffer: drops the bound connection and
-  -- creates a NEW session (the wire allows one session per connection;
-  -- switching = reconnect).
+  -- creates a NEW session by rebinding the connection in place
+  -- (§13.5-rebind, v0.17.0 — no reconnect).
   local stops = 0
   require("plurnk.transport").stop = function() stops = stops + 1 end
   captured = {}
   ai({ args = "?? new chat", range = 0 })
-  H.assert_eq(stops, 1, ":AI?? on attached buffer drops the connection")
+  H.assert_eq(stops, 0, ":AI?? rebinds in place, never drops the socket")
   H.assert_eq(captured[1].method, "session.create", ":AI?? creates a new session")
   local lr = find(captured, "loop.run")
   H.assert_truthy(lr, ":AI?? then loop.run")
