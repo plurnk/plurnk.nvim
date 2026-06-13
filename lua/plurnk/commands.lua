@@ -37,9 +37,9 @@ local function associate_buffer(bufnr, session_name)
   end
 end
 
--- Forward declaration — defined with the connection helpers below;
--- referenced from resolve_session_then's create path.
-local resolve_initial_run
+-- Forward declaration — defined with the connection helpers below,
+-- referenced from resolve_session_then's create path above it.
+local note_attached_run
 
 local function wrap_with_selection(prompt, opts)
   local mode = vim.fn.mode()
@@ -77,7 +77,7 @@ local function resolve_session_then(callback)
     require("plurnk.state").set_session_id(name, result.id)
     require("plurnk.state").set_active_session_name(name)
     associate_buffer(origin_buf, name)
-    resolve_initial_run(name)
+    note_attached_run(name, result)
     client.check_daemon_once()
     local model = client.consume_selected_alias()
     callback(name, model)
@@ -86,17 +86,13 @@ end
 
 -- ── Connection switching ────────────────────────────────────────────
 
--- The wire binds a connection to ONE session forever: session.create AND
--- session.attach both throw once ctx.session is set (plurnk-service
--- session_create.ts / session_attach.ts). Switching session or run
--- therefore means dropping the background connection; the next send
--- boots a fresh one (transport.start on demand). In-flight requests on
--- the old connection are abandoned deliberately — the user asked to
--- switch.
-local function fresh_connection()
-  -- Dropping the socket while a loop drains: the loop CONTINUES on the
-  -- daemon, but its live view goes stale here. Say so — silently
-  -- vanishing runs were the #1 confusion footgun (2026-06-10 boundaries).
+-- The connection rebinds in place: session.create/attach on a bound
+-- connection switch the binding, releasing the prior client loop
+-- (plurnk-service §13.5-rebind, v0.17.0). No reconnect. We warn only
+-- when a loop is draining on the session we're leaving: after the
+-- rebind we stop receiving that session's notifications, so its live
+-- view goes stale here even though the loop completes on the daemon.
+local function warn_if_switching_live()
   local state = require("plurnk.state")
   local session = state.get_active_session_name()
   if session and state.is_loop_inflight(session) then
@@ -106,18 +102,29 @@ local function fresh_connection()
       .. " continues on the daemon; reopen the run to catch up",
       vim.log.levels.WARN)
   end
-  require("plurnk.transport").stop()
+end
+
+-- Record a create/attach result's run identity (current run + display
+-- label) and let run_tab adopt any pending record. session.create now
+-- returns {runId, runName} directly (§13.5-session-create, v0.17.0) — no
+-- session.runs round-trip.
+note_attached_run = function(session_name, att)
+  local state = require("plurnk.state")
+  state.set_run_id(session_name, att.runId)
+  state.set_run_name(session_name, att.runName)
+  state.set_run_label(session_name, att.runId, att.runName)
+  require("plurnk.run_tab").note_run_resolved(session_name)
 end
 
 -- Create a session (optionally named / headless) and bind it to the
--- calling buffer. Drops the connection first if one is already bound.
--- headless = no projectRoot → file ops 400; rummy's "no repo context".
+-- calling buffer. The connection rebinds in place if one is already
+-- bound. headless = no projectRoot → file ops 400; rummy's "no repo".
 local function create_session_then(copts, callback)
   local client = require("plurnk.client")
   -- v1 model (operator-ratified 2026-06-11): ONE live session per nvim
   -- instance. Switching moves liveness; old session tabs become static.
   local prev = active_session()
-  if prev then fresh_connection() end
+  warn_if_switching_live()
   local params = {}
   if not copts.headless then params.projectRoot = client.get_project_path() end
   if copts.name and copts.name ~= "" then params.name = copts.name end
@@ -128,7 +135,7 @@ local function create_session_then(copts, callback)
     state.set_session_id(result.name, result.id)
     state.set_active_session_name(result.name)
     associate_buffer(origin_buf, result.name)
-    resolve_initial_run(result.name)
+    note_attached_run(result.name, result)
     if prev and prev ~= result.name then
       client.notify("live session: " .. result.name .. " — tabs for " .. prev .. " are now static", vim.log.levels.INFO)
     end
@@ -137,34 +144,8 @@ local function create_session_then(copts, callback)
   end)
 end
 
--- Record an attach result's run identity (current run + display label)
--- and let run_tab adopt any pending record.
-local function note_attached_run(session_name, att)
-  local state = require("plurnk.state")
-  state.set_run_id(session_name, att.runId)
-  state.set_run_name(session_name, att.runName)
-  state.set_run_label(session_name, att.runId, att.runName)
-  require("plurnk.run_tab").note_run_resolved(session_name)
-end
-
--- session.create doesn't return the auto-created run's id — resolve it
--- with one session.runs round-trip (most-recent first, §13.5) so the
--- pending run record adopts without waiting for a log/entry.
-resolve_initial_run = function(session_name)
-  local state = require("plurnk.state")
-  local id = state.get_session_id(session_name)
-  if not id then return end
-  require("plurnk.client").send("session.runs", { id = id }, false, function(result)
-    if type(result) ~= "table" or type(result.runs) ~= "table" then return end
-    local newest = result.runs[1]
-    if not newest or type(newest.id) ~= "number" then return end
-    if state.get_run_id(session_name) ~= nil then return end
-    note_attached_run(session_name, { runId = newest.id, runName = newest.name })
-  end)
-end
-
--- Fork-lite: re-attach the current session on a fresh connection with no
--- runName — the daemon mints a fresh auto-named run (§13.5).
+-- Fork-lite: re-attach the current session with no runName — the daemon
+-- mints a fresh auto-named run (§13.5). Rebinds in place.
 local function fork_run_then(session_name, callback)
   local state = require("plurnk.state")
   local id = state.get_session_id(session_name)
@@ -172,7 +153,7 @@ local function fork_run_then(session_name, callback)
     require("plurnk.client").notify("Session " .. session_name .. " not resolved", vim.log.levels.WARN)
     return
   end
-  fresh_connection()
+  warn_if_switching_live()
   require("plurnk.client").send("session.attach", { id = id }, false, function(att)
     if type(att) ~= "table" then return end
     note_attached_run(session_name, att)
@@ -190,7 +171,7 @@ M.switch_run = function(session_name, run_id, callback)
     require("plurnk.client").notify("Session " .. session_name .. " not resolved", vim.log.levels.WARN)
     return
   end
-  fresh_connection()
+  warn_if_switching_live()
   require("plurnk.client").send("session.attach", { id = id, runId = run_id }, false, function(att)
     if type(att) ~= "table" then return end
     note_attached_run(session_name, att)
@@ -294,7 +275,7 @@ M.sessions = function()
       if not choice then return end
       -- Bind the connection to the chosen session for real — state alone
       -- isn't enough; loop.run goes wherever the connection is attached.
-      fresh_connection()
+      warn_if_switching_live()
       require("plurnk.client").send("session.attach", { id = choice.id }, false, function(att)
         if type(att) ~= "table" then return end
         local state = require("plurnk.state")
@@ -341,9 +322,8 @@ M.session_runs = function()
       format_item = function(r) return r.name .. "  (" .. (r.created_at or "?") .. ")" end,
     }, function(choice)
       if not choice then return end
-      -- session.attach throws on a bound connection — switch runs on a
-      -- fresh one (see fresh_connection).
-      fresh_connection()
+      -- Rebind in place to the chosen run (§13.5-rebind).
+      warn_if_switching_live()
       client.send("session.attach", { id = id, runName = choice.name }, false, function(att)
         if type(att) ~= "table" then return end
         note_attached_run(session, att)

@@ -8,13 +8,14 @@ H.setup()
 
 local ok, err = pcall(function()
   local sent = {}
+  -- Rebind in place (§13.5, v0.17.0): switching never drops the socket.
   local stops = 0
   require("plurnk.transport").stop = function() stops = stops + 1 end
   require("plurnk.client").send = function(method, params, _, cb)
     table.insert(sent, { method = method, params = params })
-    if method == "session.create" and cb then cb({ id = 7, name = "lang-" .. #sent }) end
+    -- session.create returns the run identity directly (§13.5-session-create).
+    if method == "session.create" and cb then cb({ id = 7, name = "lang-" .. #sent, runId = 42, runName = "auto-run" }) end
     if method == "session.attach" and cb then cb({ id = 7, runId = 42, runName = "auto-run" }) end
-    if method == "session.runs" and cb then cb({ runs = { { id = 42, name = "auto-run" } } }) end
     if method == "loop.cancel" and cb then cb({ cancelled = true, runId = 9 }) end
   end
   local function find(list, method)
@@ -36,7 +37,6 @@ local ok, err = pcall(function()
   -- ── `???` — new HEADLESS session (no projectRoot) ──────────────────
   sent = {}
   ai({ args = "??? bare metal", range = 0 })
-  H.assert_eq(stops, 1, ":AI??? drops the bound connection")
   H.assert_eq(sent[1].method, "session.create", ":AI??? creates a session")
   H.assert_eq(sent[1].params.projectRoot, nil, ":AI??? omits projectRoot")
   local lr3 = find(sent, "loop.run")
@@ -46,7 +46,6 @@ local ok, err = pcall(function()
   -- ── `????` — fork-lite: new run in the CURRENT session ─────────────
   sent = {}
   ai({ args = "???? take two", range = 0 })
-  H.assert_eq(stops, 2, ":AI???? drops the connection")
   H.assert_eq(sent[1].method, "session.attach", ":AI???? re-attaches the session")
   H.assert_eq(sent[1].params.id, 7, ":AI???? attaches by current session id")
   H.assert_eq(sent[1].params.runName, nil, ":AI???? omits runName (daemon mints a fresh run)")
@@ -104,6 +103,10 @@ local ok, err = pcall(function()
     ":AI lands on a session tabpage")
   ai({ args = "", range = 0 })
   H.assert_eq(vim.api.nvim_get_current_tabpage(), origin, ":AI again returns to origin")
+
+  -- Rebind in place: across every session/run switch above, the socket
+  -- was never dropped (§13.5-rebind).
+  H.assert_eq(stops, 0, "switching never reconnects the transport")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
