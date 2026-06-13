@@ -21,8 +21,7 @@ M.OP_GLYPHS = {
 M.ORIGIN_GLYPHS = {
   model = "🤖",
   client = "👤",
-  plurnk = "🧰",   -- the runtime actor (was "system" pre-0.21; §14.7)
-  system = "🧰",   -- back-compat alias for older daemons
+  plurnk = "🧰",   -- the runtime actor (§14.7)
   plugin = "🔌",
 }
 
@@ -117,9 +116,10 @@ local BROADCAST_INLINE_LIMIT = 80
 -- zero-padded min-2 for alignment. Empty until the wire carries the
 -- seqs (plurnk-service#208); DB ids are NOT the user's loop/turn
 -- numbers and are never substituted.
+-- Every wire log entry carries the coordinate (loops⋈turns JOIN, #208);
+-- render it directly — a missing ordinal is a contract violation that
+-- should surface, not be masked with a blank.
 local function coord_prefix(entry)
-  if type(entry.loop_seq) ~= "number" or type(entry.turn_seq) ~= "number"
-     or type(entry.sequence) ~= "number" then return "" end
   return string.format("%02d/%02d/%02d ", entry.loop_seq, entry.turn_seq, entry.sequence)
 end
 
