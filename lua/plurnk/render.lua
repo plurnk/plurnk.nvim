@@ -21,7 +21,8 @@ M.OP_GLYPHS = {
 M.ORIGIN_GLYPHS = {
   model = "🤖",
   client = "👤",
-  system = "🧰",
+  plurnk = "🧰",   -- the runtime actor (was "system" pre-0.21; §14.7)
+  system = "🧰",   -- back-compat alias for older daemons
   plugin = "🔌",
 }
 
@@ -159,7 +160,7 @@ M.render_broadcast = function(entry)
 end
 
 -- The user's prompt is conversation, not an op record. The engine writes
--- it as a system-origin EDIT to plurnk://prompt/<loop>/<turn> (service
+-- it as a plurnk-origin EDIT to plurnk://prompt/<loop>/<turn> (service
 -- SPEC §15); render it as the user speaking — 👤 💬 with the prompt body
 -- — instead of an EDIT trace. Arrives on hydration/log.read today; live
 -- the moment plurnk-service#198 (prompt broadcast) lands.
