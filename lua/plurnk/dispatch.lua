@@ -40,20 +40,32 @@ end
 
 -- ── Per-entry state side effects ────────────────────────────────────
 
--- Apply per-entry side effects to session state. Plurnk's log entries
--- carry op + status_rx + signal + path components. We keep tabs on the
--- current loop/turn so the statusline + run tab can render without
--- re-fetching anything.
+-- Is this entry part of the CONVERSATION (the model run)? Run-split
+-- (§13.7): client housekeeping (op.exec etc.) lands in the client run and
+-- is not shown in the conversation waterfall. The conversation run is
+-- authoritative from loop.run's modelRunId / session.runs. Before it's
+-- known, events arriving WHILE we drive a loop are the model run (the
+-- conversation being generated) — adopt the first one's run_id. op.exec
+-- fires when we are NOT driving a loop, so its client-run events are never
+-- adopted. Once known, route strictly by run_id (catches wake-loop events
+-- too, which share the model run).
+local function conversation_entry(session_name, entry)
+  if type(entry.run_id) ~= "number" then return false end
+  local conv = state.get_run_id(session_name)
+  if conv then return entry.run_id == conv end
+  if state.is_loop_inflight(session_name) then
+    state.set_run_id(session_name, entry.run_id)
+    pcall(function() require("plurnk.run_tab").note_run_resolved(session_name) end)
+    return true
+  end
+  return false
+end
+
+-- Track current loop/turn for the statusline (conversation entries only).
 local function apply_entry_to_state(session_name, entry)
-  if not entry then return end
   if type(entry.id) == "number" then
     state.set_last_seen_log_id(session_name, entry.id)
   end
-  -- Current loop/turn feed the statusline's "what's happening now" —
-  -- only the bound run's activity counts; another run's entries (wake
-  -- loops etc.) must not masquerade as the current conversation.
-  local current_run = state.get_run_id(session_name)
-  if current_run and type(entry.run_id) == "number" and entry.run_id ~= current_run then return end
   if type(entry.loop_id) == "number" then
     state.set_current_loop_id(session_name, entry.loop_id)
   end
@@ -68,11 +80,14 @@ end
 M.handle_log_entry = function(params, session_name)
   if not params or type(params.entry) ~= "table" then return end
   local entry = params.entry
+  -- Only the conversation (model run) is shown; client-run housekeeping
+  -- is silent in the waterfall.
+  if not session_name or not conversation_entry(session_name, entry) then return end
   apply_entry_to_state(session_name, entry)
 
   vim.schedule(function()
     local ok, run_tab = pcall(require, "plurnk.run_tab")
-    if ok and session_name then run_tab.append_history(session_name, { entry }) end
+    if ok then run_tab.append_history(session_name, { entry }) end
     redraw_statusline()
   end)
 end

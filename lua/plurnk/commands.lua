@@ -39,7 +39,7 @@ end
 
 -- Forward declaration — defined with the connection helpers below,
 -- referenced from resolve_session_then's create path above it.
-local note_attached_run
+local note_model_run
 
 local function wrap_with_selection(prompt, opts)
   local mode = vim.fn.mode()
@@ -77,7 +77,9 @@ local function resolve_session_then(callback)
     require("plurnk.state").set_session_id(name, result.id)
     require("plurnk.state").set_active_session_name(name)
     associate_buffer(origin_buf, name)
-    note_attached_run(name, result)
+    -- session.create returns the CLIENT run; the conversation lives in the
+    -- MODEL run (run-split, §13.7). Don't set a conversation run here — the
+    -- first model-run log/entry adopts it, and loop.run confirms modelRunId.
     client.check_daemon_once()
     local model = client.consume_selected_alias()
     callback(name, model)
@@ -104,15 +106,19 @@ local function warn_if_switching_live()
   end
 end
 
--- Record a create/attach result's run identity (current run + display
--- label) and let run_tab adopt any pending record. session.create now
--- returns {runId, runName} directly (§13.5-session-create, v0.17.0) — no
--- session.runs round-trip.
-note_attached_run = function(session_name, att)
+-- Adopt the MODEL run as this session's conversation run (the waterfall
+-- shows it). The model run is authoritative from loop.run's modelRunId or
+-- session.runs (origin="model") — never from session.create (that's the
+-- client run; run-split §13.7). Idempotent: the first model-run log/entry
+-- may have adopted it already; this confirms and labels it.
+note_model_run = function(session_name, run_id, run_name)
+  if type(run_id) ~= "number" then return end
   local state = require("plurnk.state")
-  state.set_run_id(session_name, att.runId)
-  state.set_run_name(session_name, att.runName)
-  state.set_run_label(session_name, att.runId, att.runName)
+  state.set_run_id(session_name, run_id)
+  if run_name then
+    state.set_run_name(session_name, run_name)
+    state.set_run_label(session_name, run_id, run_name)
+  end
   require("plurnk.run_tab").note_run_resolved(session_name)
 end
 
@@ -135,7 +141,7 @@ local function create_session_then(copts, callback)
     state.set_session_id(result.name, result.id)
     state.set_active_session_name(result.name)
     associate_buffer(origin_buf, result.name)
-    note_attached_run(result.name, result)
+    -- No conversation run from create (client run; see resolve_session_then).
     if prev and prev ~= result.name then
       client.notify("live session: " .. result.name .. " — tabs for " .. prev .. " are now static", vim.log.levels.INFO)
     end
@@ -144,25 +150,19 @@ local function create_session_then(copts, callback)
   end)
 end
 
--- Fork-lite: re-attach the current session with no runName — the daemon
--- mints a fresh auto-named run (§13.5). Rebinds in place.
-local function fork_run_then(session_name, callback)
-  local state = require("plurnk.state")
-  local id = state.get_session_id(session_name)
-  if not id then
-    require("plurnk.client").notify("Session " .. session_name .. " not resolved", vim.log.levels.WARN)
-    return
-  end
-  warn_if_switching_live()
-  require("plurnk.client").send("session.attach", { id = id }, false, function(att)
-    if type(att) ~= "table" then return end
-    note_attached_run(session_name, att)
-    callback(session_name)
-  end)
+-- Conversation fork (`????`): branch the model run, carrying its history.
+-- That's run.fork (§14.8) — not exposed over RPC yet. Re-attaching with no
+-- runName only mints a fresh CLIENT run (run-split), which is not a forked
+-- conversation, so we don't fake it.
+local function fork_run_then(session_name, _callback)
+  require("plurnk.client").notify(
+    "conversation fork (:AI????) needs run.fork over RPC — not wired yet (plurnk-service#227)",
+    vim.log.levels.WARN)
 end
 
--- Rebind the connection to a specific run of the session (submitting in
--- a historical run's input means "switch there, then speak").
+-- Rebind the connection to a specific run and adopt it as the conversation
+-- run (the run picker hands a model run; submitting in a historical run's
+-- input means "switch there, then speak").
 M.switch_run = function(session_name, run_id, callback)
   local state = require("plurnk.state")
   if state.get_run_id(session_name) == run_id then return callback() end
@@ -174,20 +174,42 @@ M.switch_run = function(session_name, run_id, callback)
   warn_if_switching_live()
   require("plurnk.client").send("session.attach", { id = id, runId = run_id }, false, function(att)
     if type(att) ~= "table" then return end
-    note_attached_run(session_name, att)
+    note_model_run(session_name, att.runId, att.runName)
     callback()
   end)
 end
 
--- Repaint the bound run's waterfall from the canonical log (log.read
--- reads the BOUND run — §13.5). Used when opening a historical run.
+-- Repaint the conversation waterfall from the canonical log. log.read
+-- defaults to the CLIENT run (run-split); pass runId to read the model
+-- run (§214). Used when opening a historical conversation.
 local function hydrate_current_run(session_name)
   local state = require("plurnk.state")
   local run_id = state.get_run_id(session_name)
   if not run_id then return end
-  require("plurnk.client").send("log.read", { limit = 500 }, false, function(result)
+  require("plurnk.client").send("log.read", { runId = run_id, limit = 500 }, false, function(result)
     if type(result) ~= "table" or type(result.entries) ~= "table" then return end
     require("plurnk.run_tab").hydrate(session_name, run_id, result.entries)
+  end)
+end
+
+-- Find the session's model run (the conversation) via session.runs and
+-- adopt it as the conversation run. session.create makes the model run
+-- lazily on the first loop.run, so a never-driven session has none yet —
+-- then we leave the run pending and the first prompt adopts it. Calls
+-- on_done after the lookup (whether or not a model run was found).
+local function adopt_model_run(session_name, on_done)
+  local id = require("plurnk.state").get_session_id(session_name)
+  if not id then if on_done then on_done() end return end
+  require("plurnk.client").send("session.runs", { id = id }, false, function(result)
+    if type(result) == "table" and type(result.runs) == "table" then
+      for _, run in ipairs(result.runs) do  -- most-recent first
+        if run.origin == "model" then
+          note_model_run(session_name, run.id, run.name)
+          break
+        end
+      end
+    end
+    if on_done then on_done() end
   end)
 end
 
@@ -232,6 +254,10 @@ local function send_loop_run(session_name, prompt, model_alias, flags)
   client.send("loop.run", params, false, function(result)
     require("plurnk.state").set_loop_inflight(session_name, false)
     if type(result) ~= "table" then return end
+    -- The conversation lives in the model run (run-split §13.7); loop.run
+    -- returns its id. Authoritative — confirms the run the first event's
+    -- run_id already adopted, and covers the no-events edge.
+    note_model_run(session_name, result.modelRunId)
     if type(result.finalStatus) == "number" then
       require("plurnk.state").set_final_status(session_name, result.finalStatus)
     end
@@ -281,10 +307,13 @@ M.sessions = function()
         local state = require("plurnk.state")
         state.set_session_id(choice.name, choice.id)
         state.set_active_session_name(choice.name)
-        note_attached_run(choice.name, att)
         associate_buffer(vim.api.nvim_get_current_buf(), choice.name)
-        require("plurnk.run_tab").open(choice.name, att.runId)
-        hydrate_current_run(choice.name)
+        -- The conversation is the model run, not the client run this attach
+        -- bound; find it and hydrate (§214).
+        adopt_model_run(choice.name, function()
+          require("plurnk.run_tab").open(choice.name)
+          hydrate_current_run(choice.name)
+        end)
       end)
     end)
   end)
@@ -313,21 +342,20 @@ M.session_runs = function()
   local client = require("plurnk.client")
   client.send("session.runs", { id = id }, false, function(result)
     if type(result) ~= "table" or type(result.runs) ~= "table" then return end
-    if #result.runs == 0 then
-      client.notify("No runs in " .. session, vim.log.levels.INFO)
+    -- Conversations are model runs; the client/plurnk runs are housekeeping.
+    local runs = {}
+    for _, r in ipairs(result.runs) do if r.origin == "model" then runs[#runs+1] = r end end
+    if #runs == 0 then
+      client.notify("No conversations in " .. session, vim.log.levels.INFO)
       return
     end
-    vim.ui.select(result.runs, {
-      prompt = "Plurnk run (session " .. session .. ")",
+    vim.ui.select(runs, {
+      prompt = "Plurnk conversation (session " .. session .. ")",
       format_item = function(r) return r.name .. "  (" .. (r.created_at or "?") .. ")" end,
     }, function(choice)
       if not choice then return end
-      -- Rebind in place to the chosen run (§13.5-rebind).
-      warn_if_switching_live()
-      client.send("session.attach", { id = id, runName = choice.name }, false, function(att)
-        if type(att) ~= "table" then return end
-        note_attached_run(session, att)
-        require("plurnk.run_tab").open(session, att.runId)
+      M.switch_run(session, choice.id, function()
+        require("plurnk.run_tab").open(session)
         hydrate_current_run(session)
       end)
     end)
@@ -471,7 +499,7 @@ local HELP = table.concat({
   ":AI: <text>        act (the default)",
   ":AI! <cmd>         exec via the daemon; bare ! execs the visual selection",
   ":AI?? / ::         new session    ??? headless    ???? new run (fork)",
-  ":AI... <text>      inject into the running loop (pending service#193)",
+  ":AI... <text>      inject into the running model loop (loop.inject)",
   ":AI/<verb>         models sessions runs new persona log yolo ping",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
@@ -519,7 +547,7 @@ local SLASH = {
 --   :AI?? <text>        → NEW session, then prompt
 --   :AI??? <text>       → new HEADLESS session (no projectRoot), then prompt
 --   :AI???? <text>      → new RUN in the current session (fork-lite)
---   :AI... <text>       → mid-loop inject; blocked on plurnk-service#193
+--   :AI... <text>       → mid-loop inject into the model run (loop.inject)
 --   :AI/<sub> [args]    → route to the Plurnk* surface (see SLASH)
 --
 -- Cmdline abbreviations (M.setup) make the no-space forms work: `:AI?? hi`.
@@ -533,10 +561,19 @@ M.ai = function(opts)
   if raw == "" then return M.toggle() end
 
   if raw:sub(1, 3) == "..." then
-    -- BTW inject: Daemon.inject() exists but has no RPC yet.
-    require("plurnk.client").notify(
-      ":AI... (mid-loop inject) needs plurnk-service#193 — not wired yet",
-      vim.log.levels.WARN)
+    -- BTW inject (plurnk-service#193): speak into the running model loop.
+    -- The daemon targets the session's model run (ctx.session.modelRunId)
+    -- — there must be one (start a loop first).
+    local msg = raw:sub(4):gsub("^%s+", "")
+    if msg == "" then
+      require("plurnk.client").notify(":AI... needs a message to inject", vim.log.levels.WARN)
+      return
+    end
+    require("plurnk.client").send("loop.inject", { prompt = msg }, false, function(result)
+      if type(result) == "table" and type(result.status) == "number" and result.status >= 400 then
+        require("plurnk.client").notify("inject rejected: " .. tostring(result.error or result.status), vim.log.levels.WARN)
+      end
+    end)
     return
   end
 

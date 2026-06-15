@@ -43,14 +43,12 @@ local ok, err = pcall(function()
   H.assert_truthy(lr3, ":AI??? then loop.run")
   H.assert_eq(lr3.params.prompt, "bare metal", ":AI??? carries prompt")
 
-  -- ── `????` — fork-lite: new run in the CURRENT session ─────────────
+  -- ── `????` — conversation fork: needs run.fork (not wired); notify ──
+  -- Post run-split, re-attaching mints a CLIENT run, not a forked
+  -- conversation, so the client refuses to fake it (plurnk-service#227).
   sent = {}
   ai({ args = "???? take two", range = 0 })
-  H.assert_eq(sent[1].method, "session.attach", ":AI???? re-attaches the session")
-  H.assert_eq(sent[1].params.id, 7, ":AI???? attaches by current session id")
-  H.assert_eq(sent[1].params.runName, nil, ":AI???? omits runName (daemon mints a fresh run)")
-  H.assert_eq(sent[2].method, "loop.run", ":AI???? then loop.run")
-  H.assert_eq(sent[2].params.prompt, "take two", ":AI???? carries prompt")
+  H.assert_eq(#sent, 0, ":AI???? sends nothing until run.fork is wired")
 
   -- ── `?` is ASK: flags.mode="ask" rides loop.run; `:` is act ────────
   sent = {}
@@ -88,10 +86,11 @@ local ok, err = pcall(function()
   ai({ args = "/bogus", range = 0 })
   H.assert_eq(#sent, 0, ":AI/bogus sends nothing")
 
-  -- ── `...` — inject is blocked upstream; notify, no RPC ─────────────
+  -- ── `...` — inject into the running model loop (loop.inject, #193) ──
   sent = {}
   ai({ args = "... remember the TOML", range = 0 })
-  H.assert_eq(#sent, 0, ":AI... sends nothing until plurnk-service#193")
+  H.assert_eq(sent[1].method, "loop.inject", ":AI... sends loop.inject")
+  H.assert_eq(sent[1].params.prompt, "remember the TOML", ":AI... carries the message")
 
   -- ── `:AI` bare — toggle: session tab ⇄ origin ──────────────────────
   vim.cmd("tabnew")  -- a non-plurnk tab to come from
