@@ -24,6 +24,7 @@ cleanup() {
     kill "$DAEMON_PID" 2>/dev/null || true
   fi
   [ -n "$DAEMON_DIR" ] && rm -rf "$DAEMON_DIR"
+  return 0  # never let the trap's last falsy test leak into the exit code
 }
 trap cleanup EXIT
 
@@ -76,11 +77,20 @@ for spec in "$SPECS_DIR"/*.lua; do
   name="$(basename "$spec" .lua)"
   if [ -n "$FILTER" ] && [[ "$name" != "$FILTER"* ]]; then continue; fi
   echo "== $name =="
-  if nvim --headless -u NONE -l "$spec" 2>&1; then
+  # SIGKILL, not the default SIGTERM: headless nvim survives SIGTERM, so a
+  # hung spec under plain `timeout` detaches and spins forever (99% CPU
+  # orphans). A timed-out spec is a loud FAIL, never a silent leak.
+  if timeout -s KILL "${SPEC_TIMEOUT:-60}" nvim --headless -u NONE -l "$spec" 2>&1; then
     pass=$((pass + 1))
   else
+    rc=$?
     fail=$((fail + 1))
-    failed_names+=("$name")
+    if [ "$rc" -eq 137 ]; then
+      echo "  TIMED OUT — SIGKILL after ${SPEC_TIMEOUT:-60}s"
+      failed_names+=("$name (timeout)")
+    else
+      failed_names+=("$name")
+    fi
   fi
 done
 
@@ -92,3 +102,4 @@ if [ $fail -gt 0 ]; then
   printf 'failed: %s\n' "${failed_names[@]}"
   exit 1
 fi
+exit 0
