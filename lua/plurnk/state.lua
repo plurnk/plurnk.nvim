@@ -16,7 +16,6 @@ local project_path = nil
 local available_aliases = {}  -- providers.list result
 local selected_alias = nil    -- user-picked, consumed by next loop.run
 local interacted = false
-local persona_path = nil      -- absolute path passed as --persona
 local active_session_name = nil  -- most recently attached session on this connection
 
 -- Per-session state buckets. Keyed by session name.
@@ -62,11 +61,6 @@ M.consume_selected_alias = function()
   selected_alias = nil
   return out
 end
-
--- ── Persona file path ───────────────────────────────────────────────
-
-M.get_persona_path = function() return persona_path end
-M.set_persona_path = function(p) persona_path = p end
 
 -- ── Interaction marker ──────────────────────────────────────────────
 

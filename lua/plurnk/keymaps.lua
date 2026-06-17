@@ -34,10 +34,16 @@ M.setup = function()
   map_if_empty("n", "<leader>am", ":PlurnkModels<CR>",       "Plurnk: Models")
   map_if_empty("n", "<leader>as", ":PlurnkSessions<CR>",     "Plurnk: Sessions")
   map_if_empty("n", "<leader>aR", ":PlurnkSessionRuns<CR>",  "Plurnk: Runs in session")
-  map_if_empty("n", "<leader>aP", ":PlurnkPersona ",         "Plurnk: Persona file")
   map_if_empty("n", "<leader>aL", ":PlurnkLog<CR>",          "Plurnk: Log")
   map_if_empty("n", "<leader>aO", ":PlurnkOpen<CR>",         "Plurnk: Open session tab")
   map_if_empty("n", "<leader>aY", ":PlurnkYolo<CR>",         "Plurnk: Toggle YOLO")
+
+  -- ── Membership overlay (svc#200) — glob arg uses native file completion ──
+  map_if_empty("n", "<leader>ap", ":PlurnkPick ",           "Plurnk: pick (admit) glob")
+  map_if_empty("n", "<leader>ah", ":PlurnkHide ",           "Plurnk: hide glob")
+  map_if_empty("n", "<leader>av", ":PlurnkView ",           "Plurnk: view (read-only) glob")
+  map_if_empty("n", "<leader>ad", ":PlurnkDrop ",           "Plurnk: drop constraint glob")
+  map_if_empty("n", "<leader>aM", ":PlurnkMembers<CR>",     "Plurnk: list members")
 
   -- ── Proposal review (matches rummy a-y / a-e / a-n / a-] / a-[) ──
   map_if_empty("n", "<leader>ay", ":PlurnkAccept<CR>",       "Plurnk: Accept proposal")
