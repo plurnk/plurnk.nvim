@@ -14,9 +14,6 @@ M.get_available_aliases = state.get_available_aliases
 M.set_selected_alias = state.set_selected_alias
 M.consume_selected_alias = state.consume_selected_alias
 
-M.get_persona_path = state.get_persona_path
-M.set_persona_path = state.set_persona_path
-
 M.has_interacted = state.has_interacted
 M.mark_interacted = state.mark_interacted
 

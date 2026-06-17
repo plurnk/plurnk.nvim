@@ -242,14 +242,9 @@ end
 
 local function send_loop_run(session_name, prompt, model_alias, flags)
   local client = require("plurnk.client")
-  local persona_path = client.get_persona_path()
   local params = { prompt = prompt }
   if model_alias then params.alias = model_alias end
   if flags then params.flags = flags end
-  if persona_path then
-    local ok, contents = pcall(function() return vim.fn.readfile(persona_path, "", 1024) end)
-    if ok and type(contents) == "table" then params.persona = table.concat(contents, "\n") end
-  end
   require("plurnk.state").set_loop_inflight(session_name, true)
   client.send("loop.run", params, false, function(result)
     require("plurnk.state").set_loop_inflight(session_name, false)
@@ -381,20 +376,64 @@ M.models = function()
   end)
 end
 
--- :PlurnkPersona {path}  — set the persona file used on subsequent loop.run.
-M.persona = function(opts)
-  if not opts.args or opts.args == "" then
-    require("plurnk.state").set_persona_path(nil)
-    require("plurnk.client").notify("Persona cleared", vim.log.levels.INFO)
+-- Membership overlay (svc#200) — service vocabulary, converged with the TUI:
+-- pick admits files git misses, hide drops a tracked match, view admits
+-- read-only. Live via session.constrain (session-scoped, re-resolved now).
+-- Native vim file completion supplies the glob (no bespoke completer).
+local function constrain(effect, glob)
+  glob = (glob or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if glob == "" then
+    require("plurnk.client").notify(":AI/" .. effect .. " needs a glob", vim.log.levels.WARN)
     return
   end
-  local path = vim.fn.fnamemodify(opts.args, ":p")
-  if vim.fn.filereadable(path) ~= 1 then
-    require("plurnk.client").notify("Persona file not readable: " .. path, vim.log.levels.ERROR)
+  resolve_session_then(function()
+    require("plurnk.client").send("session.constrain", { effect = effect, glob = glob }, false, function()
+      require("plurnk.client").notify(effect .. ": " .. glob, vim.log.levels.INFO)
+    end)
+  end)
+end
+
+M.pick = function(opts) constrain("pick", opts.args) end
+M.hide = function(opts) constrain("hide", opts.args) end
+M.view = function(opts) constrain("view", opts.args) end
+
+-- :PlurnkDrop {glob} — remove the constraint(s) matching the glob (any effect).
+M.drop = function(opts)
+  local glob = (opts.args or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if glob == "" then
+    require("plurnk.client").notify(":AI/drop needs a glob", vim.log.levels.WARN)
     return
   end
-  require("plurnk.state").set_persona_path(path)
-  require("plurnk.client").notify("Persona: " .. path, vim.log.levels.INFO)
+  resolve_session_then(function()
+    require("plurnk.client").send("session.constraints", {}, false, function(result)
+      local constraints = type(result) == "table" and result.constraints or {}
+      local matches = vim.tbl_filter(function(c) return c.glob == glob end, constraints)
+      if #matches == 0 then
+        require("plurnk.client").notify("no constraint matching " .. glob, vim.log.levels.WARN)
+        return
+      end
+      for _, c in ipairs(matches) do
+        require("plurnk.client").send("session.unconstrain", { effect = c.effect, glob = c.glob }, false)
+      end
+      require("plurnk.client").notify("dropped " .. #matches .. " constraint(s): " .. glob, vim.log.levels.INFO)
+    end)
+  end)
+end
+
+-- :PlurnkMembers — list the session's membership constraints.
+M.members = function()
+  resolve_session_then(function()
+    require("plurnk.client").send("session.constraints", {}, false, function(result)
+      local constraints = type(result) == "table" and result.constraints or {}
+      if #constraints == 0 then
+        require("plurnk.client").notify("(no membership constraints)", vim.log.levels.INFO)
+        return
+      end
+      local lines = {}
+      for _, c in ipairs(constraints) do lines[#lines + 1] = string.format("%-5s %s", c.effect, c.glob) end
+      require("plurnk.client").notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+    end)
+  end)
 end
 
 -- :PlurnkLog [limit]
@@ -500,7 +539,8 @@ local HELP = table.concat({
   ":AI! <cmd>         exec via the daemon; bare ! execs the visual selection",
   ":AI?? / ::         new session    ??? headless    ???? new run (fork)",
   ":AI... <text>      inject into the running model loop (loop.inject)",
-  ":AI/<verb>         models sessions runs new persona log yolo ping",
+  ":AI/<verb>         models sessions runs new log yolo ping",
+  "                   pick hide view drop members (membership overlay)",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
   "input buffer       ? ask · : act · ! exec · << raw DSL · <CR> submits",
@@ -521,8 +561,12 @@ local SLASH = {
   sessions = function() M.sessions() end,
   runs     = function() M.session_runs() end,
   new      = function(args) M.session_new({ args = args }) end,
-  persona  = function(args) M.persona({ args = args }) end,
   log      = function(args) M.log({ args = args }) end,
+  pick     = function(args) M.pick({ args = args }) end,
+  hide     = function(args) M.hide({ args = args }) end,
+  view     = function(args) M.view({ args = args }) end,
+  drop     = function(args) M.drop({ args = args }) end,
+  members  = function() M.members() end,
   yolo     = function() M.yolo() end,
   ping     = function() M.ping() end,
   open     = function() M.toggle() end,
@@ -660,8 +704,12 @@ M.setup = function()
   cmd("PlurnkSessionNew",  M.session_new,  { nargs = "?" })
   cmd("PlurnkSessionRuns", M.session_runs, {})
   cmd("PlurnkModels",      M.models,       {})
-  cmd("PlurnkPersona",     M.persona,      { nargs = "?", complete = "file" })
   cmd("PlurnkLog",         M.log,          { nargs = "?" })
+  cmd("PlurnkPick",        M.pick,         { nargs = 1, complete = "file" })
+  cmd("PlurnkHide",        M.hide,         { nargs = 1, complete = "file" })
+  cmd("PlurnkView",        M.view,         { nargs = 1, complete = "file" })
+  cmd("PlurnkDrop",        M.drop,         { nargs = 1, complete = "file" })
+  cmd("PlurnkMembers",     M.members,      {})
   cmd("PlurnkYolo",        M.yolo,         {})
   cmd("PlurnkPing",        M.ping,         {})
   cmd("PlurnkStop",        M.stop,         {})
