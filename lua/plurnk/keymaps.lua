@@ -38,11 +38,12 @@ M.setup = function()
   map_if_empty("n", "<leader>aO", ":PlurnkOpen<CR>",         "Plurnk: Open session tab")
   map_if_empty("n", "<leader>aY", ":PlurnkYolo<CR>",         "Plurnk: Toggle YOLO")
 
-  -- ── Membership overlay (svc#200) — glob arg uses native file completion ──
-  map_if_empty("n", "<leader>ap", ":PlurnkPick ",           "Plurnk: pick (admit) glob")
-  map_if_empty("n", "<leader>ah", ":PlurnkHide ",           "Plurnk: hide glob")
-  map_if_empty("n", "<leader>av", ":PlurnkView ",           "Plurnk: view (read-only) glob")
-  map_if_empty("n", "<leader>ad", ":PlurnkDrop ",           "Plurnk: drop constraint glob")
+  -- ── Membership overlay (svc#200) — keymap acts on the CURRENT file (one
+  -- keystroke); `:PlurnkPick <glob>` takes a glob (native file completion). ──
+  map_if_empty("n", "<leader>ap", ":PlurnkPick<CR>",        "Plurnk: pick (admit) this file")
+  map_if_empty("n", "<leader>ah", ":PlurnkHide<CR>",        "Plurnk: hide this file")
+  map_if_empty("n", "<leader>av", ":PlurnkView<CR>",        "Plurnk: view (read-only) this file")
+  map_if_empty("n", "<leader>ad", ":PlurnkDrop<CR>",        "Plurnk: drop this file's constraints")
   map_if_empty("n", "<leader>aM", ":PlurnkMembers<CR>",     "Plurnk: list members")
 
   -- ── Proposal review (matches rummy a-y / a-e / a-n / a-] / a-[) ──
