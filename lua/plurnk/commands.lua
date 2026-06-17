@@ -379,11 +379,23 @@ end
 -- Membership overlay (svc#200) — service vocabulary, converged with the TUI:
 -- pick admits files git misses, hide drops a tracked match, view admits
 -- read-only. Live via session.constrain (session-scoped, re-resolved now).
--- Native vim file completion supplies the glob (no bespoke completer).
-local function constrain(effect, glob)
-  glob = (glob or ""):gsub("^%s+", ""):gsub("%s+$", "")
-  if glob == "" then
-    require("plurnk.client").notify(":AI/" .. effect .. " needs a glob", vim.log.levels.WARN)
+-- Native vim file completion supplies an explicit glob (no bespoke completer).
+
+-- Resolve the membership glob: an explicit arg, else the current buffer's
+-- workspace-relative path — the addictive vim move, pick/hide/view THIS file
+-- with one keystroke (<leader>ap/ah/av). A non-file buffer with no arg → nil.
+local function membership_glob(arg)
+  arg = (arg or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if arg ~= "" then return arg end
+  local name = vim.api.nvim_buf_get_name(0)
+  if name == "" or name:match("^%a[%w+.-]*://") then return nil end
+  return vim.fn.fnamemodify(name, ":.")  -- cwd-relative == workspace-relative (co-location law)
+end
+
+local function constrain(effect, arg)
+  local glob = membership_glob(arg)
+  if not glob then
+    require("plurnk.client").notify(":AI/" .. effect .. " needs a glob, or run it in a file buffer", vim.log.levels.WARN)
     return
   end
   resolve_session_then(function()
@@ -397,11 +409,12 @@ M.pick = function(opts) constrain("pick", opts.args) end
 M.hide = function(opts) constrain("hide", opts.args) end
 M.view = function(opts) constrain("view", opts.args) end
 
--- :PlurnkDrop {glob} — remove the constraint(s) matching the glob (any effect).
+-- :PlurnkDrop [glob] — remove the constraint(s) matching the glob (any effect);
+-- no arg drops the current file's constraints.
 M.drop = function(opts)
-  local glob = (opts.args or ""):gsub("^%s+", ""):gsub("%s+$", "")
-  if glob == "" then
-    require("plurnk.client").notify(":AI/drop needs a glob", vim.log.levels.WARN)
+  local glob = membership_glob(opts.args)
+  if not glob then
+    require("plurnk.client").notify(":AI/drop needs a glob, or run it in a file buffer", vim.log.levels.WARN)
     return
   end
   resolve_session_then(function()
@@ -705,10 +718,10 @@ M.setup = function()
   cmd("PlurnkSessionRuns", M.session_runs, {})
   cmd("PlurnkModels",      M.models,       {})
   cmd("PlurnkLog",         M.log,          { nargs = "?" })
-  cmd("PlurnkPick",        M.pick,         { nargs = 1, complete = "file" })
-  cmd("PlurnkHide",        M.hide,         { nargs = 1, complete = "file" })
-  cmd("PlurnkView",        M.view,         { nargs = 1, complete = "file" })
-  cmd("PlurnkDrop",        M.drop,         { nargs = 1, complete = "file" })
+  cmd("PlurnkPick",        M.pick,         { nargs = "?", complete = "file" })
+  cmd("PlurnkHide",        M.hide,         { nargs = "?", complete = "file" })
+  cmd("PlurnkView",        M.view,         { nargs = "?", complete = "file" })
+  cmd("PlurnkDrop",        M.drop,         { nargs = "?", complete = "file" })
   cmd("PlurnkMembers",     M.members,      {})
   cmd("PlurnkYolo",        M.yolo,         {})
   cmd("PlurnkPing",        M.ping,         {})

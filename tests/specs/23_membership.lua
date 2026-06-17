@@ -32,10 +32,20 @@ local ok, err = pcall(function()
   cmds.view({ args = "vendor/**" })
   H.assert_eq(last("session.constrain").params.effect, "view", "/view → effect=view")
 
-  -- empty glob → nothing sent
-  local before = #sent
+  -- no arg + a real file buffer → picks the CURRENT file (the one-keystroke
+  -- vim move). The glob is the buffer's workspace-relative path.
+  sent = {}
+  vim.api.nvim_buf_set_name(0, "src/widget.lua")
   cmds.pick({ args = "" })
-  H.assert_eq(#sent, before, "empty glob sends nothing")
+  local cur = last("session.constrain")
+  H.assert_truthy(cur ~= nil and cur.params.glob:match("widget%.lua"), "no-arg pick uses the current file")
+  H.assert_eq(cur.params.effect, "pick", "current-file pick → effect=pick")
+
+  -- no arg in a non-file (scheme://) buffer → nothing sent
+  sent = {}
+  vim.api.nvim_buf_set_name(0, "plurnk://session/x")
+  cmds.pick({ args = "" })
+  H.assert_eq(#sent, 0, "no-arg in a non-file buffer sends nothing")
 
   -- /drop → list, then unconstrain the matching glob (any effect)
   sent = {}
