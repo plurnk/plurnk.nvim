@@ -455,18 +455,47 @@ M.drop = function(opts)
   end)
 end
 
--- :PlurnkMembers — list the session's membership constraints.
+-- :PlurnkMembers — the model's RESOLVED file universe (svc#243), daemon-
+-- resolved (ls-files ∪ pick) − hide. NOT the rule globs: showing the rules
+-- here would misinform — they're the deltas, not what the model sees. The
+-- constraint list rides along as a footer (it's what /drop targets).
 M.members = function()
   resolve_session_then(function()
-    require("plurnk.client").send("session.constraints", {}, false, function(result)
-      local constraints = type(result) == "table" and result.constraints or {}
-      if #constraints == 0 then
-        require("plurnk.client").notify("(no membership constraints)", vim.log.levels.INFO)
-        return
+    local client = require("plurnk.client")
+    client.send("session.members", {}, false, function(result)
+      local members = type(result) == "table" and result.members or {}
+      local hidden = type(result) == "table" and result.hidden or {}
+      local editable, view = {}, {}
+      for _, m in ipairs(members) do
+        if m.effect == "view" then view[#view + 1] = m.path else editable[#editable + 1] = m.path end
       end
       local lines = {}
-      for _, c in ipairs(constraints) do lines[#lines + 1] = string.format("%-5s %s", c.effect, c.glob) end
-      require("plurnk.client").notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+      if #members == 0 and #hidden == 0 then
+        lines[1] = "the model's universe is empty — no members (/pick a file or /repo a folder)"
+      else
+        lines[1] = string.format("the model's universe: %d file%s — %d editable, %d read-only%s",
+          #members, #members == 1 and "" or "s", #editable, #view,
+          #hidden > 0 and (", " .. #hidden .. " hidden") or "")
+        for _, p in ipairs(view) do lines[#lines + 1] = "  view    " .. p end
+        for _, p in ipairs(hidden) do lines[#lines + 1] = "  hidden  " .. p end
+        if #editable <= 40 then
+          for _, p in ipairs(editable) do lines[#lines + 1] = "  member  " .. p end
+        else
+          lines[#lines + 1] = string.format("  member  …%d editable files (git-tracked); listing suppressed", #editable)
+        end
+      end
+      -- the rules that produced this — also what /drop targets; NOT the universe
+      client.send("session.constraints", {}, false, function(cres)
+        local constraints = type(cres) == "table" and cres.constraints or {}
+        if #constraints == 0 then
+          lines[#lines + 1] = "rules: none (git-tracked files only)"
+        else
+          local parts = {}
+          for _, c in ipairs(constraints) do parts[#parts + 1] = c.effect .. " " .. c.glob end
+          lines[#lines + 1] = "rules: " .. table.concat(parts, ", ")
+        end
+        client.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+      end)
     end)
   end)
 end
