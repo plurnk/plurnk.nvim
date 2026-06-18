@@ -12,6 +12,12 @@ local ok, err = pcall(function()
     if method == "session.constraints" and cb then
       cb({ constraints = { { effect = "hide", glob = "*.lock" }, { effect = "pick", glob = "docs/**" } } })
     end
+    if method == "session.members" and cb then
+      cb({
+        members = { { path = "/src/a.lua", effect = "member" }, { path = "/vendor/x.lua", effect = "view" } },
+        hidden = { "/secret.env" },
+      })
+    end
   end
   require("plurnk.client").check_daemon_once = function() end
   -- An active session → resolve_session_then short-circuits straight to the send.
@@ -74,10 +80,22 @@ local ok, err = pcall(function()
   cmds.drop({ args = "nomatch/**" })
   H.assert_truthy(last("session.unconstrain") == nil, "/drop with no match unconstrains nothing")
 
-  -- /members → list
+  -- /members → reports the RESOLVED universe (session.members), NOT the rule
+  -- globs. The first RPC must be session.members; the rules ride as a footer.
   sent = {}
+  local notified = {}
+  local real_notify = require("plurnk.client").notify
+  require("plurnk.client").notify = function(msg) notified[#notified + 1] = msg end
   cmds.members()
-  H.assert_eq(sent[1].method, "session.constraints", "/members lists constraints")
+  require("plurnk.client").notify = real_notify
+  H.assert_eq(sent[1].method, "session.members", "/members asks the daemon for the resolved universe first")
+  local out = table.concat(notified, "\n")
+  H.assert_match(out, "the model's universe: 2 files \u{2014} 1 editable, 1 read%-only, 1 hidden",
+    "/members states the true resolved counts")
+  H.assert_match(out, "view%s+/vendor/x%.lua", "/members shows the read-only member by resolved path")
+  H.assert_match(out, "member%s+/src/a%.lua", "/members shows the editable member by resolved path")
+  H.assert_match(out, "hidden%s+/secret%.env", "/members surfaces the hidden (excluded) file honestly")
+  H.assert_match(out, "rules: hide %*%.lock", "/members shows the rule footer (what /drop targets), distinct from the universe")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
