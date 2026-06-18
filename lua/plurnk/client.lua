@@ -86,6 +86,15 @@ M.check_daemon_once = function()
         .. ") — restart plurnk-service from a current checkout", vim.log.levels.WARN)
     end
   end)
+  -- Warm the alias cache once, so the header/statusline can name the daemon's
+  -- active default before any pick or loop (the picker resolves it lazily
+  -- otherwise). Cheap, boot-time-constant; statusline reactively repaints.
+  transport.send("providers.list", {}, false, function(result)
+    if type(result) == "table" and type(result.aliases) == "table" then
+      state.set_available_aliases(result.aliases)
+      pcall(vim.cmd, "redrawstatus!")
+    end
+  end)
 end
 
 return M

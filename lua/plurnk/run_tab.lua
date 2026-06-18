@@ -42,8 +42,10 @@ local function decorate_waterfall_win(win, session, key)
   vim.wo[win].cursorline = false
   vim.wo[win].scrolloff = 3
   local rid = type(key) == "number" and key or nil
+  local model = require("plurnk.state").get_active_model(session)
+  local model_seg = model and (" · 🤖 " .. model) or ""
   pcall(vim.api.nvim_set_option_value, "winbar",
-    " ⚡ " .. session .. " · " .. run_label(session, rid) .. " ", { win = win })
+    " ⚡ " .. session .. " · " .. run_label(session, rid) .. model_seg .. " ", { win = win })
 end
 
 local function ensure_record(session, key)
