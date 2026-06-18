@@ -409,6 +409,28 @@ M.pick = function(opts) constrain("pick", opts.args) end
 M.hide = function(opts) constrain("hide", opts.args) end
 M.view = function(opts) constrain("view", opts.args) end
 
+-- :PlurnkRepo [dir] — declare a git repo folder (svc#242): its ls-files
+-- join membership, addressed relative to the project root. repo is a
+-- DIRECTORY, not a file — the current-file default would be wrong, so with
+-- no arg we default to the current buffer's DIRECTORY (`%:h`), not the file.
+M.repo = function(opts)
+  local arg = (opts.args or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local dir = arg
+  if dir == "" then
+    local name = vim.api.nvim_buf_get_name(0)
+    if name == "" or name:match("^%a[%w+.-]*://") then
+      require("plurnk.client").notify(":AI/repo needs a directory, or run it in a file buffer", vim.log.levels.WARN)
+      return
+    end
+    dir = vim.fn.fnamemodify(name, ":.:h")  -- workspace-relative dir of the current file
+  end
+  resolve_session_then(function()
+    require("plurnk.client").send("session.constrain", { effect = "repo", glob = dir }, false, function()
+      require("plurnk.client").notify("repo: " .. dir, vim.log.levels.INFO)
+    end)
+  end)
+end
+
 -- :PlurnkDrop [glob] — remove the constraint(s) matching the glob (any effect);
 -- no arg drops the current file's constraints.
 M.drop = function(opts)
@@ -553,7 +575,7 @@ local HELP = table.concat({
   ":AI?? / ::         new session    ??? headless    ???? new run (fork)",
   ":AI... <text>      inject into the running model loop (loop.inject)",
   ":AI/<verb>         models sessions runs new log yolo ping",
-  "                   pick hide view drop members (membership overlay)",
+  "                   pick hide view repo drop members (membership overlay)",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
   "input buffer       ? ask · : act · ! exec · << raw DSL · <CR> submits",
@@ -578,6 +600,7 @@ local SLASH = {
   pick     = function(args) M.pick({ args = args }) end,
   hide     = function(args) M.hide({ args = args }) end,
   view     = function(args) M.view({ args = args }) end,
+  repo     = function(args) M.repo({ args = args }) end,
   drop     = function(args) M.drop({ args = args }) end,
   members  = function() M.members() end,
   yolo     = function() M.yolo() end,
@@ -721,6 +744,7 @@ M.setup = function()
   cmd("PlurnkPick",        M.pick,         { nargs = "?", complete = "file" })
   cmd("PlurnkHide",        M.hide,         { nargs = "?", complete = "file" })
   cmd("PlurnkView",        M.view,         { nargs = "?", complete = "file" })
+  cmd("PlurnkRepo",        M.repo,         { nargs = "?", complete = "dir" })
   cmd("PlurnkDrop",        M.drop,         { nargs = "?", complete = "file" })
   cmd("PlurnkMembers",     M.members,      {})
   cmd("PlurnkYolo",        M.yolo,         {})

@@ -32,6 +32,20 @@ local ok, err = pcall(function()
   cmds.view({ args = "vendor/**" })
   H.assert_eq(last("session.constrain").params.effect, "view", "/view → effect=view")
 
+  -- /repo (svc#242) → session.constrain with effect=repo, explicit dir glob
+  cmds.repo({ args = "packages/api" })
+  H.assert_eq(last("session.constrain").params.effect, "repo", "/repo → effect=repo")
+  H.assert_eq(last("session.constrain").params.glob, "packages/api", "/repo carries the dir glob")
+
+  -- /repo with no arg in a file buffer → the file's DIRECTORY, not the file
+  -- (repo is a folder declaration; the current-file default would be wrong)
+  sent = {}
+  vim.api.nvim_buf_set_name(0, "packages/api/server.lua")
+  cmds.repo({ args = "" })
+  local r = last("session.constrain")
+  H.assert_truthy(r ~= nil and r.params.glob == "packages/api", "no-arg repo uses the current file's directory")
+  H.assert_truthy(r ~= nil and not r.params.glob:match("server%.lua"), "no-arg repo excludes the file itself")
+
   -- no arg + a real file buffer → picks the CURRENT file (the one-keystroke
   -- vim move). The glob is the buffer's workspace-relative path.
   sent = {}
