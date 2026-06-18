@@ -94,6 +94,19 @@ end
 M.get_model_alias = function(name) local s = ensure_session(name); return s and s.model_alias end
 M.set_model_alias = function(name, alias) local s = ensure_session(name); if s then s.model_alias = alias end end
 
+-- The model alias in effect: the one last sent on this session's loop.run,
+-- else the daemon's active default (providers.list `active`), else nil. Shared
+-- by the winbar (the header) and the statusline so both name the same model the
+-- TUI header does. Converges with @plurnk/plurnk buildHeader's resolution.
+M.get_active_model = function(name)
+  local s = name and session_states[name]
+  if s and s.model_alias then return s.model_alias end
+  for _, a in ipairs(available_aliases) do
+    if a.active then return a.alias end
+  end
+  return nil
+end
+
 M.get_model_display = function(name)
   local s = name and session_states[name]
   if s and s.model_display then return s.model_display end

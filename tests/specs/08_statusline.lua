@@ -21,5 +21,18 @@ local ok, err = pcall(function()
   H.assert_match(require("plurnk.statusline").text(), "✅", "done glyph")
   state.set_final_status("s1", 504)
   H.assert_match(require("plurnk.statusline").text(), "❌", "error glyph")
+
+  -- Active-model resolution (converged with the TUI header): with no loop yet
+  -- (no model_alias), the statusline/winbar still name the daemon's active
+  -- default from the warmed providers.list cache.
+  local buf2 = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_current_buf(buf2)
+  vim.b[buf2].plurnk_session = "s2"
+  state.set_available_aliases({ { alias = "haiku", active = false }, { alias = "opus", active = true } })
+  H.assert_eq(state.get_active_model("s2"), "opus", "active default resolved when no loop has set a model")
+  H.assert_match(require("plurnk.statusline").text(), "🤖 opus", "statusline names the active default from cold")
+  -- An explicit per-session model still wins over the daemon default.
+  state.set_model_alias("s2", "sonnet")
+  H.assert_eq(state.get_active_model("s2"), "sonnet", "session's last-used model wins over the active default")
 end)
 if ok then H.finish(NAME) else H.fail(NAME, err) end

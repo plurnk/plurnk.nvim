@@ -31,7 +31,7 @@ M.text = function()
   local run = state.get_run_name(session)
   local parts = { "plurnk[" .. session .. (run and ("·" .. run) or "") .. "]" }
 
-  local model = state.get_model_alias(session)
+  local model = state.get_active_model(session)
   if model then parts[#parts+1] = "🤖 " .. model end
 
   local loop_id = state.get_current_loop_id(session)
