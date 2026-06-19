@@ -1,9 +1,9 @@
 -- Chat input scratch buffer. Lives at the bottom of the session tab.
--- Vim-canonical: <CR> from NORMAL mode submits. The user enters insert
--- mode with `i`/`a`/`o` like any other buffer, leaves with <Esc>, then
--- hits <CR> to send. Window nav is `<C-w>k` (vim's own), not a custom
--- shortcut. We don't `startinsert` on open either — the user chooses
--- their mode.
+-- Vim-canonical: <CR> from NORMAL mode submits; <Esc> drops to normal to
+-- navigate/submit; window nav is `<C-w>k` (vim's own), not a custom shortcut.
+-- We DO `startinsert` on open (operator, 2026-06-19): the box is always empty
+-- and inserting is the only possible action, so requiring `i` first is a
+-- pointless step even thinking in vim — not the same as forcing modal habits.
 
 local M = {}
 local INPUT_HEIGHT = 3
@@ -116,6 +116,8 @@ M.create_in_tab = function(session_name, run_id)
   if session_name then vim.b[buf].plurnk_session = session_name end
   if run_id then vim.b[buf].plurnk_run_id = run_id end
   bind_keymaps(buf, session_name)
+  -- Fresh empty box → start in insert; the only possible action is to type.
+  vim.cmd("startinsert")
   return buf, win
 end
 
