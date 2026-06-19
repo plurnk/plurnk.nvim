@@ -460,9 +460,10 @@ local function constrain(effect, arg)
     require("plurnk.client").notify(":AI/" .. effect .. " needs a glob, or run it in a file buffer", vim.log.levels.WARN)
     return
   end
-  resolve_session_then(function()
+  resolve_session_then(function(session_name)
     require("plurnk.client").send("session.constrain", { effect = effect, glob = glob }, false, function()
       require("plurnk.client").notify(effect .. ": " .. glob, vim.log.levels.INFO)
+      require("plurnk.signs").refresh(session_name)
     end)
   end)
 end
@@ -486,9 +487,10 @@ M.repo = function(opts)
     end
     dir = vim.fn.fnamemodify(name, ":.:h")  -- workspace-relative dir of the current file
   end
-  resolve_session_then(function()
+  resolve_session_then(function(session_name)
     require("plurnk.client").send("session.constrain", { effect = "repo", glob = dir }, false, function()
       require("plurnk.client").notify("repo: " .. dir, vim.log.levels.INFO)
+      require("plurnk.signs").refresh(session_name)
     end)
   end)
 end
@@ -501,7 +503,7 @@ M.drop = function(opts)
     require("plurnk.client").notify(":AI/drop needs a glob, or run it in a file buffer", vim.log.levels.WARN)
     return
   end
-  resolve_session_then(function()
+  resolve_session_then(function(session_name)
     require("plurnk.client").send("session.constraints", {}, false, function(result)
       local constraints = type(result) == "table" and result.constraints or {}
       local matches = vim.tbl_filter(function(c) return c.glob == glob end, constraints)
@@ -513,6 +515,7 @@ M.drop = function(opts)
         require("plurnk.client").send("session.unconstrain", { effect = c.effect, glob = c.glob }, false)
       end
       require("plurnk.client").notify("dropped " .. #matches .. " constraint(s): " .. glob, vim.log.levels.INFO)
+      require("plurnk.signs").refresh(session_name)
     end)
   end)
 end

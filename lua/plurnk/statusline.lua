@@ -13,12 +13,12 @@ local function format_cost(pico)
   return string.format("$%.4f", usd)
 end
 
+-- Delegate to render.lua's aligned STATUS_GLYPHS so the statusline's final-
+-- status glyph matches the waterfall (and the TUI). No final yet = in flight.
 local function status_glyph(final)
   if not final then return "⏳" end
-  if final == 200 then return "✅" end
-  if final >= 400 and final < 500 then return "❌" end
-  if final >= 500 then return "❌" end
-  return "·"
+  local g = require("plurnk.render").status_glyph(final)
+  return g ~= "" and g or "·"
 end
 
 M.text = function()
@@ -59,6 +59,10 @@ M.text = function()
 
   local cost = format_cost(state.get_cost_pico(session))
   if cost then parts[#parts+1] = cost end
+
+  -- Account balance (svc#252) — snapshot, when the wire carries it. Staged slot.
+  local bal = state.get_balance_pico(session)
+  if type(bal) == "number" then parts[#parts+1] = string.format("bal $%.2f", bal / 1e12) end
 
   local ok_diff, diff = pcall(require, "plurnk.diff")
   if ok_diff and diff.is_yolo and diff.is_yolo() then parts[#parts+1] = "YOLO" end
