@@ -17,6 +17,7 @@ local ok, err = pcall(function()
     if method == "session.create" and cb then cb({ id = 7, name = "lang-" .. #sent, runId = 42, runName = "auto-run" }) end
     if method == "session.attach" and cb then cb({ id = 7, runId = 42, runName = "auto-run" }) end
     if method == "loop.cancel" and cb then cb({ cancelled = true, runId = 9 }) end
+    if method == "run.fork" and cb then cb({ runId = 99, runName = "fork-run" }) end
   end
   local function find(list, method)
     for _, m in ipairs(list) do if m.method == method then return m end end
@@ -43,12 +44,15 @@ local ok, err = pcall(function()
   H.assert_truthy(lr3, ":AI??? then loop.run")
   H.assert_eq(lr3.params.prompt, "bare metal", ":AI??? carries prompt")
 
-  -- ── `????` — conversation fork: needs run.fork (not wired); notify ──
-  -- Post run-split, re-attaching mints a CLIENT run, not a forked
-  -- conversation, so the client refuses to fake it (plurnk-service#227).
+  -- ── `????` — conversation fork (run.fork, svc#248, now wired) ──────
+  -- Branch the model run, bind the connection to the fork, then speak the
+  -- prompt into it: run.fork → session.attach(runId) → loop.run.
   sent = {}
   ai({ args = "???? take two", range = 0 })
-  H.assert_eq(#sent, 0, ":AI???? sends nothing until run.fork is wired")
+  H.assert_truthy(find(sent, "run.fork"), ":AI???? forks via run.fork")
+  local lrf = find(sent, "loop.run")
+  H.assert_truthy(lrf, ":AI???? runs a loop in the fork")
+  H.assert_eq(lrf.params.prompt, "take two", ":AI???? carries the prompt into the fork")
 
   -- ── `?` is ASK: flags.mode="ask" rides loop.run; `:` is act ────────
   sent = {}

@@ -131,6 +131,28 @@ M.get_record = function(session)
   return rec
 end
 
+-- Rekey a session's tab records to a new name (session.rename, svc#248) and
+-- refresh buffer titles + winbars in place. The session is the world; its name
+-- is a mutable handle, so its open tab follows the rename rather than orphaning.
+M.rename = function(old_session, new_session)
+  if not old_session or not new_session or old_session == new_session then return end
+  local recs = records[old_session]
+  if not recs then return end
+  records[new_session] = recs
+  records[old_session] = nil
+  for key, rec in pairs(recs) do
+    for _, b in ipairs({ rec.waterfall_buf, rec.input_buf }) do
+      if b and vim.api.nvim_buf_is_valid(b) then vim.b[b].plurnk_session = new_session end
+    end
+    if rec.waterfall_buf and vim.api.nvim_buf_is_valid(rec.waterfall_buf) then
+      pcall(vim.api.nvim_buf_set_name, rec.waterfall_buf, buffer_title(new_session, key))
+    end
+    if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
+      decorate_waterfall_win(rec.waterfall_win, new_session, key)
+    end
+  end
+end
+
 -- Which session owns this tabpage, if any (any run's tab counts).
 M.session_for_tabpage = function(tabpage)
   for session, recs in pairs(records) do
