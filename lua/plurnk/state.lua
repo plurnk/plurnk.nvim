@@ -44,7 +44,13 @@ end
 
 -- ── Project ─────────────────────────────────────────────────────────
 
-M.get_project_path = function() return project_path end
+-- Default to the editor's cwd when no root was explicitly set. Co-location
+-- makes nvim's cwd the daemon's workspace, and getcwd() is absolute (valid for
+-- the daemon). Without this, project_path stays nil and EVERY session.create
+-- goes out headless — projectRoot omitted → daemon stores null → file ops 400,
+-- no git substrate. nvim intends non-headless (`:AI???` is the explicit headless).
+local function resolved_root() return project_path or vim.fn.getcwd() end
+M.get_project_path = function() return resolved_root() end
 M.set_project_path = function(p) project_path = p end
 
 -- ── Models / aliases (providers.list) ───────────────────────────────
@@ -171,14 +177,16 @@ end
 -- ── Session/buffer helpers ──────────────────────────────────────────
 
 M.is_project_file = function(path)
-  if not project_path or not path then return false end
-  return vim.startswith(path, project_path)
+  local root = resolved_root()
+  if not root or not path then return false end
+  return vim.startswith(path, root)
 end
 
 M.get_relative_path = function(path)
-  if not project_path or not path then return path end
-  if vim.startswith(path, project_path .. "/") then
-    return path:sub(#project_path + 2)
+  local root = resolved_root()
+  if not root or not path then return path end
+  if vim.startswith(path, root .. "/") then
+    return path:sub(#root + 2)
   end
   return path
 end
