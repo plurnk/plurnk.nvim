@@ -150,14 +150,28 @@ local function create_session_then(copts, callback)
   end)
 end
 
--- Conversation fork (`????`): branch the model run, carrying its history.
--- That's run.fork (§14.8) — not exposed over RPC yet. Re-attaching with no
--- runName only mints a fresh CLIENT run (run-split), which is not a forked
--- conversation, so we don't fake it.
-local function fork_run_then(session_name, _callback)
-  require("plurnk.client").notify(
-    "conversation fork (:AI????) needs run.fork over RPC — not wired yet (plurnk-service#227)",
-    vim.log.levels.WARN)
+-- Conversation fork (`????`): branch the model run, carrying its history —
+-- run.fork (svc#248, now wired). Optional `name` names the branch at
+-- instantiation (immutable after; reserved/taken rejected; defaults
+-- `<parent>-fork`). Forks the session's current model run, binds this
+-- connection to the new run so the next loop.run lands there, then continues.
+local function fork_run_then(session_name, callback, name)
+  local client = require("plurnk.client")
+  local params = {}
+  if name and name ~= "" then params.name = name end
+  client.send("run.fork", params, false, function(result)
+    if type(result) ~= "table" or not result.runId then
+      client.notify("run.fork failed (need a model run to fork — start a loop first)", vim.log.levels.WARN)
+      return
+    end
+    local sid = require("plurnk.state").get_session_id(session_name)
+    client.send("session.attach", { id = sid, runId = result.runId }, false, function(att)
+      local rid = (type(att) == "table" and att.runId) or result.runId
+      local rname = (type(att) == "table" and att.runName) or result.runName
+      note_model_run(session_name, rid, rname)
+      callback(session_name)
+    end)
+  end)
 end
 
 -- Rebind the connection to a specific run and adopt it as the conversation
@@ -176,6 +190,25 @@ M.switch_run = function(session_name, run_id, callback)
     if type(att) ~= "table" then return end
     note_model_run(session_name, att.runId, att.runName)
     callback()
+  end)
+end
+
+-- :PlurnkFork [name] — branch the current conversation into a new run
+-- (run.fork, svc#248), optionally named at instantiation (immutable after).
+-- Switches to the fork; the next prompt speaks into it. No prompt of its own —
+-- `:AI???? <text>` is the fork-and-speak form.
+M.fork = function(opts)
+  local name = (opts.args or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local session = active_session()
+  if not session then
+    require("plurnk.client").notify("No active session to fork", vim.log.levels.WARN)
+    return
+  end
+  resolve_session_then(function()
+    fork_run_then(session, function(s)
+      require("plurnk.run_tab").open(s)
+      require("plurnk.client").notify("forked" .. (name ~= "" and (" → " .. name) or ""), vim.log.levels.INFO)
+    end, name ~= "" and name or nil)
   end)
 end
 
@@ -319,6 +352,35 @@ M.session_new = function(opts)
   create_session_then({ name = opts.args }, function(name)
     require("plurnk.run_tab").open(name)
     require("plurnk.client").notify("Session created: " .. name, vim.log.levels.INFO)
+  end)
+end
+
+-- :PlurnkSessionRename <newname> — rename the active session (session.rename,
+-- svc#248). A session's name is a mutable handle on the world; a run's is
+-- immutable. Rekeys local state + the run tab in place.
+M.session_rename = function(opts)
+  local new_name = (opts.args or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if new_name == "" then
+    require("plurnk.client").notify(":AI/rename needs a new name", vim.log.levels.WARN)
+    return
+  end
+  local session = active_session()
+  if not session then
+    require("plurnk.client").notify("No active session to rename", vim.log.levels.WARN)
+    return
+  end
+  resolve_session_then(function()
+    require("plurnk.client").send("session.rename", { name = new_name }, false, function(result)
+      if type(result) ~= "table" or not result.name then return end
+      local state = require("plurnk.state")
+      local sid = state.get_session_id(session)
+      state.rename_session(session, result.name)
+      if sid then state.set_session_id(result.name, sid) end
+      state.set_active_session_name(result.name)
+      require("plurnk.run_tab").rename(session, result.name)
+      associate_buffer(vim.api.nvim_get_current_buf(), result.name)
+      require("plurnk.client").notify("renamed " .. session .. " → " .. result.name, vim.log.levels.INFO)
+    end)
   end)
 end
 
@@ -603,7 +665,7 @@ local HELP = table.concat({
   ":AI! <cmd>         exec via the daemon; bare ! execs the visual selection",
   ":AI?? / ::         new session    ??? headless    ???? new run (fork)",
   ":AI... <text>      inject into the running model loop (loop.inject)",
-  ":AI/<verb>         models sessions runs new log yolo ping",
+  ":AI/<verb>         models sessions runs new rename fork log yolo ping",
   "                   pick hide view repo drop members (membership overlay)",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
@@ -625,6 +687,8 @@ local SLASH = {
   sessions = function() M.sessions() end,
   runs     = function() M.session_runs() end,
   new      = function(args) M.session_new({ args = args }) end,
+  rename   = function(args) M.session_rename({ args = args }) end,
+  fork     = function(args) M.fork({ args = args }) end,
   log      = function(args) M.log({ args = args }) end,
   pick     = function(args) M.pick({ args = args }) end,
   hide     = function(args) M.hide({ args = args }) end,
@@ -767,6 +831,8 @@ M.setup = function()
   cmd("PlurnkPrompt",      M.prompt,       { nargs = "*", range = true })
   cmd("PlurnkSessions",    M.sessions,     {})
   cmd("PlurnkSessionNew",  M.session_new,  { nargs = "?" })
+  cmd("PlurnkSessionRename", M.session_rename, { nargs = "?" })
+  cmd("PlurnkFork",        M.fork,         { nargs = "?" })
   cmd("PlurnkSessionRuns", M.session_runs, {})
   cmd("PlurnkModels",      M.models,       {})
   cmd("PlurnkLog",         M.log,          { nargs = "?" })
