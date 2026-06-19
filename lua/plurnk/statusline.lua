@@ -58,14 +58,19 @@ M.text = function()
     parts[#parts+1] = "↑" .. fmt_count(usage.prompt) .. " ↓" .. fmt_count(usage.completion)
   end
 
-  -- "loop $X" — the cost of the most recent loop, explicitly per-loop so it
-  -- can't be misread as a session total.
-  local cost = format_cost(state.get_cost_pico(session))
-  if cost then parts[#parts+1] = "loop " .. cost end
-
-  -- Account balance (svc#252) — snapshot, when the wire carries it. Staged slot.
+  -- Money: loop (this loop's cost) | session (daemon's authoritative total,
+  -- svc#254) | remaining (account balance, svc#252). Each shown ONLY when
+  -- available — session/remaining are nil until the daemon pushes them. The
+  -- client renders all three; it aggregates none of them.
+  local function fmt_usd(pico) return string.format("$%.2f", pico / 1e12) end
+  local money = {}
+  local loop_cost = state.get_cost_pico(session)
+  if type(loop_cost) == "number" and loop_cost > 0 then money[#money+1] = "loop: " .. fmt_usd(loop_cost) end
+  local sess = state.get_session_cost_pico(session)
+  if type(sess) == "number" then money[#money+1] = "session: " .. fmt_usd(sess) end
   local bal = state.get_balance_pico(session)
-  if type(bal) == "number" then parts[#parts+1] = string.format("bal $%.2f", bal / 1e12) end
+  if type(bal) == "number" then money[#money+1] = "remaining: " .. fmt_usd(bal) end
+  if #money > 0 then parts[#parts+1] = table.concat(money, " | ") end
 
   local ok_diff, diff = pcall(require, "plurnk.diff")
   if ok_diff and diff.is_yolo and diff.is_yolo() then parts[#parts+1] = "YOLO" end
