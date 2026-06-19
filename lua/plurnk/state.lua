@@ -148,6 +148,9 @@ M.record_loop_usage = function(name, u)
   if type(u.promptTokens) == "number" then s.usage.prompt = u.promptTokens end
   if type(u.completionTokens) == "number" then s.usage.completion = u.completionTokens end
   if type(u.costPico) == "number" then s.cost_pico = u.costPico end  -- last loop's cost, not a total
+  -- sessionCostPico = the DAEMON's authoritative cumulative session total
+  -- (svc#254), pushed on the wire — NOT a client tally. We only render it.
+  if type(u.sessionCostPico) == "number" then s.session_cost_pico = u.sessionCostPico end
   if type(u.balancePico) == "number" then s.balance_pico = u.balancePico end  -- account balance snapshot
 end
 
@@ -163,6 +166,10 @@ M.set_status_text = function(name, text) local s = ensure_session(name); if s th
 -- the daemon's (svc#254), surfaced in `session list`, never reconstructed here.
 M.get_cost_pico = function(name) local s = ensure_session(name); return s and s.cost_pico or 0 end
 M.set_cost_pico = function(name, c) local s = ensure_session(name); if s then s.cost_pico = c or 0 end end
+
+-- Daemon's authoritative session total (svc#254); nil until the wire carries
+-- sessionCostPico. Rendered, never reconstructed.
+M.get_session_cost_pico = function(name) local s = ensure_session(name); return s and s.session_cost_pico end
 
 -- Account balance snapshot (svc#252); nil until the wire carries balancePico.
 M.get_balance_pico = function(name) local s = ensure_session(name); return s and s.balance_pico end

@@ -9,29 +9,31 @@ local ok, err = pcall(function()
   state.set_model_alias("s1", "claude")
   state.set_current_loop_id("s1", 7)
   state.set_current_turn("s1", 2)
-  state.set_cost_pico("s1", 12000000000) -- $0.012 — the LAST loop's cost, not a total
+  state.set_cost_pico("s1", 70000000000) -- $0.07 — the LAST loop's cost, not a total
   local text = require("plurnk.statusline").text()
   H.assert_match(text, "s1", "session")
   H.assert_match(text, "claude", "model")
   H.assert_match(text, "L7", "loop")
   H.assert_match(text, "T2", "turn")
-  H.assert_match(text, "loop %$0%.0120", "per-loop cost, labelled 'loop' so it can't read as a session total")
+  H.assert_match(text, "loop: %$0%.07", "per-loop cost, labelled 'loop:'")
   H.assert_match(text, "⏳", "in-flight glyph")
   state.set_final_status("s1", 200)
   H.assert_match(require("plurnk.statusline").text(), "✅", "done glyph")
   state.set_final_status("s1", 504)
   H.assert_match(require("plurnk.statusline").text(), "❌", "error glyph")
 
-  -- Account balance (svc#252): staged slot lights up only when the wire carries
-  -- balancePico (snapshot via record_loop_usage), else absent.
-  H.assert_truthy(not require("plurnk.statusline").text():match("bal %$"), "no balance segment until the wire carries it")
-  state.record_loop_usage("s1", { balancePico = 5000000000000 }) -- $5.00
-  H.assert_match(require("plurnk.statusline").text(), "bal %$5%.00", "balance snapshot renders bal $5.00")
+  -- session total + remaining (account balance) — each shown ONLY when the
+  -- daemon pushes it (svc#254 / svc#252); the client renders, never aggregates.
+  H.assert_truthy(not require("plurnk.statusline").text():match("session:"), "no session total until the wire carries it")
+  H.assert_truthy(not require("plurnk.statusline").text():match("remaining:"), "no remaining until the wire carries it")
+  state.record_loop_usage("s1", { sessionCostPico = 12560000000000, balancePico = 198530000000000 })
+  local m = require("plurnk.statusline").text()
+  H.assert_match(m, "session: %$12%.56", "session total = daemon's authoritative cumulative cost")
+  H.assert_match(m, "remaining: %$198%.53", "remaining = account balance")
 
-  -- record_loop_usage is a SNAPSHOT, not a tally: a second loop's cost REPLACES
-  -- the first (no client-side session aggregation — svc#254).
-  state.record_loop_usage("s1", { costPico = 3000000000 }) -- $0.003 → sub-cent format $0.3000c
-  H.assert_match(require("plurnk.statusline").text(), "loop %$0%.3000c", "last loop's cost replaces, not accumulates")
+  -- record_loop_usage is a SNAPSHOT, not a tally: a second loop's cost REPLACES.
+  state.record_loop_usage("s1", { costPico = 50000000000 }) -- $0.05
+  H.assert_match(require("plurnk.statusline").text(), "loop: %$0%.05", "last loop's cost replaces, not accumulates")
 
   -- Active-model resolution (converged with the TUI header): with no loop yet
   -- (no model_alias), the statusline/winbar still name the daemon's active
