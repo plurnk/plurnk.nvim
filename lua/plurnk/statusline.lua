@@ -73,7 +73,9 @@ M.text = function()
   if #money > 0 then parts[#parts+1] = table.concat(money, " | ") end
 
   local ok_diff, diff = pcall(require, "plurnk.diff")
-  if ok_diff and diff.is_yolo and diff.is_yolo() then parts[#parts+1] = "YOLO" end
+  if ok_diff and diff.is_yolo then
+    parts[#parts+1] = "YOLO: " .. (diff.is_yolo() and "on" or "off")
+  end
 
   return table.concat(parts, " · ")
 end

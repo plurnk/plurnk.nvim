@@ -64,7 +64,12 @@ local function resolve_session_then(callback)
   local session = active_session()
   if session then
     client.check_daemon_once()
+    -- A picked alias wins once; then it STICKS — persist it as the session's
+    -- model so every later loop keeps it (else it reverts to the daemon default
+    -- after one loop). consume clears the one-shot pick; set_model_alias makes
+    -- the choice durable (and lights it in the statusbar/winbar).
     local model = client.consume_selected_alias() or client.get_session_model(session)
+    if model then require("plurnk.state").set_model_alias(session, model) end
     callback(session, model)
     return
   end
@@ -82,6 +87,7 @@ local function resolve_session_then(callback)
     -- first model-run log/entry adopts it, and loop.run confirms modelRunId.
     client.check_daemon_once()
     local model = client.consume_selected_alias()
+    if model then require("plurnk.state").set_model_alias(name, model) end
     callback(name, model)
   end)
 end
@@ -432,10 +438,23 @@ M.models = function()
       end,
     }, function(choice)
       if not choice then return end
-      require("plurnk.state").set_selected_alias(choice.alias)
-      client.notify("Model alias: " .. choice.alias, vim.log.levels.INFO)
+      M.set_model(choice.alias)
     end)
   end)
+end
+
+-- :AI/model <alias> — set the model directly (sticky); bare opens the picker.
+-- Sets the one-shot pick AND the durable session model so it survives past the
+-- next loop, and lights immediately in the statusbar/winbar.
+M.set_model = function(args)
+  local alias = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if alias == "" then M.models() return end
+  local state = require("plurnk.state")
+  state.set_selected_alias(alias)
+  local session = active_session()
+  if session then state.set_model_alias(session, alias) end
+  require("plurnk.client").notify("Model alias: " .. alias, vim.log.levels.INFO)
+  pcall(vim.cmd, "redrawstatus!")
 end
 
 -- Membership overlay (svc#200) — service vocabulary, converged with the TUI:
@@ -686,7 +705,9 @@ local SLASH = {
   clear    = function() M.clear() end,
   abort    = function() M.stop() end,
   models   = function() M.models() end,
-  model    = function() M.models() end,
+  -- `/model <alias>` sets it directly (converged with the TUI); bare `/model`
+  -- opens the picker. Completion offers aliases (see ai_complete).
+  model    = function(args) M.set_model(args) end,
   sessions = function() M.sessions() end,
   runs     = function() M.session_runs() end,
   new      = function(args) M.session_new({ args = args }) end,
@@ -707,6 +728,40 @@ local SLASH = {
   next     = function() M.next() end,
   prev     = function() M.prev() end,
 }
+
+-- Cmdline completion for :AI — alias names after `/model `, slash verbs after a
+-- bare `/`. customlist (we filter ourselves; vim doesn't). available_aliases is
+-- warmed by check_daemon_once / :PlurnkModels; fire a background fetch if cold.
+M.ai_complete = function(_arglead, cmdline, _)
+  local state = require("plurnk.state")
+  local model_partial = cmdline:match("/model%s+(%S*)$")
+  if model_partial then
+    local aliases = state.get_available_aliases()
+    if #aliases == 0 then
+      pcall(function()
+        require("plurnk.client").send("providers.list", {}, false, function(r)
+          if type(r) == "table" and type(r.aliases) == "table" then state.set_available_aliases(r.aliases) end
+        end)
+      end)
+    end
+    local out = {}
+    for _, a in ipairs(aliases) do
+      if vim.startswith(a.alias, model_partial) then out[#out + 1] = a.alias end
+    end
+    table.sort(out)
+    return out
+  end
+  local verb_partial = cmdline:match("/(%S*)$")
+  if verb_partial and not cmdline:match("/%S+%s") then
+    local out = {}
+    for verb in pairs(SLASH) do
+      if vim.startswith(verb, verb_partial) then out[#out + 1] = "/" .. verb end
+    end
+    table.sort(out)
+    return out
+  end
+  return {}
+end
 
 -- :AI — the central user command. Rummy's metacommand language, adapted
 -- to the daemon-owned loop (no client-side mode taxonomy):
@@ -858,7 +913,7 @@ M.setup = function()
   cmd("PlurnkPrev",        M.prev,         {})
 
   -- :AI — central user command (rummy-style surface; plurnk semantics).
-  cmd("AI", M.ai, { nargs = "*", range = true, bang = true })
+  cmd("AI", M.ai, { nargs = "*", range = true, bang = true, complete = M.ai_complete })
 
   -- Cmdline abbreviations so the no-space forms work (`:AI?? hi` would
   -- otherwise be E492 — `?` can't be part of a command name). Rewrites
