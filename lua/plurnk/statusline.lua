@@ -44,9 +44,10 @@ M.text = function()
   local final = state.get_final_status(session)
   parts[#parts+1] = status_glyph(final) .. (final and (" " .. tostring(final)) or "")
 
-  -- Token gauge: real provider usage (↑prompt ↓completion, accumulated
-  -- from loop/terminated — plurnk-service#197). Omitted until a loop has
-  -- run; no content-token fallback (the wire always carries real usage).
+  -- The LAST loop's usage (↑prompt ↓completion + cost) — NOT a session total.
+  -- The session lifetime total is the daemon's (svc#254), shown in
+  -- `session list`, never reconstructed here. Two money figures only: the
+  -- specific loop's cost and the account balance.
   local function fmt_count(n)
     if n >= 1e6 then return string.format("%.1fM", n / 1e6) end
     if n >= 1000 then return string.format("%.1fk", n / 1000) end
@@ -57,8 +58,10 @@ M.text = function()
     parts[#parts+1] = "↑" .. fmt_count(usage.prompt) .. " ↓" .. fmt_count(usage.completion)
   end
 
+  -- "loop $X" — the cost of the most recent loop, explicitly per-loop so it
+  -- can't be misread as a session total.
   local cost = format_cost(state.get_cost_pico(session))
-  if cost then parts[#parts+1] = cost end
+  if cost then parts[#parts+1] = "loop " .. cost end
 
   -- Account balance (svc#252) — snapshot, when the wire carries it. Staged slot.
   local bal = state.get_balance_pico(session)

@@ -135,16 +135,20 @@ M.set_final_status = function(name, st) local s = ensure_session(name); if s the
 -- from loop/terminated — the ONE accumulation point (loop.run's result
 -- carries the same numbers; adding both would double-count).
 M.get_usage = function(name) local s = ensure_session(name); return s and s.usage end
-M.add_usage = function(name, u)
+-- Record the LAST loop's usage — a snapshot, NOT a running total. The session
+-- lifetime cost is the daemon's to aggregate (svc#254): runs spawn/fork and
+-- multiple clients drive one session, so no client sees every turn; a
+-- client-side tally only sums the loops THIS client witnessed — a lie about
+-- money. We show only "what the last loop cost" + account balance (svc#252).
+M.record_loop_usage = function(name, u)
   if type(u) ~= "table" then return end
   local s = ensure_session(name)
   if not s then return end
   s.usage = s.usage or { prompt = 0, completion = 0 }
-  if type(u.promptTokens) == "number" then s.usage.prompt = s.usage.prompt + u.promptTokens end
-  if type(u.completionTokens) == "number" then s.usage.completion = s.usage.completion + u.completionTokens end
-  if type(u.costPico) == "number" then s.cost_pico = (s.cost_pico or 0) + u.costPico end
-  -- Account balance (svc#252) is a SNAPSHOT (latest), not accumulated like cost.
-  if type(u.balancePico) == "number" then s.balance_pico = u.balancePico end
+  if type(u.promptTokens) == "number" then s.usage.prompt = u.promptTokens end
+  if type(u.completionTokens) == "number" then s.usage.completion = u.completionTokens end
+  if type(u.costPico) == "number" then s.cost_pico = u.costPico end  -- last loop's cost, not a total
+  if type(u.balancePico) == "number" then s.balance_pico = u.balancePico end  -- account balance snapshot
 end
 
 -- True between loop.run dispatch and loop/terminated — drives the
@@ -155,6 +159,8 @@ M.set_loop_inflight = function(name, v) local s = ensure_session(name); if s the
 M.get_status_text = function(name) local s = ensure_session(name); return s and s.status_text end
 M.set_status_text = function(name, text) local s = ensure_session(name); if s then s.status_text = text end end
 
+-- The LAST loop's cost (snapshot), not a session total — the lifetime total is
+-- the daemon's (svc#254), surfaced in `session list`, never reconstructed here.
 M.get_cost_pico = function(name) local s = ensure_session(name); return s and s.cost_pico or 0 end
 M.set_cost_pico = function(name, c) local s = ensure_session(name); if s then s.cost_pico = c or 0 end end
 

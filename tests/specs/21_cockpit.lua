@@ -11,16 +11,17 @@ local ok, err = pcall(function()
   state.set_active_session_name("gauge")
   vim.b.plurnk_session = "gauge"
 
-  -- Real usage (loop/terminated, svc#197) — the ONLY token source;
-  -- accumulates ↑/↓ and cost per session. No content-token fallback.
+  -- Real usage (loop/terminated, svc#197) — the LAST loop's usage, a SNAPSHOT,
+  -- NOT a session tally. The lifetime total is the daemon's (svc#254); a client
+  -- can't sum it (forks + multiple clients), and faking it lies about money.
   dispatch.handle_loop_terminated({ loopId = 1, finalStatus = 200, hitMaxTurns = false,
     usage = { promptTokens = 2000, completionTokens = 500, costPico = 7e9 } }, "gauge")
   dispatch.handle_loop_terminated({ loopId = 2, finalStatus = 200, hitMaxTurns = false,
     usage = { promptTokens = 1000, completionTokens = 250, costPico = 3e9 } }, "gauge")
   local line = require("plurnk.statusline").text()
   H.assert_match(line, "plurnk%[gauge", "statusline names the session")
-  H.assert_match(line, "↑3%.0k ↓750", "statusline shows accumulated real usage")
-  H.assert_eq(state.get_cost_pico("gauge"), 1e10, "cost accumulates from usage")
+  H.assert_match(line, "↑1%.0k ↓250", "shows the LAST loop's usage (snapshot), not the sum of both")
+  H.assert_eq(state.get_cost_pico("gauge"), 3e9, "cost is the last loop's, NOT accumulated (no client session total)")
 
   -- A session with no loop yet shows NO gauge (no fake zeros).
   vim.cmd("enew")
