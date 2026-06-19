@@ -143,6 +143,8 @@ M.add_usage = function(name, u)
   if type(u.promptTokens) == "number" then s.usage.prompt = s.usage.prompt + u.promptTokens end
   if type(u.completionTokens) == "number" then s.usage.completion = s.usage.completion + u.completionTokens end
   if type(u.costPico) == "number" then s.cost_pico = (s.cost_pico or 0) + u.costPico end
+  -- Account balance (svc#252) is a SNAPSHOT (latest), not accumulated like cost.
+  if type(u.balancePico) == "number" then s.balance_pico = u.balancePico end
 end
 
 -- True between loop.run dispatch and loop/terminated — drives the
@@ -155,6 +157,9 @@ M.set_status_text = function(name, text) local s = ensure_session(name); if s th
 
 M.get_cost_pico = function(name) local s = ensure_session(name); return s and s.cost_pico or 0 end
 M.set_cost_pico = function(name, c) local s = ensure_session(name); if s then s.cost_pico = c or 0 end end
+
+-- Account balance snapshot (svc#252); nil until the wire carries balancePico.
+M.get_balance_pico = function(name) local s = ensure_session(name); return s and s.balance_pico end
 
 M.get_last_seen_log_id = function(name) local s = ensure_session(name); return s and s.last_seen_log_id or 0 end
 M.set_last_seen_log_id = function(name, id)

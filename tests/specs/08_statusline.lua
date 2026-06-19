@@ -22,6 +22,12 @@ local ok, err = pcall(function()
   state.set_final_status("s1", 504)
   H.assert_match(require("plurnk.statusline").text(), "❌", "error glyph")
 
+  -- Account balance (svc#252): staged slot lights up only when the wire carries
+  -- balancePico (snapshot via add_usage), else absent.
+  H.assert_truthy(not require("plurnk.statusline").text():match("bal %$"), "no balance segment until the wire carries it")
+  state.add_usage("s1", { balancePico = 5000000000000 }) -- $5.00
+  H.assert_match(require("plurnk.statusline").text(), "bal %$5%.00", "balance snapshot renders bal $5.00")
+
   -- Active-model resolution (converged with the TUI header): with no loop yet
   -- (no model_alias), the statusline/winbar still name the daemon's active
   -- default from the warmed providers.list cache.

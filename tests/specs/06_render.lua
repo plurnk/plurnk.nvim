@@ -79,6 +79,13 @@ local ok, err = pcall(function()
     status_rx = 202, tx = { body = "ok" },
   })
   H.assert_match(client_line[1], "👤", "client glyph")
+  H.assert_match(client_line[1], "💤", "202 → 💤 parked sub-glyph (aligned with @plurnk/plurnk)")
+
+  -- Status glyph alignment (converged map): 300 needs-decision, 499 abort.
+  local R2 = require("plurnk.render").status_glyph
+  H.assert_eq(R2(300), "❓", "300 → ❓ needs-decision")
+  H.assert_eq(R2(202), "💤", "202 → 💤 parked")
+  H.assert_eq(R2(499), "✋", "499 → ✋ abort")
 
   -- Prompt entry (plurnk://prompt/*) renders as USER SPEECH, not an EDIT trace.
   local prompt_block = R({

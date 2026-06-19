@@ -25,14 +25,19 @@ M.ORIGIN_GLYPHS = {
   plugin = "🔌",
 }
 
+-- Aligned to the grammar's terminal SEND set [102, 200, 202, 300, 499]
+-- (plurnk-grammar plurnk.md) + directed-SEND/error families. The glyph carries
+-- the state, the color carries the class. Converged with @plurnk/plurnk
+-- sendSubGlyph. All EAW width-2, VS16-free (column-stable).
 local STATUS_GLYPHS = {
-  [102] = "⏳",
+  [102] = "⏳",   -- continuing — more turns coming
   [120] = "⏳",
-  [200] = "✅",
+  [200] = "✅",   -- success / final
   [201] = "✅",
-  [202] = "✅",
-  [410] = "💥",
-  [499] = "✋",
+  [202] = "💤",   -- parked/waiting on an external event (NOT generic 2xx)
+  [300] = "❓",   -- needs a decision (multiple choices)
+  [410] = "💥",   -- directed SEND to a gone resource
+  [499] = "✋",   -- failed / aborted / cancelled
 }
 
 -- Status sub-glyph used for EVERY op (not just SEND). SEND's `signal` is
