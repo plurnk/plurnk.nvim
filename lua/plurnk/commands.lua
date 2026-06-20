@@ -458,7 +458,7 @@ M.set_model = function(args)
 end
 
 -- Membership overlay (svc#200) — service vocabulary, converged with the TUI:
--- pick admits files git misses, hide drops a tracked match, view admits
+-- pick tracks file(s) in manifest, hide blocks them, view tracks
 -- read-only. Live via session.constrain (session-scoped, re-resolved now).
 -- Native vim file completion supplies an explicit glob (no bespoke completer).
 
@@ -491,7 +491,7 @@ M.pick = function(opts) constrain("pick", opts.args) end
 M.hide = function(opts) constrain("hide", opts.args) end
 M.view = function(opts) constrain("view", opts.args) end
 
--- :PlurnkRepo [dir] — declare a git repo folder (svc#242): its ls-files
+-- :PlurnkRepo [dir] — track a git repo in selected folder (svc#242): its ls-files
 -- join membership, addressed relative to the project root. repo is a
 -- DIRECTORY, not a file — the current-file default would be wrong, so with
 -- no arg we default to the current buffer's DIRECTORY (`%:h`), not the file.
