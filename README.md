@@ -24,7 +24,7 @@ require("plurnk").apply_default_keymaps()  -- optional; only fills unmapped keys
 | `:AI???` | new headless session (no project root) |
 | `:AI????` | new run in the current session (fork) |
 | `:AI... {text}` | inject into the running loop (a mid-loop prompt steers too) |
-| `:AI/{verb}` | `models sessions runs new log yolo ping`, membership `pick hide view drop members`, `open accept reject next prev stop clear` |
+| `:AI/{verb}` | `models sessions runs session run rename log yolo ping`, membership `pick hide view drop members`, `open accept reject next prev stop clear` |
 
 Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:AI?? hi`) work via cmdline abbreviations.
 

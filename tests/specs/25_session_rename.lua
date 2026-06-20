@@ -33,6 +33,20 @@ local ok, err = pcall(function()
   sent = {}
   cmds.session_rename({ args = "" })
   H.assert_eq(#sent, 0, "empty name sends nothing")
+
+  -- The open tab's buffers follow the rename. The input buffer's URI carries
+  -- the session, and the tab/statusline `%f` reads that name — so it must stop
+  -- showing plurnk://input/<old>/… after a rename (operator bug, 2026-06-20).
+  local run_tab = require("plurnk.run_tab")
+  run_tab.reset()
+  run_tab.open("renameme")
+  local rec = run_tab.get_record("renameme")
+  H.assert_truthy(rec and rec.input_buf, "open created an input buffer")
+  H.assert_match(vim.api.nvim_buf_get_name(rec.input_buf), "plurnk://input/renameme/", "input URI carries the session")
+  run_tab.rename("renameme", "renamed")
+  local nm = vim.api.nvim_buf_get_name(rec.input_buf)
+  H.assert_match(nm, "plurnk://input/renamed/", "input URI follows the rename")
+  H.assert_truthy(not nm:match("/renameme/"), "no stale old-session URI in the input buffer name")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
