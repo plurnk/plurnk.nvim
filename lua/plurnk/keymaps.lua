@@ -40,7 +40,7 @@ M.setup = function()
 
   -- ── Membership overlay (svc#200) — keymap acts on the CURRENT file (one
   -- keystroke); `:PlurnkPick <glob>` takes a glob (native file completion). ──
-  map_if_empty("n", "<leader>ap", ":PlurnkPick<CR>",        "Plurnk: pick (admit) this file")
+  map_if_empty("n", "<leader>ap", ":PlurnkPick<CR>",        "Plurnk: pick — track file(s) in manifest")
   map_if_empty("n", "<leader>ah", ":PlurnkHide<CR>",        "Plurnk: hide this file")
   map_if_empty("n", "<leader>av", ":PlurnkView<CR>",        "Plurnk: view (read-only) this file")
   map_if_empty("n", "<leader>ar", ":PlurnkRepo<CR>",        "Plurnk: declare this file's dir a git repo")
