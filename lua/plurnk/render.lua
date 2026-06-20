@@ -35,7 +35,7 @@ local STATUS_GLYPHS = {
   [200] = "✅",   -- success / final
   [201] = "✅",
   [202] = "💤",   -- parked/waiting on an external event (NOT generic 2xx)
-  [300] = "❓",   -- needs a decision (multiple choices)
+  [300] = "🤔",   -- needs a decision (multiple choices)
   [410] = "💥",   -- directed SEND to a gone resource
   [499] = "✋",   -- failed / aborted / cancelled
 }

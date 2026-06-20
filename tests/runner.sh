@@ -34,8 +34,10 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   SERVICE_BIN=""
   for dir in "${PLURNK_SERVICE_DIR:-}" "$REPO_DIR/../plurnk-service"; do
     [ -z "$dir" ] && continue
-    for name in plurnk-service.ts plurnk-service.js; do
-      if [ -r "$dir/bin/$name" ]; then SERVICE_BIN="$dir/bin/$name"; break 2; fi
+    # Entrypoint has moved over time: bin/plurnk-service.{js,ts} → src/service.ts
+    # (bin: dist/service.js, 2026-06-20). Probe newest-first, old paths kept.
+    for rel in src/service.ts dist/service.js bin/plurnk-service.ts bin/plurnk-service.js; do
+      if [ -r "$dir/$rel" ]; then SERVICE_BIN="$dir/$rel"; break 2; fi
     done
   done
   if [ -z "$SERVICE_BIN" ]; then
