@@ -12,6 +12,10 @@ local function buffer_name(session_name, run_id)
   return "plurnk://input/" .. (session_name or "scratch") .. "/" .. (run_id or "pending")
 end
 
+-- Exposed so run_tab can re-derive the input buffer's URI on session.rename
+-- (the session is a mutable handle; its open buffers follow the new name).
+M.buffer_name = buffer_name
+
 local function submit(buf, session_name)
   if not vim.api.nvim_buf_is_valid(buf) then return end
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)

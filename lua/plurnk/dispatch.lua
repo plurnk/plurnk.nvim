@@ -87,7 +87,10 @@ M.handle_log_entry = function(params, session_name)
 
   vim.schedule(function()
     local ok, run_tab = pcall(require, "plurnk.run_tab")
-    if ok then run_tab.append_history(session_name, { entry }) end
+    if ok then
+      run_tab.append_history(session_name, { entry })
+      run_tab.refresh_winbar(session_name)
+    end
     redraw_statusline()
   end)
 end
@@ -120,7 +123,10 @@ M.handle_loop_terminated = function(params, session_name)
   end
   vim.schedule(function()
     local ok, run_tab = pcall(require, "plurnk.run_tab")
-    if ok then run_tab.close_document(session_name) end
+    if ok then
+      run_tab.close_document(session_name)
+      run_tab.refresh_winbar(session_name)
+    end
     redraw_statusline()
   end)
 end

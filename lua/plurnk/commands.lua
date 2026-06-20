@@ -687,7 +687,7 @@ local HELP = table.concat({
   ":AI! <cmd>         exec via the daemon; bare ! execs the visual selection",
   ":AI?? / ::         new session    ??? headless    ???? new run (fork)",
   ":AI... <text>      inject into the running model loop (loop.inject)",
-  ":AI/<verb>         models sessions runs new rename fork log yolo ping",
+  ":AI/<verb>         models sessions runs session run rename log yolo ping",
   "                   pick hide view repo drop members (membership overlay)",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
@@ -708,11 +708,14 @@ local SLASH = {
   -- `/model <alias>` sets it directly (converged with the TUI); bare `/model`
   -- opens the picker. Completion offers aliases (see ai_complete).
   model    = function(args) M.set_model(args) end,
+  -- Singular CREATEs, plural LISTs (converged with the TUI): /session opens a
+  -- fresh session, /sessions lists; /run forks a new run, /runs lists. The old
+  -- ambiguous /new (session or run?) is gone.
   sessions = function() M.sessions() end,
   runs     = function() M.session_runs() end,
-  new      = function(args) M.session_new({ args = args }) end,
+  session  = function(args) M.session_new({ args = args }) end,
   rename   = function(args) M.session_rename({ args = args }) end,
-  fork     = function(args) M.fork({ args = args }) end,
+  run      = function(args) M.fork({ args = args }) end,
   log      = function(args) M.log({ args = args }) end,
   pick     = function(args) M.pick({ args = args }) end,
   hide     = function(args) M.hide({ args = args }) end,

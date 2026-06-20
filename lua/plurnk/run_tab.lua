@@ -34,6 +34,63 @@ local function buffer_title(session, key)
   return "plurnk://" .. session .. "/" .. run_label(session, rid)
 end
 
+-- The winbar is plurnk's OWN window header — its real estate, so the rich
+-- detail lives here (identity + model + live L·T/status + the persistent money
+-- trio), NOT in the user's shared statusline. Reactive: refresh_winbar re-renders
+-- it on each notification so the live state stays current (operator, 2026-06-20).
+local function fmt_usd(pico) return string.format("$%.2f", pico / 1e12) end
+local function fmt_count(n)
+  if n >= 1e6 then return string.format("%.1fM", n / 1e6) end
+  if n >= 1000 then return string.format("%.1fk", n / 1000) end
+  return tostring(n)
+end
+
+local function build_winbar(session, key)
+  local state = require("plurnk.state")
+  local rid = type(key) == "number" and key or nil
+  local parts = { "🐹 " .. session .. " · " .. run_label(session, rid) }
+
+  local model = state.get_active_model(session)
+  if model then parts[#parts + 1] = "🤖 " .. model end
+
+  local loop_id = state.get_current_loop_id(session)
+  local turn = state.get_current_turn(session)
+  if loop_id then
+    parts[#parts + 1] = turn and string.format("L%s·T%s", tostring(loop_id), tostring(turn))
+      or ("L" .. tostring(loop_id))
+  end
+
+  -- ⏳ while a loop is in flight; else the last final's glyph + number.
+  if state.is_loop_inflight(session) then
+    parts[#parts + 1] = "⏳"
+  else
+    local final = state.get_final_status(session)
+    if final then
+      local g = require("plurnk.render").status_glyph(final)
+      parts[#parts + 1] = ((g ~= "" and g) or "·") .. " " .. tostring(final)
+    end
+  end
+
+  -- The LAST loop's token counts — not a session total.
+  local usage = state.get_usage(session)
+  if usage and (usage.prompt > 0 or usage.completion > 0) then
+    parts[#parts + 1] = "↑" .. fmt_count(usage.prompt) .. " ↓" .. fmt_count(usage.completion)
+  end
+
+  -- Money trio (loop | session | remaining) — daemon-sourced, each shown only
+  -- when available; the client renders, never aggregates (svc#252/#254).
+  local money = {}
+  local loop_cost = state.get_cost_pico(session)
+  if type(loop_cost) == "number" and loop_cost > 0 then money[#money + 1] = "loop: " .. fmt_usd(loop_cost) end
+  local sess = state.get_session_cost_pico(session)
+  if type(sess) == "number" then money[#money + 1] = "session: " .. fmt_usd(sess) end
+  local bal = state.get_balance_pico(session)
+  if type(bal) == "number" then money[#money + 1] = "remaining: " .. fmt_usd(bal) end
+  if #money > 0 then parts[#parts + 1] = table.concat(money, " | ") end
+
+  return " " .. table.concat(parts, " · ") .. " "
+end
+
 local function decorate_waterfall_win(win, session, key)
   vim.wo[win].wrap = true
   vim.wo[win].number = false
@@ -41,11 +98,26 @@ local function decorate_waterfall_win(win, session, key)
   vim.wo[win].signcolumn = "no"
   vim.wo[win].cursorline = false
   vim.wo[win].scrolloff = 3
-  local rid = type(key) == "number" and key or nil
-  local model = require("plurnk.state").get_active_model(session)
-  local model_seg = model and (" · 🤖 " .. model) or ""
-  pcall(vim.api.nvim_set_option_value, "winbar",
-    " ⚡ " .. session .. " · " .. run_label(session, rid) .. model_seg .. " ", { win = win })
+  pcall(vim.api.nvim_set_option_value, "winbar", build_winbar(session, key), { win = win })
+end
+
+-- The rendered winbar string for a session/run — pure over state, exposed so
+-- specs can assert the rich header without a real window.
+M.winbar_text = function(session, key)
+  return build_winbar(session, key)
+end
+
+-- Re-render the winbar for a session's open waterfall window(s) — called from
+-- dispatch on each state-changing notification so the live L·T / status / money
+-- stay current without a statusline round-trip.
+M.refresh_winbar = function(session)
+  local recs = records[session]
+  if not recs then return end
+  for key, rec in pairs(recs) do
+    if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
+      pcall(vim.api.nvim_set_option_value, "winbar", build_winbar(session, key), { win = rec.waterfall_win })
+    end
+  end
 end
 
 local function ensure_record(session, key)
@@ -140,13 +212,24 @@ M.rename = function(old_session, new_session)
   if not recs then return end
   records[new_session] = recs
   records[old_session] = nil
+  local rename_buf = function(buf, new_name)
+    if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
+    local old_name = vim.api.nvim_buf_get_name(buf)
+    if old_name == new_name then return end
+    pcall(vim.api.nvim_buf_set_name, buf, new_name)
+    -- Renaming leaves an unlisted ghost under the old name — wipe it so
+    -- name-based lookups don't find an empty impostor (same as adoption).
+    local ghost = vim.fn.bufnr(old_name)
+    if ghost ~= -1 and ghost ~= buf then pcall(vim.api.nvim_buf_delete, ghost, { force = true }) end
+  end
   for key, rec in pairs(recs) do
     for _, b in ipairs({ rec.waterfall_buf, rec.input_buf }) do
       if b and vim.api.nvim_buf_is_valid(b) then vim.b[b].plurnk_session = new_session end
     end
-    if rec.waterfall_buf and vim.api.nvim_buf_is_valid(rec.waterfall_buf) then
-      pcall(vim.api.nvim_buf_set_name, rec.waterfall_buf, buffer_title(new_session, key))
-    end
+    rename_buf(rec.waterfall_buf, buffer_title(new_session, key))
+    -- The input buffer's URI carries the session too — follow the rename, or
+    -- the tab/statusline keeps showing plurnk://input/<old>/… (operator).
+    rename_buf(rec.input_buf, require("plurnk.input").buffer_name(new_session, rec.run_id))
     if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
       decorate_waterfall_win(rec.waterfall_win, new_session, key)
     end

@@ -116,7 +116,7 @@ end
 M.get_model_display = function(name)
   local s = name and session_states[name]
   if s and s.model_display then return s.model_display end
-  return "plurnk"
+  return "🐹"
 end
 M.set_model_display = function(name, display)
   local s = ensure_session(name); if s then s.model_display = display end

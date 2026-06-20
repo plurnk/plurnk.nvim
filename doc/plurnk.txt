@@ -37,7 +37,7 @@ cmdline abbreviations.
   :AI???            new headless session (no project root)
   :AI????           new run in the current session (fork)
   :AI... {text}     inject into the running loop (pending service#193)
-  :AI/{verb}        models sessions runs new persona log yolo ping
+  :AI/{verb}        models sessions runs session run rename log yolo ping
                     open accept reject next prev stop clear
 
 Visual mode prepends the selection: `'<,'>AI? explain this`.

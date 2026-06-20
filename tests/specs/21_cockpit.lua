@@ -1,5 +1,5 @@
--- Phase 3 cockpit: statusline token accumulation (session-total, from
--- log/entry rows) and the HUD headless fallback. Pure module path.
+-- Phase 3 cockpit: the winbar gauge (LAST-loop snapshot, never a client
+-- tally), the lean statusline glance, and the HUD headless fallback.
 local NAME = "21_cockpit"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
@@ -18,16 +18,20 @@ local ok, err = pcall(function()
     usage = { promptTokens = 2000, completionTokens = 500, costPico = 7e9 } }, "gauge")
   dispatch.handle_loop_terminated({ loopId = 2, finalStatus = 200, hitMaxTurns = false,
     usage = { promptTokens = 1000, completionTokens = 250, costPico = 3e9 } }, "gauge")
-  local line = require("plurnk.statusline").text()
-  H.assert_match(line, "plurnk%[gauge", "statusline names the session")
-  H.assert_match(line, "↑1%.0k ↓250", "shows the LAST loop's usage (snapshot), not the sum of both")
+  -- The rich gauge lives in the winbar now; the statusline is a lean glance.
+  local wb = require("plurnk.run_tab").winbar_text("gauge", nil)
+  H.assert_match(wb, "🐹 gauge", "winbar names the session")
+  H.assert_match(wb, "↑1%.0k ↓250", "shows the LAST loop's usage (snapshot), not the sum of both")
   H.assert_eq(state.get_cost_pico("gauge"), 3e9, "cost is the last loop's, NOT accumulated (no client session total)")
+  local sl = require("plurnk.statusline").text()
+  H.assert_match(sl, "🐹", "statusline shows the brand")
+  H.assert_truthy(not sl:match("↑"), "statusline does NOT squat tokens (winbar's job)")
 
   -- A session with no loop yet shows NO gauge (no fake zeros).
   vim.cmd("enew")
   vim.b.plurnk_session = "empty"
   state.set_session_id("empty", 4)
-  H.assert_truthy(not require("plurnk.statusline").text():match("↑"),
+  H.assert_truthy(not require("plurnk.run_tab").winbar_text("empty", nil):match("↑"),
     "no token segment before any loop runs")
 
   -- HUD: headless (no UI) falls back to vim.notify — message still lands.
