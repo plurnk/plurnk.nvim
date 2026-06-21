@@ -1,7 +1,7 @@
 -- Statusline component — deliberately LEAN (operator, 2026-06-20). The
 -- statusline is shared ecosystem real estate (the user's own bar, next to
 -- file/git/LSP), so plurnk spends exactly one glance here: 🐹 + a live status
--- emoji (⏳ running, else the last final's glyph) + a ⚡ when YOLO is armed.
+-- emoji (⏳ running, else the last final's glyph) + a 🔥 when YOLO is armed.
 -- The rich detail — identity, model, L·T, tokens, and the persistent money
 -- trio — lives in the winbar (plurnk's OWN window header; see run_tab.lua).
 local M = {}
@@ -27,7 +27,7 @@ M.text = function()
   if glyph then parts[#parts + 1] = glyph end
 
   local ok_diff, diff = pcall(require, "plurnk.diff")
-  if ok_diff and diff.is_yolo and diff.is_yolo() then parts[#parts + 1] = "⚡" end
+  if ok_diff and diff.is_yolo and diff.is_yolo() then parts[#parts + 1] = "🔥" end
 
   return table.concat(parts, " ")
 end
