@@ -286,14 +286,25 @@ local function send_loop_run(session_name, prompt, model_alias, flags)
   if flags then params.flags = flags end
   require("plurnk.state").set_loop_inflight(session_name, true)
   client.send("loop.run", params, false, function(result)
-    require("plurnk.state").set_loop_inflight(session_name, false)
-    if type(result) ~= "table" then return end
+    if type(result) ~= "table" then
+      require("plurnk.state").set_loop_inflight(session_name, false)
+      return
+    end
     -- The conversation lives in the model run (run-split §13.7); loop.run
     -- returns its id. Authoritative — confirms the run the first event's
     -- run_id already adopted, and covers the no-events edge.
     note_model_run(session_name, result.modelRunId)
-    if type(result.finalStatus) == "number" then
-      require("plurnk.state").set_final_status(session_name, result.finalStatus)
+    -- loop.run is fire-and-forget (svc 0.45+): a finalStatus-100 ack means the
+    -- loop is draining ASYNC — stay in-flight; loop/terminated (dispatch.lua)
+    -- clears it and carries the real {finalStatus, usage}. A non-100 ack or an
+    -- `error` IS terminal (no terminated follows), so settle it here.
+    local fs = result.finalStatus
+    if result.error ~= nil or (type(fs) == "number" and fs ~= 100) then
+      require("plurnk.state").set_loop_inflight(session_name, false)
+      local terminal = type(fs) == "number" and fs or result.status
+      if type(terminal) == "number" then
+        require("plurnk.state").set_final_status(session_name, terminal)
+      end
     end
     require("plurnk.run_tab").update_status(session_name)
     vim.cmd("redrawstatus! | redrawtabline")
