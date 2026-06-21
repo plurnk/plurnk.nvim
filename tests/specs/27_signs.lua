@@ -1,5 +1,6 @@
 -- Membership gutter signs (svc#243): session.members → a line-1 extmark sign
--- per resolved effect (member ●, view ◐, hidden ○); non-members get none.
+-- for the EXCEPTIONS only (view 🔒, hidden 🚫); a plain member and any
+-- non-member project file get NO sign (the quiet default).
 local NAME = "27_signs"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
@@ -31,20 +32,19 @@ local ok, err = pcall(function()
     return marks[1][4].sign_text, marks[1][4].sign_hl_group
   end
 
-  -- view → ◐ / PlurnkSignView
+  -- view → 🔒 / PlurnkSignView
   local txt, hl = sign_for({ members = { { path = "/src/a.lua", effect = "view" } }, hidden = {} })
-  H.assert_match(txt, "◐", "view → ◐ sign")
+  H.assert_match(txt, "🔒", "view → 🔒 sign")
   H.assert_eq(hl, "PlurnkSignView", "view highlight")
 
-  -- member → ● / PlurnkSignMember
-  txt, hl = sign_for({ members = { { path = "/src/a.lua", effect = "member" } }, hidden = {} })
-  H.assert_match(txt, "●", "member → ● sign")
-  H.assert_eq(hl, "PlurnkSignMember", "member highlight (green band color)")
-
-  -- hidden → ○ / PlurnkSignHidden
+  -- hidden → 🚫 / PlurnkSignHidden
   txt, hl = sign_for({ members = {}, hidden = { "/src/a.lua" } })
-  H.assert_match(txt, "○", "hidden → ○ sign")
+  H.assert_match(txt, "🚫", "hidden → 🚫 sign")
   H.assert_eq(hl, "PlurnkSignHidden", "hidden highlight")
+
+  -- member → NO sign (a plain member is the quiet default — only exceptions sign)
+  txt = sign_for({ members = { { path = "/src/a.lua", effect = "member" } }, hidden = {} })
+  H.assert_truthy(txt == nil, "a plain member gets no sign")
 
   -- non-member (not in members or hidden) → NO sign (resolved daemon-side)
   txt = sign_for({ members = { { path = "/other/b.lua", effect = "member" } }, hidden = {} })
