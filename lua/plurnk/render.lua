@@ -16,6 +16,7 @@ M.OP_GLYPHS = {
   FOLD = "➖",
   SEND = "💬",
   EXEC = "🔧",
+  PLAN = "🧠",  -- the model's per-turn reasoning (grammar 0.70 leads every turn with PLAN)
 }
 
 M.ORIGIN_GLYPHS = {
@@ -229,6 +230,14 @@ M.render_log_entry = function(entry)
   table.insert(parts, " " .. status)
   if path ~= "" then table.insert(parts, " " .. path) end
   if extra ~= "" then table.insert(parts, "  " .. extra) end
+
+  -- PLAN carries the model's reasoning as a plain string in tx.body (NOT the
+  -- SEND {raw,json} shape) — surface it, newlines collapsed, so the waterfall
+  -- shows what the model planned instead of a bare glyph.
+  if entry.op == "PLAN" and entry.tx and type(entry.tx.body) == "string" then
+    local plan = entry.tx.body:gsub("%s*\n%s*", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    if #plan > 0 then table.insert(parts, "  " .. plan) end
+  end
 
   return { table.concat(parts) }
 end
