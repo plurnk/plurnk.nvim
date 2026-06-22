@@ -13,6 +13,16 @@ local M = {}
 -- by the daemon to the plurnk provider as Plurnk-Client (dropped by others).
 local CLIENT_ID = "plurnk.nvim"
 
+-- Settings every session.create carries: the client id (#249) + an optional
+-- AGENTS-auto-load override (#268, pure passthrough — the daemon does the
+-- picking/reading; config.auto_read_agents nil ⇒ the daemon's env default).
+local function session_settings()
+  local s = { client = CLIENT_ID }
+  local ar = require("plurnk.config").get("auto_read_agents")
+  if type(ar) == "boolean" then s.autoReadAgents = ar end
+  return s
+end
+
 -- @file refs (#260) → loop.run.openPaths. The daemon foists turn-0 READs of
 -- these workspace paths (no client-side inlining). The @ must START a token
 -- (the leading space we prepend makes `%s@` catch a line-initial ref too) so an
@@ -93,7 +103,7 @@ local function resolve_session_then(callback)
   -- No session attached — create a fresh one. We let the daemon name it;
   -- the response handler captures the name and binds it to the origin buf.
   local origin_buf = vim.api.nvim_get_current_buf()
-  client.send("session.create", { projectRoot = client.get_project_path(), settings = { client = CLIENT_ID } }, false, function(result)
+  client.send("session.create", { projectRoot = client.get_project_path(), settings = session_settings() }, false, function(result)
     if type(result) ~= "table" or not result.name then return end
     local name = result.name
     require("plurnk.state").set_session_id(name, result.id)
@@ -154,7 +164,7 @@ local function create_session_then(copts, callback)
   -- instance. Switching moves liveness; old session tabs become static.
   local prev = active_session()
   warn_if_switching_live()
-  local params = { settings = { client = CLIENT_ID } }
+  local params = { settings = session_settings() }
   if not copts.headless then params.projectRoot = client.get_project_path() end
   if copts.name and copts.name ~= "" then params.name = copts.name end
   local origin_buf = vim.api.nvim_get_current_buf()
