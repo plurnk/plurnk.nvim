@@ -51,6 +51,14 @@ local ok, err = pcall(function()
   state.record_loop_usage("s1", { costPico = 50000000000 }) -- $0.05
   H.assert_match(run_tab.winbar_text("s1", 7), "loop: %$0%.05", "last loop's cost replaces, not accumulates")
 
+  -- Context-% gauge (svc#263): contextTokens / the active model's contextSize.
+  state.set_available_aliases({ { alias = "opus", active = true, contextSize = 49152 } })
+  state.record_loop_usage("s1", { contextTokens = 7360 })
+  H.assert_match(run_tab.winbar_text("s1", 7), "ctx 15%%/49k", "gauge = contextTokens/contextSize, rounded-k")
+  -- contextSize null (provider can't report a window) → gauge omitted, never guessed.
+  state.set_available_aliases({ { alias = "opus", active = true } })
+  H.assert_truthy(not run_tab.winbar_text("s1", 7):match("ctx "), "no gauge when contextSize is null")
+
   -- Active-model resolution (converged with the TUI header): with no loop yet
   -- (no model_alias), the winbar still names the daemon's active default from
   -- the warmed providers.list cache.

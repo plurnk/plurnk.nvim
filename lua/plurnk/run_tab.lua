@@ -77,6 +77,15 @@ local function build_winbar(session, key)
     parts[#parts + 1] = "↑" .. fmt_count(usage.prompt) .. " ↓" .. fmt_count(usage.completion)
   end
 
+  -- Context-% gauge (svc#263): occupancy / the active model's window → "ctx 15%/49k".
+  -- Rounded-k denominator to converge with the TUI/CLI gauge. Omitted when the
+  -- provider can't report its window (contextSize null).
+  local cs = state.get_active_context_size()
+  if usage and type(usage.context_tokens) == "number" and type(cs) == "number" and cs > 0 then
+    local k = cs >= 1000 and string.format("%dk", math.floor(cs / 1000 + 0.5)) or tostring(cs)
+    parts[#parts + 1] = string.format("ctx %d%%/%s", math.floor(usage.context_tokens / cs * 100 + 0.5), k)
+  end
+
   -- Money trio (loop | session | remaining) — daemon-sourced, each shown only
   -- when available; the client renders, never aggregates (svc#252/#254).
   local money = {}
