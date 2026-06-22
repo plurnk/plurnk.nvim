@@ -113,6 +113,17 @@ M.get_active_model = function(name)
   return nil
 end
 
+-- The active model's context window (svc#263) — the context-gauge denominator.
+-- Only the daemon's active default carries contextSize on providers.list (a
+-- session-pinned non-active model reports null), so this is the active default's
+-- window; approximate if a session pins a different model.
+M.get_active_context_size = function()
+  for _, a in ipairs(available_aliases) do
+    if a.active then return a.contextSize end
+  end
+  return nil
+end
+
 M.get_model_display = function(name)
   local s = name and session_states[name]
   if s and s.model_display then return s.model_display end
@@ -147,6 +158,9 @@ M.record_loop_usage = function(name, u)
   s.usage = s.usage or { prompt = 0, completion = 0 }
   if type(u.promptTokens) == "number" then s.usage.prompt = u.promptTokens end
   if type(u.completionTokens) == "number" then s.usage.completion = u.completionTokens end
+  -- context occupancy (svc#263) — the gauge numerator, the daemon's figure
+  -- (NOT the double-counting promptTokens sum).
+  if type(u.contextTokens) == "number" then s.usage.context_tokens = u.contextTokens end
   if type(u.costPico) == "number" then s.cost_pico = u.costPico end  -- last loop's cost, not a total
   -- sessionCostPico = the DAEMON's authoritative cumulative session total
   -- (svc#254), pushed on the wire — NOT a client tally. We only render it.
