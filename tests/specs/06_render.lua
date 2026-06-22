@@ -45,6 +45,15 @@ local ok, err = pcall(function()
   H.assert_match(find_lines[1], "🔍", "FIND glyph")
   H.assert_match(find_lines[1], "→ 3 results", "FIND count")
 
+  -- PLAN → 🧠 glyph + the plan text from tx.body (a plain string, not {raw,json}).
+  local plan_lines = R({
+    op = "PLAN", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 200, tx = { body = "Acknowledge user prompt." },
+  })
+  H.assert_match(plan_lines[1], "🧠", "PLAN glyph (not a bare ?)")
+  H.assert_match(plan_lines[1], "Acknowledge user prompt%.", "PLAN shows the reasoning text")
+  H.assert_truthy(not plan_lines[1]:match("%?"), "PLAN is not the ? fallback")
+
   -- Broadcast SEND[200] short body — inline.
   local bc_short = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,
