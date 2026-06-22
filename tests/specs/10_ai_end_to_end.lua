@@ -17,7 +17,9 @@ local ok, err = pcall(function()
   -- provoke EXEC attempts → proposal pauses this spec never resolves.
   -- Ask 403s exec at dispatch — deterministic AND dogfoods the habit.
   vim.cmd("AI ? Hello, world.")
-  H.wait_for(function() return terminated ~= nil end, 20000, "loop/terminated")
+  -- 9 minutes: dramatically generous so a failure is unambiguously a real hang,
+  -- never "the model was slow" (under the runner's 600s SIGKILL).
+  H.wait_for(function() return terminated ~= nil end, 540000, "loop/terminated")
   vim.wait(300, function() return false end, 50) -- flush appended-history schedules
 
   H.assert_eq(terminated.finalStatus, 200, "loop terminated 200")
