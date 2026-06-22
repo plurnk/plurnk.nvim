@@ -100,6 +100,17 @@ local ok, err = pcall(function()
   captured = {}
   ai({ args = "/stop", range = 0 })
   H.assert_eq(#captured, 0, ":AI/stop without session sends nothing")
+
+  -- #268 — config.auto_read_agents flows to session.create as settings.autoReadAgents.
+  require("plurnk.config").setup({ auto_read_agents = false })
+  vim.cmd("enew")
+  require("plurnk.state").set_active_session_name(nil)
+  vim.b.plurnk_session = nil
+  captured = {}
+  ai({ args = "?? off-agents", range = 0 })
+  local sc = find(captured, "session.create")
+  H.assert_eq(sc.params.settings.autoReadAgents, false, "auto_read_agents=false → settings.autoReadAgents")
+  H.assert_eq(sc.params.settings.client, "plurnk.nvim", "client id still present alongside the override")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
