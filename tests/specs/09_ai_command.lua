@@ -54,6 +54,14 @@ local ok, err = pcall(function()
   ai({ args = "plain", range = 0 })
   H.assert_eq(captured[1].params.prompt, "plain", ":AI plain text")
 
+  -- :AI with @file refs → loop.run.openPaths (daemon foists turn-0 READs, #260)
+  captured = {}
+  ai({ args = ": summarize @src/a.ts and @docs/b.md", range = 0 })
+  H.assert_eq(captured[1].method, "loop.run", "@file: routes to loop.run")
+  H.assert_truthy(captured[1].params.openPaths, "@file: openPaths present")
+  H.assert_eq(captured[1].params.openPaths[1], "src/a.ts", "@file: first ref")
+  H.assert_eq(captured[1].params.openPaths[2], "docs/b.md", "@file: second ref")
+
   -- :AI?? on a session-attached buffer: drops the bound connection and
   -- creates a NEW session by rebinding the connection in place
   -- (§13.5-rebind, v0.17.0 — no reconnect).
@@ -63,6 +71,7 @@ local ok, err = pcall(function()
   ai({ args = "?? new chat", range = 0 })
   H.assert_eq(stops, 0, ":AI?? rebinds in place, never drops the socket")
   H.assert_eq(captured[1].method, "session.create", ":AI?? creates a new session")
+  H.assert_eq(captured[1].params.settings.client, "plurnk.nvim", ":AI?? session.create carries the client id (#249)")
   local lr = find(captured, "loop.run")
   H.assert_truthy(lr, ":AI?? then loop.run")
   H.assert_eq(lr.params.prompt, "new chat", ":AI?? carries prompt")

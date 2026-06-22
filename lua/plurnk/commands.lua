@@ -9,6 +9,23 @@
 
 local M = {}
 
+-- #249 — session-stable frontend id, set on every session.create and forwarded
+-- by the daemon to the plurnk provider as Plurnk-Client (dropped by others).
+local CLIENT_ID = "plurnk.nvim"
+
+-- @file refs (#260) → loop.run.openPaths. The daemon foists turn-0 READs of
+-- these workspace paths (no client-side inlining). The @ must START a token
+-- (the leading space we prepend makes `%s@` catch a line-initial ref too) so an
+-- email's user@host isn't a ref; trailing sentence punctuation trimmed; deduped.
+local function extract_open_paths(prompt)
+  local seen, out = {}, {}
+  for path in (" " .. tostring(prompt)):gmatch("%s@(%S+)") do
+    path = path:gsub("[%.,;:!?%)]+$", "")
+    if #path > 0 and not seen[path] then seen[path] = true; out[#out + 1] = path end
+  end
+  return out
+end
+
 -- ── Buffer helpers ──────────────────────────────────────────────────
 
 -- This buffer's session name, or nil. The buffer-local variable is the
@@ -76,7 +93,7 @@ local function resolve_session_then(callback)
   -- No session attached — create a fresh one. We let the daemon name it;
   -- the response handler captures the name and binds it to the origin buf.
   local origin_buf = vim.api.nvim_get_current_buf()
-  client.send("session.create", { projectRoot = client.get_project_path() }, false, function(result)
+  client.send("session.create", { projectRoot = client.get_project_path(), settings = { client = CLIENT_ID } }, false, function(result)
     if type(result) ~= "table" or not result.name then return end
     local name = result.name
     require("plurnk.state").set_session_id(name, result.id)
@@ -137,7 +154,7 @@ local function create_session_then(copts, callback)
   -- instance. Switching moves liveness; old session tabs become static.
   local prev = active_session()
   warn_if_switching_live()
-  local params = {}
+  local params = { settings = { client = CLIENT_ID } }
   if not copts.headless then params.projectRoot = client.get_project_path() end
   if copts.name and copts.name ~= "" then params.name = copts.name end
   local origin_buf = vim.api.nvim_get_current_buf()
@@ -284,6 +301,8 @@ local function send_loop_run(session_name, prompt, model_alias, flags)
   local params = { prompt = prompt }
   if model_alias then params.alias = model_alias end
   if flags then params.flags = flags end
+  local open_paths = extract_open_paths(prompt)   -- @file refs → daemon turn-0 READs (#260)
+  if #open_paths > 0 then params.openPaths = open_paths end
   require("plurnk.state").set_loop_inflight(session_name, true)
   client.send("loop.run", params, false, function(result)
     if type(result) ~= "table" then
