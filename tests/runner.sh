@@ -82,13 +82,13 @@ for spec in "$SPECS_DIR"/*.lua; do
   # SIGKILL, not the default SIGTERM: headless nvim survives SIGTERM, so a
   # hung spec under plain `timeout` detaches and spins forever (99% CPU
   # orphans). A timed-out spec is a loud FAIL, never a silent leak.
-  if timeout -s KILL "${SPEC_TIMEOUT:-60}" nvim --headless -u NONE -l "$spec" 2>&1; then
+  if timeout -s KILL "${SPEC_TIMEOUT:-600}" nvim --headless -u NONE -l "$spec" 2>&1; then
     pass=$((pass + 1))
   else
     rc=$?
     fail=$((fail + 1))
     if [ "$rc" -eq 137 ]; then
-      echo "  TIMED OUT — SIGKILL after ${SPEC_TIMEOUT:-60}s"
+      echo "  TIMED OUT — SIGKILL after ${SPEC_TIMEOUT:-600}s"
       failed_names+=("$name (timeout)")
     else
       failed_names+=("$name")

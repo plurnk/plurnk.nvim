@@ -37,7 +37,9 @@ local ok, err = pcall(function()
   -- Model latency varies — and the model sometimes explores (search →
   -- FIND → …) before answering, at ~30s/turn on local hardware. Budget
   -- for a wandering loop, not just a direct answer.
-  H.wait_for(function() return terminated ~= nil end, 120000, "loop terminated")
+  -- 9 minutes: dramatically generous so a failure is unambiguously a real hang,
+  -- never "the model was slow" (under the runner's 600s SIGKILL).
+  H.wait_for(function() return terminated ~= nil end, 540000, "loop terminated")
   vim.wait(300, function() return false end, 50)
 
   -- Waterfall has the response; input was cleared; focus stayed on input.
