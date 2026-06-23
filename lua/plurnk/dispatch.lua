@@ -131,13 +131,26 @@ M.handle_loop_terminated = function(params, session_name)
   end)
 end
 
+-- Severity from the source:kind discriminator (the wire carries no level) —
+-- mirrors the npm client's classifier so errors read as errors. Failure kinds
+-- → ErrorMsg (red), warnings (stale/blocked) → WarningMsg (yellow), neutral
+-- (graceful/note/url/…) → Comment (dim). Plain substring match (no patterns).
+local TELE_ERR = { "error", "fail", "refus", "invalid", "not_found", "ambiguous", "exceeded", "overflow", "denied", "unknown", "missing", "closed", "strike", "unenforced", "rejected", "conflict", "crash" }
+local TELE_WARN = { "stale", "warn", "deprecat", "blocked" }
+local function telemetry_hl(tag)
+  for _, t in ipairs(TELE_ERR) do if tag:find(t, 1, true) then return "ErrorMsg" end end
+  for _, t in ipairs(TELE_WARN) do if tag:find(t, 1, true) then return "WarningMsg" end end
+  return "Comment"
+end
+
 -- telemetry/event: parse errors, engine rail signals, scheme/provider
 -- failures. Per SPEC §8.6. Rendered as a `📡 source:kind` line inline.
 M.handle_telemetry_event = function(params, session_name)
   if not params or type(params.event) ~= "table" then return end
   local event = params.event
   vim.schedule(function()
-    local headline = string.format("  📡 %s:%s", tostring(event.source or "?"), tostring(event.kind or "?"))
+    local tag = tostring(event.source or "?") .. ":" .. tostring(event.kind or "?")
+    local headline = "  📡 " .. tag
     if type(event.message) == "string" and #event.message > 0 then
       headline = headline .. ' "' .. event.message .. '"'
     end
@@ -147,7 +160,7 @@ M.handle_telemetry_event = function(params, session_name)
     end
     local ok, hud = pcall(require, "plurnk.hud")
     if ok then hud.show(headline) end
-    safe_echo(headline, "WarningMsg")
+    safe_echo(headline, telemetry_hl(tag))
   end)
 end
 
