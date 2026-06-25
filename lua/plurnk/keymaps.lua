@@ -27,6 +27,7 @@ M.setup = function()
   map_if_empty({ "n", "x" }, "<leader>a:", ":AI: ",      "Plurnk: prompt (rummy: act)")
   map_if_empty({ "n", "x" }, "<leader>a!", ":AI! ",      "Plurnk: prompt (rummy: run)")
   map_if_empty("n",          "<leader>aN", ":AI?? ",     "Plurnk: new session + prompt")
+  map_if_empty("n",          "<leader>af", ":PlurnkFork<CR>", "Plurnk: fork — new run (run>loop>turn>op)")
   map_if_empty("n",          "<leader>ax", ":AI/stop<CR>",  "Plurnk: cancel pending")
   map_if_empty("n",          "<leader>aX", ":AI/clear<CR>", "Plurnk: cancel pending")
 
