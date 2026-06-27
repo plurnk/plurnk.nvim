@@ -90,6 +90,24 @@ local ok, err = pcall(function()
   ai({ args = "/bogus", range = 0 })
   H.assert_eq(#sent, 0, ":AI/bogus sends nothing")
 
+  -- ── `/script <path>` — read a .plk file, ship its DSL to op.parse ──
+  -- The client never parses the file; it feeds the raw text verbatim.
+  sent = {}
+  local plk = vim.fn.tempname() .. ".plk"
+  vim.fn.writefile({ "<<EDIT(known://x/a):hi:EDIT", "<<READ(known://x/a):READ" }, plk)
+  ai({ args = "/script " .. plk, range = 0 })
+  H.assert_eq(sent[1].method, "op.parse", ":AI/script routes to op.parse")
+  H.assert_truthy(sent[1].params.text:match("<<EDIT%(known://x/a%)"), ":AI/script ships raw file text")
+  H.assert_truthy(sent[1].params.text:match("\n"), ":AI/script ships all statements (multiline)")
+
+  sent = {}
+  ai({ args = "/script /no/such/file.plk", range = 0 })
+  H.assert_eq(#sent, 0, ":AI/script on a missing file sends nothing")
+
+  sent = {}
+  ai({ args = "/script", range = 0 })
+  H.assert_eq(#sent, 0, ":AI/script with no path sends nothing")
+
   -- ── `...` — inject into the running model loop (loop.inject, #193) ──
   sent = {}
   ai({ args = "... remember the TOML", range = 0 })

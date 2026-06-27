@@ -729,6 +729,7 @@ local HELP = table.concat({
   ":AI... <text>      inject into the running model loop (loop.inject)",
   ":AI/<verb>         models sessions runs session run rename log yolo ping",
   "                   pick hide view repo drop members (membership overlay)",
+  "                   script <path> (run a .plk file via op.parse)",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
   "input buffer       ? ask · : act · ! exec · << raw DSL · <CR> submits",
@@ -736,6 +737,40 @@ local HELP = table.concat({
 
 local function show_help()
   vim.api.nvim_echo({ { HELP, "None" } }, false, {})
+end
+
+-- :AI/script <path> (:PlurnkScript) — run a .plk file: read its DSL, ship the
+-- text to op.parse, let the daemon parse + dispatch each statement. Op traces
+-- arrive as log/entry (rendered in the waterfall); the callback reports the op
+-- count + worst status. The client never parses the file — the daemon owns the
+-- grammar, so the .plk language can grow without touching this surface.
+M.script = function(opts)
+  local client = require("plurnk.client")
+  local path = vim.fn.trim((opts and opts.args) or "")
+  if path == "" then
+    client.notify(":AI/script needs a path to a .plk file", vim.log.levels.WARN)
+    return
+  end
+  local abs = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
+  if vim.fn.filereadable(abs) == 0 then
+    client.notify(":AI/script — file not readable: " .. abs, vim.log.levels.WARN)
+    return
+  end
+  local text = table.concat(vim.fn.readfile(abs), "\n")
+  client.send("op.parse", { text = text }, false, function(result)
+    if type(result) ~= "table" or type(result.results) ~= "table" then return end
+    local worst = 0
+    for _, r in ipairs(result.results) do
+      if type(r.status) == "number" and r.status > worst then worst = r.status end
+    end
+    local n = #result.results
+    local msg = string.format("script: %d op%s", n, n == 1 and "" or "s")
+    if worst >= 400 then
+      client.notify(msg .. ", worst status " .. worst, vim.log.levels.WARN)
+    else
+      client.notify(msg .. " ok", vim.log.levels.INFO)
+    end
+  end)
 end
 
 -- `/` subcommand routing — rummy's full surface, plurnk verbs. Wrapped
@@ -763,6 +798,7 @@ local SLASH = {
   repo     = function(args) M.repo({ args = args }) end,
   drop     = function(args) M.drop({ args = args }) end,
   members  = function() M.members() end,
+  script   = function(args) M.script({ args = args }) end,
   yolo     = function() M.yolo() end,
   ping     = function() M.ping() end,
   open     = function() M.toggle() end,
@@ -793,6 +829,11 @@ M.ai_complete = function(_arglead, cmdline, _)
     end
     table.sort(out)
     return out
+  end
+  -- `/script <path>` — file completion (mirrors :PlurnkScript's complete="file").
+  local script_partial = cmdline:match("/script%s+(%S*)$")
+  if script_partial then
+    return vim.fn.getcompletion(script_partial, "file")
   end
   local verb_partial = cmdline:match("/(%S*)$")
   if verb_partial and not cmdline:match("/%S+%s") then
@@ -943,6 +984,7 @@ M.setup = function()
   cmd("PlurnkRepo",        M.repo,         { nargs = "?", complete = "dir" })
   cmd("PlurnkDrop",        M.drop,         { nargs = "?", complete = "file" })
   cmd("PlurnkMembers",     M.members,      {})
+  cmd("PlurnkScript",      M.script,       { nargs = 1, complete = "file" })
   cmd("PlurnkYolo",        M.yolo,         {})
   cmd("PlurnkPing",        M.ping,         {})
   cmd("PlurnkStop",        M.stop,         {})
