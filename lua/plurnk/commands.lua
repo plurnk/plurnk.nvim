@@ -358,6 +358,14 @@ local function send_loop_run(session_name, prompt, model_alias, flags)
       if type(terminal) == "number" then
         require("plurnk.state").set_final_status(session_name, terminal)
       end
+      -- #120: a 501 = no model configured. The daemon's boot-time pointer is easy
+      -- to miss under a supervisor; surface the ~/.plurnk/.env pointer here, where
+      -- the user is looking (converges the client's no-model hint).
+      if terminal == 501 then
+        require("plurnk.client").notify(
+          "no model configured — edit ~/.plurnk/.env and uncomment one option (local / cloud / plurnk.ai)",
+          vim.log.levels.ERROR, session_name)
+      end
     end
     require("plurnk.run_tab").update_status(session_name)
     vim.cmd("redrawstatus! | redrawtabline")
