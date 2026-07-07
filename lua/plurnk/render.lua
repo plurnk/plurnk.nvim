@@ -245,15 +245,18 @@ end
 -- Per-loop summary line (still used by callers; the run_tab waterfall no
 -- longer emits "loop terminated" since SEND[200] already carries that
 -- signal).
+-- Terminal loop status → label (converge client #70). plurnk-service 0.42.0
+-- split the flat 499 into distinct verdicts: 499 is the model/actor give-up or
+-- external KILL/cancel; 413/429/500/508 are ENGINE verdicts. Labelled so a
+-- ceiling reads differently from an abandonment, not a bare "final N".
+M.terminal_status_label = function(status)
+  local labels = { [200] = "done", [413] = "budget overflow", [429] = "turn ceiling",
+    [499] = "cancelled", [500] = "strike-out", [508] = "loop detected" }
+  return labels[status] or ("final " .. tostring(status))
+end
+
 M.render_summary = function(turns, wall_ms, tokens, final_status, hit_max_turns)
-  local tag
-  if hit_max_turns then
-    tag = "maxTurns"
-  elseif final_status == 200 then
-    tag = "done"
-  else
-    tag = "final " .. tostring(final_status)
-  end
+  local tag = hit_max_turns and "maxTurns" or M.terminal_status_label(final_status)
   local ms
   if wall_ms and wall_ms >= 1000 then
     ms = string.format("%.2fs", wall_ms / 1000)
