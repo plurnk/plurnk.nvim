@@ -306,10 +306,34 @@ end
 
 -- ── loop.run helper ────────────────────────────────────────────────
 
+-- #90 — resolve a model alias to "<provider>/<model>" from nvim's OWN (always
+-- fresh) env, so a long-lived daemon launched before PLURNK_MODEL_<alias> was
+-- exported doesn't reject loop.run with "unknown alias" (the daemon's launch env
+-- is frozen; ours isn't). The env value is already "<provider>/<model>" — return
+-- it verbatim; the daemon does the first-slash split. Alias suffix is case-folded
+-- (PLURNK_MODEL_opus == _OPUS, per the JS parser). nil → send bare {alias}.
+function M.resolve_model_spec(alias)
+  if not alias or alias == "" then return nil end
+  local want = alias:lower()
+  for key, val in pairs(vim.fn.environ()) do
+    local suffix = key:match("^PLURNK_MODEL_(.+)$")
+    if suffix and suffix:lower() == want and type(val) == "string" and val:find("/", 2, true) then
+      return val
+    end
+  end
+  return nil
+end
+
 local function send_loop_run(session_name, prompt, model_alias, flags)
   local client = require("plurnk.client")
   local params = { prompt = prompt }
-  if model_alias then params.alias = model_alias end
+  if model_alias then
+    -- Prefer client-resolved routing (staleness-proof); fall back to the bare
+    -- alias (daemon resolves, or errors) when this env declares no such alias.
+    local spec = M.resolve_model_spec(model_alias)
+    if spec then params.model = spec end   -- "<provider>/<model>"
+    params.alias = model_alias             -- always sent, for display
+  end
   if flags then params.flags = flags end
   local open_paths = extract_open_paths(prompt)   -- @file refs → daemon turn-0 READs (#260)
   if #open_paths > 0 then params.openPaths = open_paths end
