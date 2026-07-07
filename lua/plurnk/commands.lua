@@ -13,13 +13,34 @@ local M = {}
 -- by the daemon to the plurnk provider as Plurnk-Client (dropped by others).
 local CLIENT_ID = "plurnk.nvim"
 
--- Settings every session.create carries: the client id (#249) + an optional
+-- #132 — the per-session exec-policy layer: forward the PLURNK_EXECS_* grammar
+-- (PLURNK_EXECS_ONLY allowlist, PLURNK_EXECS_<tag>=0 kill) so the daemon
+-- intersects it with its own ceiling (subtractive — the client can narrow, never
+-- re-enable). Forwarded VERBATIM; the daemon's execs Policy is the interpreter.
+-- EXCLUDES PLURNK_EXECS_MCP_* — those are MCP SERVER configs (URLs, header bearer
+-- tokens), not policy, and must never ride the wire. The bare PLURNK_EXECS_MCP
+-- tag toggle (no trailing _) stays. nil when nothing is set.
+function M.collect_execs_policy()
+  local out, any = {}, false
+  for key, val in pairs(vim.fn.environ()) do
+    if key:match("^PLURNK_EXECS_") and not key:match("^PLURNK_EXECS_MCP_") and type(val) == "string" then
+      out[key] = val
+      any = true
+    end
+  end
+  return any and out or nil
+end
+
+-- Settings every session.create carries: the client id (#249), an optional
 -- AGENTS-auto-load override (#268, pure passthrough — the daemon does the
--- picking/reading; config.auto_read_agents nil ⇒ the daemon's env default).
+-- picking/reading; config.auto_read_agents nil ⇒ the daemon's env default), and
+-- the exec-policy layer (#132).
 local function session_settings()
   local s = { client = CLIENT_ID }
   local ar = require("plurnk.config").get("auto_read_agents")
   if type(ar) == "boolean" then s.autoReadAgents = ar end
+  local execs = M.collect_execs_policy()
+  if execs then s.execs = execs end
   return s
 end
 
