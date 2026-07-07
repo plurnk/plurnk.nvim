@@ -131,15 +131,13 @@ M.handle_loop_terminated = function(params, session_name)
   end)
 end
 
--- Severity from the source:kind discriminator (the wire carries no level) —
--- mirrors the npm client's classifier so errors read as errors. Failure kinds
--- → ErrorMsg (red), warnings (stale/blocked) → WarningMsg (yellow), neutral
--- (graceful/note/url/…) → Comment (dim). Plain substring match (no patterns).
-local TELE_ERR = { "error", "fail", "refus", "invalid", "not_found", "ambiguous", "exceeded", "overflow", "denied", "unknown", "missing", "closed", "strike", "unenforced", "rejected", "conflict", "crash" }
-local TELE_WARN = { "stale", "warn", "deprecat", "blocked" }
-local function telemetry_hl(tag)
-  for _, t in ipairs(TELE_ERR) do if tag:find(t, 1, true) then return "ErrorMsg" end end
-  for _, t in ipairs(TELE_WARN) do if tag:find(t, 1, true) then return "WarningMsg" end end
+-- Severity from the producer-set event.level (grammar 0.74.29+ / svc#276) —
+-- mirrors the npm client (#110). The producer owns severity; the client colors
+-- straight off it, never re-deriving from the kind string. error → ErrorMsg
+-- (red), warn → WarningMsg (yellow), info/absent → Comment (dim).
+local function telemetry_hl(level)
+  if level == "error" then return "ErrorMsg" end
+  if level == "warn" then return "WarningMsg" end
   return "Comment"
 end
 
@@ -160,7 +158,7 @@ M.handle_telemetry_event = function(params, session_name)
     end
     local ok, hud = pcall(require, "plurnk.hud")
     if ok then hud.show(headline) end
-    safe_echo(headline, telemetry_hl(tag))
+    safe_echo(headline, telemetry_hl(event.level))
   end)
 end
 
