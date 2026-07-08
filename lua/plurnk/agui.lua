@@ -28,6 +28,25 @@ function M.parse_sse(buffer)
   return events, rest
 end
 
+-- Un-project one AG-UI event → the daemon notification shape dispatch.lua already
+-- routes ({ method, params }), or nil to drop it. The family client renders from
+-- the CUSTOM plurnk.* events; core AG-UI events (TEXT_MESSAGE/THINKING/TOOL_CALL/
+-- STEP/STATE_DELTA/RUN_*) are for generic frontends and are dropped. plurnk.row IS
+-- the wire entry, plurnk.terminated the loop/terminated payload, etc.
+function M.unproject(e)
+  if type(e) ~= "table" or e.type ~= "CUSTOM" then return nil end
+  local name, v = e.name, e.value
+  if name == "plurnk.row" then return { method = "log/entry", params = { entry = v } } end
+  if name == "plurnk.terminated" then return { method = "loop/terminated", params = v } end
+  if name == "plurnk.proposal" then return { method = "loop/proposal", params = v } end
+  if name == "plurnk.telemetry" then return { method = "telemetry/event", params = { event = v } } end
+  if name == "plurnk.stream" then
+    local concluded = type(v) == "table" and v.closeStatus ~= nil
+    return { method = concluded and "stream/concluded" or "stream/event", params = v }
+  end
+  return nil
+end
+
 local function auth_headers(target)
   local h = { "-H", "content-type: application/json" }
   if type(target.token) == "string" and #target.token > 0 then

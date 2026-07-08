@@ -29,6 +29,17 @@ local ok, err = pcall(function()
   local events3 = agui.parse_sse(": keepalive\n\ndata: not json\n\ndata: {\"ok\":true}\n\n")
   H.assert_eq(#events3, 1, "only the valid data frame decodes")
   H.assert_eq(events3[1].ok, true, "valid frame")
+
+  -- unproject: CUSTOM plurnk.* → daemon notification shapes; core events dropped.
+  H.assert_eq(agui.unproject({ type = "TEXT_MESSAGE_CONTENT", delta = "x" }), nil, "core AG-UI event dropped")
+  local row = agui.unproject({ type = "CUSTOM", name = "plurnk.row", value = { id = 7, op = "SEND" } })
+  H.assert_eq(row.method, "log/entry", "plurnk.row → log/entry")
+  H.assert_eq(row.params.entry.id, 7, "row value wrapped as {entry}")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.terminated", value = { finalStatus = 200 } }).method, "loop/terminated", "terminated")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.proposal", value = { logEntryId = 9 } }).params.logEntryId, 9, "proposal verbatim")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.telemetry", value = { source = "engine:rail" } }).params.event.source, "engine:rail", "telemetry wrapped as {event}")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { closeStatus = 200 } }).method, "stream/concluded", "closeStatus → concluded")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { state = "active" } }).method, "stream/event", "state → event")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
