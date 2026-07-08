@@ -276,10 +276,56 @@ local function review_exec(session_name, proposal)
   index = #stack
 end
 
+-- ── SEND[300] questions (#346) ───────────────────────────────────────
+-- A question rides the SAME proposal lifecycle (world-stopped; answer via
+-- loop.resolve body), but is a SEND carrying attrs {question, choices} (choices
+-- absent/empty = open question). Detection is pure so it's testable.
+M.question_from_proposal = function(proposal)
+  if not proposal or proposal.op ~= "SEND" then return nil end
+  local a = proposal.attrs
+  if type(a) ~= "table" or type(a.question) ~= "string" then return nil end
+  local choices = {}
+  if type(a.choices) == "table" then
+    for _, c in ipairs(a.choices) do if type(c) == "string" then choices[#choices + 1] = c end end
+  end
+  return { question = a.question, choices = choices }
+end
+
+-- Render the question and collect by picking or typing. vim.ui.select for the
+-- choices (+ an always-present Free Response escape to reject the premise);
+-- vim.ui.input for the free text and for open questions. The answer resolves the
+-- world-stopped proposal via loop.resolve body. Dismiss = leave pending (the
+-- daemon's proposal timeout / a re-review still applies) — never auto-answered.
+local function review_question(session_name, proposal, q)
+  local cleanup = function() require("plurnk.state").remove_proposal(session_name, proposal.logEntryId) end
+  local function free_response()
+    vim.ui.input({ prompt = q.question .. " (Free Response): " }, function(input)
+      if input == nil or input == "" then return end
+      send_resolve(proposal.logEntryId, "accept", { body = input }); cleanup()
+    end)
+  end
+  if #q.choices == 0 then free_response(); return end
+  local items = vim.list_extend({}, q.choices)
+  items[#items + 1] = "Free Response…"
+  vim.ui.select(items, { prompt = q.question }, function(choice)
+    if choice == nil then return end
+    if choice == "Free Response…" then free_response(); return end
+    send_resolve(proposal.logEntryId, "accept", { body = choice }); cleanup()
+  end)
+end
+
 -- ── Entry point ──────────────────────────────────────────────────────
 
 M.process = function(session_name, proposal)
   if not proposal or not proposal.logEntryId then return end
+
+  -- A SEND[300] question is checked BEFORE yolo: even a yolo loop stops the world
+  -- for a human — never auto-answered (#346).
+  local q = M.question_from_proposal(proposal)
+  if q then
+    review_question(session_name, proposal, q)
+    return
+  end
 
   if diff.is_yolo() then
     send_resolve(proposal.logEntryId, "accept", { outcome = "client_yolo" })

@@ -41,6 +41,11 @@ local function session_settings()
   if type(ar) == "boolean" then s.autoReadAgents = ar end
   local execs = M.collect_execs_policy()
   if execs then s.execs = execs end
+  -- #346 — enable model→user SEND[300] questions (also gates the daemon's
+  -- questions.md teaching). config wins; else the shared PLURNK_QUESTIONS env.
+  local cfg_q = require("plurnk.config").get("questions")
+  local env_q = ({ ["1"] = true, ["true"] = true, ["yes"] = true, ["on"] = true })[(vim.env.PLURNK_QUESTIONS or ""):lower()]
+  if cfg_q == true or (cfg_q == nil and env_q) then s.questions = true end
   return s
 end
 
