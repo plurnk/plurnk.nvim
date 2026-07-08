@@ -202,6 +202,16 @@ M.on_concluded = function(params, _session_name)
       close, summary ~= "" and (" · " .. summary) or ""))
   end)
 
+  -- #116 — an auth-required close (401) offers the device-grant flow. Surface
+  -- the offer (not auto-run); target is the stream's scheme (e.g. notion).
+  -- Before the `st` guard: a never-announced stream still deserves the offer.
+  if params.closeStatus == 401 then
+    local tag = params.scheme or (type(params.target) == "string" and params.target:match("^(%w[%w._-]*)://")) or "the exec"
+    pcall(function()
+      require("plurnk.client").notify("🔒 " .. tag .. " needs authorization — run :PlurnkAuth " .. tag, vim.log.levels.WARN)
+    end)
+  end
+
   if not st then return end
   st.concluded = true
   if not vim.api.nvim_buf_is_valid(st.buf) then

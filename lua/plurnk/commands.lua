@@ -699,6 +699,13 @@ M.log = function(opts)
   end)
 end
 
+-- :PlurnkAuth <target> — OAuth an auth-protected exec (e.g. notion) via the
+-- device grant (#116): prints a URL + code, polls to authorized. No browser
+-- open, no local callback — works over a remote daemon / jumpbox.
+M.auth = function(opts)
+  require("plurnk.auth").run(opts and opts.args)
+end
+
 -- :PlurnkYolo  — toggle client-side auto-accept.
 M.yolo = function()
   local diff = require("plurnk.diff")
@@ -1044,6 +1051,7 @@ M.setup = function()
   cmd("PlurnkMembers",     M.members,      {})
   cmd("PlurnkScript",      M.script,       { nargs = 1, complete = "file" })
   cmd("PlurnkYolo",        M.yolo,         {})
+  cmd("PlurnkAuth",        M.auth,         { nargs = 1 })
   cmd("PlurnkPing",        M.ping,         {})
   cmd("PlurnkStop",        M.stop,         {})
   cmd("PlurnkClear",       M.clear,        {})
