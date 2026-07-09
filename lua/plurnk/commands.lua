@@ -130,7 +130,7 @@ local function resolve_session_then(callback)
   -- Bridge mode: no session.create — the threadId IS the session identity (the
   -- bridge lazy-creates agui-<threadId> on the first run, applying forwardedProps).
   -- A stable default thread; the daemon id is bridge-created (0 here).
-  if require("plurnk.bridge").enabled() then
+  if true then
     local name = "nvim"
     require("plurnk.state").set_session_id(name, 0)
     require("plurnk.state").set_active_session_name(name)
@@ -370,7 +370,7 @@ local function send_loop_run(session_name, prompt, model_alias, flags)
   -- bridge run-endpoint read). on_done clears inflight — the terminated event
   -- (dispatched) drives the rest. WS path unchanged (the else below).
   local bridge = require("plurnk.bridge")
-  if bridge.enabled() then
+  if true then
     local fwd = {}
     if model_alias then
       local spec = M.resolve_model_spec(model_alias)

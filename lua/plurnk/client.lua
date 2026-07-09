@@ -3,7 +3,6 @@
 
 local M = {}
 local state = require("plurnk.state")
-local transport = require("plurnk.transport")
 
 -- ── Re-export state (session-scoped) ────────────────────────────────
 
@@ -45,27 +44,18 @@ M.rename_session = state.rename_session
 
 -- ── Re-export transport ─────────────────────────────────────────────
 
--- The single send point. In bridge mode (PLURNK_AGUI_URL) management calls +
--- loop.resolve ride the portal (/plurnk/rpc + /resolve) scoped to the active
--- thread; loop.run is handled by send_loop_run via bridge.run (never reaches
--- here). Raw daemon WS otherwise. Dual-surface until nvim is bridge-only.
-M.send = function(method, params, is_notification, callback)
+-- The single send point — AG-UI+ is the ONLY transport (the WS background client
+-- is deleted). Verbs ride §3 action runs; loop.resolve rides the terminate-resume
+-- tool-result run; loop.run never reaches here (send_loop_run drives bridge.run).
+M.send = function(method, params, _is_notification, callback)
   local bridge = require("plurnk.bridge")
-  if bridge.enabled() then
-    local thread = state.get_active_session_name() or "nvim"
-    if method == "loop.resolve" then
-      bridge.resolve(thread, params or {}, function() if callback then callback({}) end end)
-    else
-      bridge.rpc(thread, method, params, function(result) if callback then callback(result or {}) end end)
-    end
-    return
+  local thread = state.get_active_session_name() or "nvim"
+  if method == "loop.resolve" then
+    bridge.resolve(thread, params or {}, function() if callback then callback({}) end end)
+  else
+    bridge.rpc(thread, method, params, function(result) if callback then callback(result or {}) end end)
   end
-  return transport.send(method, params, is_notification, callback)
 end
-M.send_async = transport.send_async
-M.stop = transport.stop
-M.flush_queue = transport.flush_queue
-if transport.reset_connection then M.reset_connection = transport.reset_connection end
 
 -- ── Client-level actions ────────────────────────────────────────────
 

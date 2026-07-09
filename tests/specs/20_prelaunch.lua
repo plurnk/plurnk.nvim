@@ -23,7 +23,6 @@ local ok, err = pcall(function()
 
   -- ── In-flight switch warns; idle switch is silent ──────────────────
   local state = require("plurnk.state")
-  require("plurnk.transport").stop = function() end
   state.set_session_id("busy", 9)
   state.set_active_session_name("busy")
   vim.b.plurnk_session = "busy"

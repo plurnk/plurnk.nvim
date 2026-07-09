@@ -66,7 +66,6 @@ local ok, err = pcall(function()
   -- creates a NEW session by rebinding the connection in place
   -- (§13.5-rebind, v0.17.0 — no reconnect).
   local stops = 0
-  require("plurnk.transport").stop = function() stops = stops + 1 end
   captured = {}
   ai({ args = "?? new chat", range = 0 })
   H.assert_eq(stops, 0, ":AI?? rebinds in place, never drops the socket")

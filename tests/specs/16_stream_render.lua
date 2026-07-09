@@ -8,7 +8,6 @@ H.setup()
 
 local ok, err = pcall(function()
   local stream = require("plurnk.stream")
-  local transport = require("plurnk.transport")
 
   local content = { stdout = "", stderr = "" }
   local reads, sends = 0, {}

@@ -29,16 +29,31 @@ function M.parse_sse(buffer)
 end
 
 -- Un-project one AG-UI event → the daemon notification shape dispatch.lua already
--- routes ({ method, params }), or nil to drop it. The family client renders from
--- the CUSTOM plurnk.* events; core AG-UI events (TEXT_MESSAGE/THINKING/TOOL_CALL/
--- STEP/STATE_DELTA/RUN_*) are for generic frontends and are dropped. plurnk.row IS
--- the wire entry, plurnk.terminated the loop/terminated payload, etc.
-function M.unproject(e)
-  if type(e) ~= "table" or e.type ~= "CUSTOM" then return nil end
+-- routes ({ method, params }), or nil to drop it. AG-UI+ dialect: a stopped-world
+-- proposal arrives as a request_approval/request_user_input TOOL_CALL triple (the
+-- run then FINISHES; the loop stays paused in-engine — the resume is a tool-result
+-- run). The assembler below folds the triple into ONE loop/proposal notification.
+function M.unproject(e, tool)
+  if type(e) ~= "table" then return nil end
+  if e.type == "TOOL_CALL_START" and type(e.toolCallId) == "string" and e.toolCallId:find("^prop:") then
+    tool.id = e.toolCallId; tool.args = ""
+    return nil
+  end
+  if e.type == "TOOL_CALL_ARGS" and tool.id ~= nil and e.toolCallId == tool.id then
+    tool.args = tool.args .. (e.delta or ""); return nil
+  end
+  if e.type == "TOOL_CALL_END" and tool.id ~= nil and e.toolCallId == tool.id then
+    local log_entry_id = tonumber(tool.id:sub(6))
+    local okp, a = pcall(vim.json.decode, tool.args ~= "" and tool.args or "{}", { luanil = { object = true, array = true } })
+    tool.id = nil
+    if not okp then a = {} end
+    a.logEntryId = log_entry_id
+    return { method = "loop/proposal", params = a }
+  end
+  if e.type ~= "CUSTOM" then return nil end
   local name, v = e.name, e.value
   if name == "plurnk.row" then return { method = "log/entry", params = { entry = v } } end
   if name == "plurnk.terminated" then return { method = "loop/terminated", params = v } end
-  if name == "plurnk.proposal" then return { method = "loop/proposal", params = v } end
   if name == "plurnk.telemetry" then return { method = "telemetry/event", params = { event = v } } end
   if name == "plurnk.stream" then
     local concluded = type(v) == "table" and v.closeStatus ~= nil
@@ -62,7 +77,7 @@ function M.run(target, run, on_event, on_done)
   local body = vim.json.encode({
     threadId = run.threadId,
     runId = run.runId,
-    messages = { { role = "user", content = run.prompt } },
+    messages = run.messages or (run.prompt ~= nil and { { role = "user", content = run.prompt } } or {}),
     forwardedProps = run.forwardedProps ~= nil and { plurnk = run.forwardedProps } or nil,
   })
   local args = { "curl", "-sN", "-X", "POST", target.url .. "/" }
@@ -84,32 +99,33 @@ function M.run(target, run, on_event, on_done)
   end)
 end
 
--- One-shot POST returning the parsed JSON body (or nil). cb runs on the main loop.
-local function post_json(target, path, body, cb)
-  local args = { "curl", "-s", "-X", "POST", target.url .. path }
-  vim.list_extend(args, auth_headers(target))
-  vim.list_extend(args, { "-d", body })
-  vim.system(args, { text = true }, function(res)
-    local parsed = nil
-    if res.code == 0 and type(res.stdout) == "string" and #res.stdout > 0 then
-      local okp, decoded = pcall(vim.json.decode, res.stdout, { luanil = { object = true, array = true } })
-      if okp then parsed = decoded end
-    end
-    vim.schedule(function() cb(parsed, res.code) end)
-  end)
+-- Answer a stopped-world proposal: the AG-UI+ resume run. The decision rides a
+-- tool-result message on a NEW run; the continued loop streams there — feed its
+-- events through the same on_event/on_done as the original run.
+function M.resolve(target, r, on_event, on_done)
+  local content = vim.json.encode({ decision = r.decision, body = r.body })
+  return M.run(target, {
+    threadId = r.threadId,
+    messages = { { role = "tool", toolCallId = "prop:" .. tostring(r.logEntryId), content = content } },
+  }, on_event, on_done)
 end
 
--- Answer a stopped-world proposal (POST /resolve → loop.resolve).
-function M.resolve(target, r, cb)
-  local body = vim.json.encode({ threadId = r.threadId, logEntryId = r.logEntryId, decision = r.decision, body = r.body })
-  post_json(target, "/resolve", body, function(_, code) if cb then cb(code) end end)
-end
-
--- The management escape hatch: a daemon JSON-RPC method scoped to the thread's
--- session (POST /plurnk/rpc). cb(result) with the daemon's result verbatim.
+-- A verb is a §3 action run: forwardedProps.plurnk.action in, plurnk.action.result
+-- out. cb(result, err) — an ok:false projects err, never a silent nil.
 function M.rpc(target, thread_id, method, params, cb)
-  local body = vim.json.encode({ threadId = thread_id, method = method, params = params or vim.empty_dict() })
-  post_json(target, "/plurnk/rpc", body, function(parsed) if cb then cb(parsed ~= nil and parsed.result or nil) end end)
+  local result, errmsg = nil, nil
+  M.run(target, {
+    threadId = thread_id,
+    messages = {},
+    forwardedProps = { action = vim.tbl_extend("force", { kind = method }, params or {}) },
+  }, function(e)
+    if type(e) == "table" and e.type == "CUSTOM" and e.name == "plurnk.action.result" then
+      local v = e.value
+      if type(v) == "table" and v.ok == true then result = v.result else errmsg = (type(v) == "table" and v.error) or "action failed" end
+    end
+  end, function(_)
+    if cb then cb(result, errmsg) end
+  end)
 end
 
 return M

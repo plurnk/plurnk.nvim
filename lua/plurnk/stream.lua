@@ -48,7 +48,7 @@ local function get_or_create(entry_id, target)
     buffer = buf,
     callback = function()
       if not st.concluded then
-        require("plurnk.transport").send("op.send", { status = 499, recipient = st.target }, false)
+        require("plurnk.client").send("op.send", { status = 499, recipient = st.target }, false)
       end
       streams[entry_id] = nil
     end,
@@ -159,7 +159,7 @@ local function flush(entry_id)
   st.timer_running = false
   if not st.dirty or st.concluded then return end
   st.dirty = false
-  require("plurnk.transport").send("entry.read", { target = st.target }, false, function(result)
+  require("plurnk.client").send("entry.read", { target = st.target }, false, function(result)
     if type(result) ~= "table" or type(result.entry) ~= "table" then return end
     local channels = result.entry.channels or {}
     vim.schedule(function()
@@ -219,7 +219,7 @@ M.on_concluded = function(params, _session_name)
     return
   end
 
-  require("plurnk.transport").send("entry.read", { target = st.target }, false, function(result)
+  require("plurnk.client").send("entry.read", { target = st.target }, false, function(result)
     vim.schedule(function()
       if not vim.api.nvim_buf_is_valid(st.buf) then streams[params.entryId] = nil; return end
       if type(result) == "table" and type(result.entry) == "table" then

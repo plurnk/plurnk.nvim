@@ -15,7 +15,7 @@ local state = require("plurnk.state")
 -- ── Helpers ─────────────────────────────────────────────────────────
 
 local function log(msg)
-  require("plurnk.transport").log(msg)
+  local _ = msg   -- transport log retired with the WS client
 end
 
 local function redraw_statusline()
@@ -234,7 +234,6 @@ M.handle_error = function(payload)
   log("ERROR: " .. msg)
   vim.schedule(function()
     if msg:match("[Cc]onnection") then
-      pcall(function() require("plurnk.transport").reset_connection() end)
     end
     local prefix = "Plurnk Error: " .. msg
     local ok, hud = pcall(require, "plurnk.hud")

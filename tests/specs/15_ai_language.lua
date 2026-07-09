@@ -10,7 +10,6 @@ local ok, err = pcall(function()
   local sent = {}
   -- Rebind in place (§13.5, v0.17.0): switching never drops the socket.
   local stops = 0
-  require("plurnk.transport").stop = function() stops = stops + 1 end
   require("plurnk.client").send = function(method, params, _, cb)
     table.insert(sent, { method = method, params = params })
     -- session.create returns the run identity directly (§13.5-session-create).
