@@ -45,7 +45,23 @@ M.rename_session = state.rename_session
 
 -- ── Re-export transport ─────────────────────────────────────────────
 
-M.send = transport.send
+-- The single send point. In bridge mode (PLURNK_AGUI_URL) management calls +
+-- loop.resolve ride the portal (/plurnk/rpc + /resolve) scoped to the active
+-- thread; loop.run is handled by send_loop_run via bridge.run (never reaches
+-- here). Raw daemon WS otherwise. Dual-surface until nvim is bridge-only.
+M.send = function(method, params, is_notification, callback)
+  local bridge = require("plurnk.bridge")
+  if bridge.enabled() then
+    local thread = state.get_active_session_name() or "nvim"
+    if method == "loop.resolve" then
+      bridge.resolve(thread, params or {}, function() if callback then callback({}) end end)
+    else
+      bridge.rpc(thread, method, params, function(result) if callback then callback(result or {}) end end)
+    end
+    return
+  end
+  return transport.send(method, params, is_notification, callback)
+end
 M.send_async = transport.send_async
 M.stop = transport.stop
 M.flush_queue = transport.flush_queue
@@ -70,7 +86,7 @@ local daemon_checked = false
 M.check_daemon_once = function()
   if daemon_checked then return end
   daemon_checked = true
-  transport.send("discover", {}, false, function(result)
+  M.send("discover", {}, false, function(result)
     if type(result) ~= "table" or type(result.methods) ~= "table" then return end
     local missing = {}
     for _, m in ipairs({ "loop.cancel", "op.exec" }) do
@@ -89,7 +105,7 @@ M.check_daemon_once = function()
   -- Warm the alias cache once, so the header/statusline can name the daemon's
   -- active default before any pick or loop (the picker resolves it lazily
   -- otherwise). Cheap, boot-time-constant; statusline reactively repaints.
-  transport.send("providers.list", {}, false, function(result)
+  M.send("providers.list", {}, false, function(result)
     if type(result) == "table" and type(result.aliases) == "table" then
       state.set_available_aliases(result.aliases)
       pcall(vim.cmd, "redrawstatus!")

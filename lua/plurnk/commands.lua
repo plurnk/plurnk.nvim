@@ -126,9 +126,22 @@ local function resolve_session_then(callback)
     callback(session, model)
     return
   end
+  local origin_buf = vim.api.nvim_get_current_buf()
+  -- Bridge mode: no session.create — the threadId IS the session identity (the
+  -- bridge lazy-creates agui-<threadId> on the first run, applying forwardedProps).
+  -- A stable default thread; the daemon id is bridge-created (0 here).
+  if require("plurnk.bridge").enabled() then
+    local name = "nvim"
+    require("plurnk.state").set_session_id(name, 0)
+    require("plurnk.state").set_active_session_name(name)
+    associate_buffer(origin_buf, name)
+    local model = client.consume_selected_alias()
+    if model then require("plurnk.state").set_model_alias(name, model) end
+    callback(name, model)
+    return
+  end
   -- No session attached — create a fresh one. We let the daemon name it;
   -- the response handler captures the name and binds it to the origin buf.
-  local origin_buf = vim.api.nvim_get_current_buf()
   client.send("session.create", { projectRoot = client.get_project_path(), settings = session_settings() }, false, function(result)
     if type(result) ~= "table" or not result.name then return end
     local name = result.name
@@ -351,6 +364,30 @@ function M.resolve_model_spec(alias)
 end
 
 local function send_loop_run(session_name, prompt, model_alias, flags)
+  -- Bridge mode: the run streams through the portal (agui.run → un-project →
+  -- dispatch, so the run-tab renders identically to WS). Per-run knobs (model/
+  -- alias/flags/openPaths) ride forwardedProps (agui 0.2.4+; openPaths pending a
+  -- bridge run-endpoint read). on_done clears inflight — the terminated event
+  -- (dispatched) drives the rest. WS path unchanged (the else below).
+  local bridge = require("plurnk.bridge")
+  if bridge.enabled() then
+    local fwd = {}
+    if model_alias then
+      local spec = M.resolve_model_spec(model_alias)
+      if spec then fwd.model = spec end
+      fwd.alias = model_alias
+    end
+    if flags then fwd.flags = flags end
+    local open_paths = extract_open_paths(prompt)
+    if #open_paths > 0 then fwd.openPaths = open_paths end
+    require("plurnk.state").set_loop_inflight(session_name, true)
+    bridge.run(session_name, prompt, { forwardedProps = next(fwd) ~= nil and fwd or nil }, function(_final)
+      require("plurnk.state").set_loop_inflight(session_name, false)
+      require("plurnk.run_tab").update_status(session_name)
+      pcall(vim.cmd, "redrawstatus! | redrawtabline")
+    end)
+    return
+  end
   local client = require("plurnk.client")
   local params = { prompt = prompt }
   if model_alias then

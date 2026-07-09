@@ -47,8 +47,9 @@ local ok, err = pcall(function()
   end
 
   -- ── Staleness check: old daemon → blunt warning, once ──────────────
-  local transport = require("plurnk.transport")
-  transport.send = function(method, _, _, cb)
+  -- check_daemon_once routes discover through client.send now (bridge-aware),
+  -- not transport.send directly — stub the discover reply there.
+  require("plurnk.client").send = function(method, _, _, cb)
     if method == "discover" and cb then
       cb({ methods = { ping = {}, ["loop.run"] = {} }, notifications = {} })
     end
