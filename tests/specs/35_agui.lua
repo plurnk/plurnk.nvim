@@ -40,6 +40,11 @@ local ok, err = pcall(function()
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.telemetry", value = { source = "engine:rail" } }).params.event.source, "engine:rail", "telemetry wrapped as {event}")
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { closeStatus = 200 } }).method, "stream/concluded", "closeStatus → concluded")
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { state = "active" } }).method, "stream/event", "state → event")
+
+  -- JSON null → Lua nil (luanil), NOT vim.NIL — else render.lua concatenates a
+  -- userdata (the live-smoke fragment bug). parse_sse must normalize.
+  local nulls = agui.parse_sse('data: {"scheme":"known","fragment":null,"hostname":null}\n\n')
+  H.assert_eq(nulls[1].fragment, nil, "JSON null decodes to Lua nil, not vim.NIL")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

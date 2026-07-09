@@ -21,7 +21,7 @@ function M.parse_sse(buffer)
     rest = rest:sub(sep + 2)
     local data = frame:match("^data: (.*)")
     if data then
-      local okp, decoded = pcall(vim.json.decode, data)
+      local okp, decoded = pcall(vim.json.decode, data, { luanil = { object = true, array = true } })
       if okp then events[#events + 1] = decoded end
     end
   end
@@ -92,7 +92,7 @@ local function post_json(target, path, body, cb)
   vim.system(args, { text = true }, function(res)
     local parsed = nil
     if res.code == 0 and type(res.stdout) == "string" and #res.stdout > 0 then
-      local okp, decoded = pcall(vim.json.decode, res.stdout)
+      local okp, decoded = pcall(vim.json.decode, res.stdout, { luanil = { object = true, array = true } })
       if okp then parsed = decoded end
     end
     vim.schedule(function() cb(parsed, res.code) end)
