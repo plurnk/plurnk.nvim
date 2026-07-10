@@ -50,8 +50,10 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   export PLURNK_PORT
   (
     cd "$SERVICE_DIR"
-    PLURNK_SERVICE_DB_PATH="$DAEMON_DIR/plurnk.db" PLURNK_PORT="$PLURNK_PORT" PLURNK_WS_PORT=0 \
-      node --env-file-if-exists=.env "$SERVICE_BIN" > "$DAEMON_DIR/daemon.log" 2>&1 &
+    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" > "$DAEMON_DIR/test.env"
+    # the service loads env IN-SCRIPT (process.loadEnvFile overrides process env), so
+    # exports don't survive — its own --env-file flags, loaded last, are the override.
+    node "$SERVICE_BIN" --env-file-if-exists=.env --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
@@ -85,8 +87,10 @@ reboot_daemon() {
   export PLURNK_PORT
   (
     cd "$SERVICE_DIR"
-    PLURNK_SERVICE_DB_PATH="$DAEMON_DIR/plurnk.db" PLURNK_PORT="$PLURNK_PORT" PLURNK_WS_PORT=0 \
-      node --env-file-if-exists=.env "$SERVICE_BIN" > "$DAEMON_DIR/daemon.log" 2>&1 &
+    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" > "$DAEMON_DIR/test.env"
+    # the service loads env IN-SCRIPT (process.loadEnvFile overrides process env), so
+    # exports don't survive — its own --env-file flags, loaded last, are the override.
+    node "$SERVICE_BIN" --env-file-if-exists=.env --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
