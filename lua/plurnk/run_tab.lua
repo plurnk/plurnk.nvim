@@ -66,8 +66,11 @@ local function build_winbar(session, key)
   else
     local final = state.get_final_status(session)
     if final then
+      -- The winbar is a ONE-SLOT summary, not a column ladder: a done state needs a
+      -- visible mark (the waterfall's reserved-blank 2xx convention doesn't apply).
       local g = require("plurnk.render").status_glyph(final)
-      parts[#parts + 1] = ((g ~= "" and g) or "·") .. " " .. tostring(final)
+      if g == "" or g == "  " then g = (final >= 200 and final < 300) and "✅" or "·" end
+      parts[#parts + 1] = g .. " " .. tostring(final)
     end
   end
 
