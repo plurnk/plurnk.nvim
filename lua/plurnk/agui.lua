@@ -77,7 +77,9 @@ function M.run(target, run, on_event, on_done)
   local body = vim.json.encode({
     threadId = run.threadId,
     runId = run.runId,
-    messages = run.messages or (run.prompt ~= nil and { { role = "user", content = run.prompt } } or {}),
+    -- omit when empty: vim.json.encode({}) emits an OBJECT, and RunAgentInput.messages
+    -- must be an array or absent (the module tolerates absent).
+    messages = run.messages or (run.prompt ~= nil and { { role = "user", content = run.prompt } } or nil),
     forwardedProps = run.forwardedProps ~= nil and { plurnk = run.forwardedProps } or nil,
   })
   local args = { "curl", "-sN", "-X", "POST", target.url .. "/" }

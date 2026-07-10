@@ -46,26 +46,23 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   fi
   SERVICE_DIR="$(cd "$(dirname "$SERVICE_BIN")/.." && pwd -P)"
   DAEMON_DIR="$(mktemp -d)"
+  PLURNK_PORT="$(node -e 'const s=require("net").createServer();s.listen(0,()=>{console.log(s.address().port);s.close()})')"
+  export PLURNK_PORT
   (
     cd "$SERVICE_DIR"
-    PLURNK_DB_PATH="$DAEMON_DIR/plurnk.db" PLURNK_PORT=0 \
+    PLURNK_DB_PATH="$DAEMON_DIR/plurnk.db" PLURNK_PORT="$PLURNK_PORT" PLURNK_WS_PORT=0 \
       node --env-file-if-exists=.env "$SERVICE_BIN" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
-  PORT_LINE=""
+  # AG-UI+ is the client surface. The banner prints the CONFIGURED port (0 stays 0 —
+  # service bug, filed), so allocate a concrete free port up front and pass it in.
+  # (Port was exported before boot; just await the module answering.)
   for _ in $(seq 1 50); do
-    PORT_LINE="$(grep -o 'ws://127\.0\.0\.1:[0-9]*' "$DAEMON_DIR/daemon.log" 2>/dev/null | head -1 || true)"
-    [ -n "$PORT_LINE" ] && break
+    curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}' && break
     sleep 0.2
   done
-  if [ -z "$PORT_LINE" ]; then
-    echo "private daemon failed to boot:" >&2
-    cat "$DAEMON_DIR/daemon.log" >&2 || true
-    exit 1
-  fi
-  export PLURNK_PORT="${PORT_LINE##*:}"
-  echo "── private daemon on :$PLURNK_PORT ──"
+  echo "── private daemon module on :$PLURNK_PORT ──"
 fi
 
 SPECS_DIR="$REPO_DIR/tests/specs"

@@ -15,6 +15,11 @@ local ok, err = pcall(function()
   vim.cmd("edit " .. file)
 
   local captured
+  require("plurnk.bridge").run = function(_t, prompt, _o, on_done)
+    captured = prompt
+    if on_done then on_done(200) end
+    return nil
+  end
   local original = require("plurnk.client").send
   require("plurnk.client").send = function(method, params, n, cb)
     if method == "loop.run" then captured = params.prompt end

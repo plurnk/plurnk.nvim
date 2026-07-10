@@ -30,16 +30,24 @@ local ok, err = pcall(function()
   H.assert_eq(#events3, 1, "only the valid data frame decodes")
   H.assert_eq(events3[1].ok, true, "valid frame")
 
-  -- unproject: CUSTOM plurnk.* → daemon notification shapes; core events dropped.
-  H.assert_eq(agui.unproject({ type = "TEXT_MESSAGE_CONTENT", delta = "x" }), nil, "core AG-UI event dropped")
-  local row = agui.unproject({ type = "CUSTOM", name = "plurnk.row", value = { id = 7, op = "SEND" } })
+  -- unproject(e, tool): CUSTOM plurnk.* → daemon notification shapes; core events
+  -- dropped; a stopped-world arrives as the request_approval TOOL_CALL triple and
+  -- assembles into ONE loop/proposal (AG-UI+ terminate-resume).
+  local tool = {}
+  H.assert_eq(agui.unproject({ type = "TEXT_MESSAGE_CONTENT", delta = "x" }, tool), nil, "core AG-UI event dropped")
+  local row = agui.unproject({ type = "CUSTOM", name = "plurnk.row", value = { id = 7, op = "SEND" } }, tool)
   H.assert_eq(row.method, "log/entry", "plurnk.row → log/entry")
   H.assert_eq(row.params.entry.id, 7, "row value wrapped as {entry}")
-  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.terminated", value = { finalStatus = 200 } }).method, "loop/terminated", "terminated")
-  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.proposal", value = { logEntryId = 9 } }).params.logEntryId, 9, "proposal verbatim")
-  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.telemetry", value = { source = "engine:rail" } }).params.event.source, "engine:rail", "telemetry wrapped as {event}")
-  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { closeStatus = 200 } }).method, "stream/concluded", "closeStatus → concluded")
-  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { state = "active" } }).method, "stream/event", "state → event")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.terminated", value = { finalStatus = 200 } }, tool).method, "loop/terminated", "terminated")
+  H.assert_eq(agui.unproject({ type = "TOOL_CALL_START", toolCallId = "prop:9", toolCallName = "request_approval" }, tool), nil, "triple start assembles silently")
+  H.assert_eq(agui.unproject({ type = "TOOL_CALL_ARGS", toolCallId = "prop:9", delta = '{"op":"EDIT","body":"diff"}' }, tool), nil, "args accumulate")
+  local prop = agui.unproject({ type = "TOOL_CALL_END", toolCallId = "prop:9" }, tool)
+  H.assert_eq(prop.method, "loop/proposal", "the triple folds into loop/proposal")
+  H.assert_eq(prop.params.logEntryId, 9, "logEntryId decoded from the toolCallId")
+  H.assert_eq(prop.params.op, "EDIT", "args carried")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.telemetry", value = { source = "engine:rail" } }, tool).params.event.source, "engine:rail", "telemetry wrapped as {event}")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { closeStatus = 200 } }, tool).method, "stream/concluded", "closeStatus → concluded")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { state = "active" } }, tool).method, "stream/event", "state → event")
 
   -- JSON null → Lua nil (luanil), NOT vim.NIL — else render.lua concatenates a
   -- userdata (the live-smoke fragment bug). parse_sse must normalize.

@@ -11,7 +11,7 @@ local ok, err = pcall(function()
 
   local content = { stdout = "", stderr = "" }
   local reads, sends = 0, {}
-  transport.send = function(method, params, _, cb)
+  require("plurnk.client").send = function(method, params, _, cb)
     if method == "entry.read" then
       reads = reads + 1
       local channels = {}

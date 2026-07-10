@@ -7,6 +7,12 @@ H.setup()
 
 local ok, err = pcall(function()
   local sent = {}
+  require("plurnk.bridge").run = function(_t, prompt, opts, on_done)
+    local fwd = (opts and opts.forwardedProps) or {}
+    table.insert(sent, { method = "loop.run", params = vim.tbl_extend("force", { prompt = prompt }, fwd) })
+    if on_done then on_done(200) end
+    return nil
+  end
   require("plurnk.client").send = function(method, params, _, _cb)
     table.insert(sent, { method = method, params = params })
   end

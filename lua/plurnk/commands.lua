@@ -127,21 +127,8 @@ local function resolve_session_then(callback)
     return
   end
   local origin_buf = vim.api.nvim_get_current_buf()
-  -- Bridge mode: no session.create — the threadId IS the session identity (the
-  -- bridge lazy-creates agui-<threadId> on the first run, applying forwardedProps).
-  -- A stable default thread; the daemon id is bridge-created (0 here).
-  if true then
-    local name = "nvim"
-    require("plurnk.state").set_session_id(name, 0)
-    require("plurnk.state").set_active_session_name(name)
-    associate_buffer(origin_buf, name)
-    local model = client.consume_selected_alias()
-    if model then require("plurnk.state").set_model_alias(name, model) end
-    callback(name, model)
-    return
-  end
-  -- No session attached — create a fresh one. We let the daemon name it;
-  -- the response handler captures the name and binds it to the origin buf.
+  -- No session attached — create a fresh one via the session.create ACTION: the
+  -- module binds the returned name as the threadId, so subsequent runs address it.
   client.send("session.create", { projectRoot = client.get_project_path(), settings = session_settings() }, false, function(result)
     if type(result) ~= "table" or not result.name then return end
     local name = result.name

@@ -6,6 +6,14 @@ H.setup()
 
 local ok, err = pcall(function()
   local captured = {}
+  -- AG-UI+: loop runs ride bridge.run (not client.send). Capture them shaped like
+  -- the old records so the routing assertions stay meaningful.
+  require("plurnk.bridge").run = function(_thread, prompt, opts, on_done)
+    local fwd = (opts and opts.forwardedProps) or {}
+    table.insert(captured, { method = "loop.run", params = vim.tbl_extend("force", { prompt = prompt }, fwd) })
+    if on_done then on_done(200) end
+    return nil
+  end
   require("plurnk.client").send = function(method, params, _, cb)
     table.insert(captured, { method = method, params = params })
     -- For session.create called by `??`, fire the callback (returning the
