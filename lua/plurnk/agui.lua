@@ -93,7 +93,6 @@ function M.run(target, run, on_event, on_done)
       local events, rest = M.parse_sse(buffer)
       buffer = rest
       for _, e in ipairs(events) do
-        if os.getenv("PLURNK_AGUI_DIAG") == "1" then io.stderr:write("EVT " .. tostring(e.type) .. " " .. tostring(e.name or e.toolCallId or "") .. "\n") end
         vim.schedule(function() on_event(e) end)
       end
     end,
