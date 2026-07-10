@@ -11,9 +11,10 @@ local ok, err = pcall(function()
   -- Confirm it's listed.
   local list = H.call("session.list")
   local found = false
-  -- AG-UI+: the returned name is the THREAD handle; the daemon session is the
-  -- module-namespaced agui-<handle> (threadId ↔ session mapping).
-  for _, s in ipairs(list.sessions) do if s.name == "agui-" .. fresh_name then found = true end end
+  -- The plurnk paradigm: the name IS the identity — the session lists under the
+  -- EXACT name it was created with. (An earlier spec-rewrite bent this assertion
+  -- to a broken prefix scheme; the original expectation was right.)
+  for _, s in ipairs(list.sessions) do if s.name == fresh_name then found = true end end
   H.assert_truthy(found, "session not in list after create")
 end)
 if ok then H.finish(NAME) else H.fail(NAME, err) end
