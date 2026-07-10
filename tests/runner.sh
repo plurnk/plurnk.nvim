@@ -72,10 +72,36 @@ pass=0
 fail=0
 failed_names=()
 
+# The two LIVE specs (real model / real exec streaming) get a FRESH daemon: under
+# the full run's accumulated sessions + embed load the shared daemon flakes them
+# (10's 508s predate the AG-UI migration). Isolation is the fix, not retries.
+ISOLATED_SPECS="10_ai_end_to_end 17_exec_live"
+
+reboot_daemon() {
+  [ -n "${DAEMON_PID:-}" ] || return 0
+  kill -9 "$DAEMON_PID" 2>/dev/null || true
+  DAEMON_DIR="$(mktemp -d)"
+  PLURNK_PORT="$(node -e 'const s=require("net").createServer();s.listen(0,()=>{console.log(s.address().port);s.close()})')"
+  export PLURNK_PORT
+  (
+    cd "$SERVICE_DIR"
+    PLURNK_DB_PATH="$DAEMON_DIR/plurnk.db" PLURNK_PORT="$PLURNK_PORT" PLURNK_WS_PORT=0 \
+      node --env-file-if-exists=.env "$SERVICE_BIN" > "$DAEMON_DIR/daemon.log" 2>&1 &
+    echo $! > "$DAEMON_DIR/pid"
+  )
+  DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
+  for _ in $(seq 1 50); do
+    curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}' && break
+    sleep 0.2
+  done
+  echo "  (fresh daemon on :$PLURNK_PORT)"
+}
+
 for spec in "$SPECS_DIR"/*.lua; do
   name="$(basename "$spec" .lua)"
   if [ -n "$FILTER" ] && [[ "$name" != "$FILTER"* ]]; then continue; fi
   echo "== $name =="
+  case " $ISOLATED_SPECS " in *" $name "*) reboot_daemon;; esac
   # SIGKILL, not the default SIGTERM: headless nvim survives SIGTERM, so a
   # hung spec under plain `timeout` detaches and spins forever (99% CPU
   # orphans). A timed-out spec is a loud FAIL, never a silent leak.
