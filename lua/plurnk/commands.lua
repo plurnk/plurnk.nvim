@@ -322,11 +322,15 @@ end
 -- it, output streams over stream/event into the stream split, and the
 -- model learns the outcome over the wire — rummy's Run mode, daemon-owned.
 local function send_exec(command)
+  -- Session-scoped like every op: resolve (or create) the session FIRST so the
+  -- stream/entry events the exec emits have an active session to render under.
+  resolve_session_then(function(_session_name, _model)
   local client = require("plurnk.client")
   client.send("op.exec", { command = command }, false, function(result)
     if type(result) == "table" and type(result.status) == "number" and result.status >= 400 then
       client.notify("exec rejected: " .. tostring(result.status), vim.log.levels.WARN)
     end
+  end)
   end)
 end
 
