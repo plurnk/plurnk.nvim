@@ -50,7 +50,7 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   export PLURNK_PORT
   (
     cd "$SERVICE_DIR"
-    PLURNK_DB_PATH="$DAEMON_DIR/plurnk.db" PLURNK_PORT="$PLURNK_PORT" PLURNK_WS_PORT=0 \
+    PLURNK_SERVICE_DB_PATH="$DAEMON_DIR/plurnk.db" PLURNK_PORT="$PLURNK_PORT" PLURNK_WS_PORT=0 \
       node --env-file-if-exists=.env "$SERVICE_BIN" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
@@ -85,7 +85,7 @@ reboot_daemon() {
   export PLURNK_PORT
   (
     cd "$SERVICE_DIR"
-    PLURNK_DB_PATH="$DAEMON_DIR/plurnk.db" PLURNK_PORT="$PLURNK_PORT" PLURNK_WS_PORT=0 \
+    PLURNK_SERVICE_DB_PATH="$DAEMON_DIR/plurnk.db" PLURNK_PORT="$PLURNK_PORT" PLURNK_WS_PORT=0 \
       node --env-file-if-exists=.env "$SERVICE_BIN" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
