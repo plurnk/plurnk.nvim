@@ -53,7 +53,11 @@ M.send = function(method, params, _is_notification, callback)
   if method == "loop.resolve" then
     bridge.resolve(thread, params or {}, function() if callback then callback({}) end end)
   else
-    bridge.rpc(thread, method, params, function(result) if callback then callback(result or {}) end end)
+    -- FAIL-HARD ACROSS LAYERS (the 2026-07-10 rule): a failed action delivers NIL —
+    -- bridge.rpc has already surfaced the error. `result or {}` here converted every
+    -- contract violation into silent half-behavior; that fallback shipped the
+    -- session-door disaster and is permanently banned.
+    bridge.rpc(thread, method, params, function(result) if callback then callback(result) end end)
   end
 end
 
