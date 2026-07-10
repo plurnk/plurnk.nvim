@@ -44,7 +44,7 @@ local ok, err = pcall(function()
 
   -- Waterfall has the response; input was cleared; focus stayed on input.
   local wf = table.concat(vim.api.nvim_buf_get_lines(rec.waterfall_buf, 0, -1, false), "\n")
-  H.assert_match(wf, "✅ 200", "waterfall has SEND[200]")
+  H.assert_match(wf, "💡    200", "waterfall has the terminal answer SEND")
   local input_lines = vim.api.nvim_buf_get_lines(rec.input_buf, 0, -1, false)
   H.assert_eq(table.concat(input_lines, ""), "", "input cleared after submit")
   H.assert_eq(vim.api.nvim_get_current_win(), rec.input_win, "focus stayed on input")

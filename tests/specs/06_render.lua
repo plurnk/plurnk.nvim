@@ -20,7 +20,7 @@ local ok, err = pcall(function()
   })
   H.assert_eq(#read_lines, 1, "READ single line")
   H.assert_match(read_lines[1], "📖", "READ glyph")
-  H.assert_match(read_lines[1], "✅", "READ ✅ sub-glyph on 200")
+  H.assert_match(read_lines[1], "📖    200", "routine 200 holds a reserved-blank status lane")
   H.assert_match(read_lines[1], "Paris", "READ content")
   -- No leading indent
   H.assert_truthy(read_lines[1]:sub(1, 1) ~= " ", "no leading indent")
@@ -61,8 +61,8 @@ local ok, err = pcall(function()
     tx = { body = { raw = "Paris" } },
   })
   H.assert_eq(#bc_short, 1, "short broadcast inline")
-  H.assert_match(bc_short[1], "💬", "SEND glyph")
-  H.assert_match(bc_short[1], "✅", "SEND ✅ sub-glyph")
+  H.assert_match(bc_short[1], "💡", "model SEND 200: the answer state IS the identity")
+  H.assert_match(bc_short[1], "200", "SEND ✅ sub-glyph")
   H.assert_match(bc_short[1], "200  Paris", "200 then 2sp then body")
 
   -- Broadcast SEND[200] multi-line body — header + indented body lines.
@@ -82,13 +82,13 @@ local ok, err = pcall(function()
   })
   H.assert_eq(#empty, 1, "empty broadcast = header only")
 
-  -- Origin glyph fallback
+  -- Two lanes: the OP is the identity (the origin lane is gone — converged 2026-07-10)
   local client_line = R({
     op = "EDIT", origin = "client", scheme = nil, pathname = "/x",
     status_rx = 202, tx = { body = "ok" },
   })
-  H.assert_match(client_line[1], "👤", "client glyph")
-  H.assert_match(client_line[1], "💤", "202 → 💤 parked sub-glyph (aligned with @plurnk/plurnk)")
+  H.assert_match(client_line[1], "📝", "op glyph is lane 1")
+  H.assert_match(client_line[1], "💤", "202 → 💤 parked status lane (aligned with @plurnk/plurnk)")
 
   -- Status glyph alignment (converged map): 300 needs-decision, 499 abort.
   local R2 = require("plurnk.render").status_glyph
@@ -101,8 +101,8 @@ local ok, err = pcall(function()
     op = "EDIT", origin = "plurnk", scheme = "plurnk", pathname = "prompt/3/1",
     status_rx = 201, tx = { body = "What is the capital of France?" },
   })
-  H.assert_match(prompt_block[1], "👤", "prompt speaks as the user")
-  H.assert_match(prompt_block[1], "💬", "prompt is speech, not an op")
+  H.assert_match(prompt_block[1], "🐹", "prompt speaks as the user (converged brand head)")
+  H.assert_match(prompt_block[1], "🐹", "prompt is speech, not an op record")
   H.assert_match(prompt_block[1], "What is the capital", "short prompt inlines")
   H.assert_truthy(not prompt_block[1]:match("📝"), "no EDIT glyph on prompts")
 

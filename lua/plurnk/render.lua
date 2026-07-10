@@ -20,11 +20,23 @@ M.OP_GLYPHS = {
 }
 
 M.ORIGIN_GLYPHS = {
-  model = "🤖",
-  client = "👤",
+  model = "🤖",   -- retained for ambient/topology labels; SEND rows use send_glyph
+  client = "🐹",  -- converged with @plurnk/plurnk (the brand head)
   plurnk = "🧰",   -- the runtime actor (§14.7)
   plugin = "🔌",
 }
+
+-- Model-SEND lane-1 (operator ruling 2026-07-10): the STATE is the identity.
+-- Converged with @plurnk/plurnk modelSendGlyph.
+M.model_send_glyph = function(status)
+  if status == 102 then return "💭" end
+  if status == 202 then return "💤" end
+  if status == 300 then return "🤔" end
+  if status == 499 then return "✋" end
+  if type(status) == "number" and status >= 200 and status < 300 then return "💡" end
+  if type(status) == "number" and status >= 400 and status < 600 then return "❌" end
+  return "💡"
+end
 
 -- Aligned to the grammar's terminal SEND set [102, 200, 202, 300, 499]
 -- (plurnk-grammar plurnk.md) + directed-SEND/error families. The glyph carries
@@ -33,8 +45,8 @@ M.ORIGIN_GLYPHS = {
 local STATUS_GLYPHS = {
   [102] = "⏳",   -- continuing — more turns coming
   [120] = "⏳",
-  [200] = "✅",   -- success / final
-  [201] = "✅",
+  [200] = "  ",   -- routine success badges NOTHING — reserved blank keeps the column
+  [201] = "  ",
   [202] = "💤",   -- parked/waiting on an external event (NOT generic 2xx)
   [300] = "🤔",   -- needs a decision (multiple choices)
   [410] = "💥",   -- directed SEND to a gone resource
@@ -50,9 +62,9 @@ M.status_glyph = function(status_rx, signal)
   if type(signal) == "number" then code = signal else code = status_rx end
   if type(code) ~= "number" then return "" end
   if STATUS_GLYPHS[code] then return STATUS_GLYPHS[code] end
-  if code >= 200 and code < 300 then return "✅" end
+  if code >= 200 and code < 300 then return "  " end
   if code >= 400 and code < 600 then return "❌" end
-  return ""
+  return "  "   -- reserve the lane — never a width-shifting empty
 end
 
 -- Back-compat alias for v0.3 callers.
@@ -133,15 +145,20 @@ end
 -- bodies, inline after the status. For multi-line or long bodies, header
 -- line + body lines indented under the speaker.
 M.render_broadcast = function(entry)
-  local origin = M.ORIGIN_GLYPHS[entry.origin] or "?"
-  local op_glyph = M.OP_GLYPHS.SEND
-  local sub_glyph = M.status_glyph(entry.status_rx, entry.signal)
+  -- TWO lanes (identity · status), converged with the TUI: the MODEL speaking
+  -- carries its state AS lane 1 (💭/💡/💤/🤔) with lane 2 reserved-blank; the
+  -- user keeps 🐹 + the status lane.
+  local signal = type(entry.signal) == "number" and entry.signal or entry.status_rx
+  local lane1, lane2
+  if entry.origin == "model" then
+    lane1 = M.model_send_glyph(signal)
+    lane2 = "  "
+  else
+    lane1 = M.ORIGIN_GLYPHS[entry.origin] or "?"
+    lane2 = M.status_glyph(entry.status_rx, entry.signal)
+  end
   local status = tostring(entry.status_rx or "?")
-
-  local header_parts = { coord_prefix(entry), origin, " ", op_glyph }
-  if sub_glyph ~= "" then table.insert(header_parts, " " .. sub_glyph) end
-  table.insert(header_parts, " " .. status)
-  local header = table.concat(header_parts)
+  local header = coord_prefix(entry) .. lane1 .. " " .. lane2 .. " " .. status
 
   local body_text = ""
   local tx = entry.tx
@@ -177,7 +194,8 @@ end
 
 M.render_prompt = function(entry)
   local body = type(entry.tx) == "table" and type(entry.tx.body) == "string" and entry.tx.body or ""
-  local header = coord_prefix(entry) .. M.ORIGIN_GLYPHS.client .. " " .. M.OP_GLYPHS.SEND
+  -- Two lanes: 🐹 + reserved blank (a prompt record carries no live status).
+  local header = coord_prefix(entry) .. M.ORIGIN_GLYPHS.client .. "   "
   if body == "" then return { header } end
   if not body:find("\n", 1, true) and #body <= BROADCAST_INLINE_LIMIT then
     return { header .. "  " .. body }
@@ -199,7 +217,8 @@ M.render_log_entry = function(entry)
     return M.render_prompt(entry)
   end
 
-  local origin = M.ORIGIN_GLYPHS[entry.origin] or "?"
+  -- TWO lanes: the OP is the identity (the origin column is gone — converged with
+  -- the TUI); the status lane holds a glyph or a reserved blank.
   local op_glyph = M.OP_GLYPHS[entry.op] or "?"
   local sub_glyph = M.status_glyph(entry.status_rx, entry.signal)
   local status = tostring(entry.status_rx or "?")
@@ -224,10 +243,9 @@ M.render_log_entry = function(entry)
 
   local extra = build_extra(entry)
 
-  -- Layout: ORIGIN OP SUB STATUS PATH  EXTRA  (no leading indent)
-  local parts = { coord_prefix(entry), origin, " ", op_glyph }
-  if sub_glyph ~= "" then table.insert(parts, " " .. sub_glyph) end
-  table.insert(parts, " " .. status)
+  -- Layout: OP SUB STATUS PATH  EXTRA — two lanes, status lane always present
+  -- (glyph or reserved blank) so the code column never drifts.
+  local parts = { coord_prefix(entry), op_glyph, " ", sub_glyph, " ", status }
   if path ~= "" then table.insert(parts, " " .. path) end
   if extra ~= "" then table.insert(parts, "  " .. extra) end
 
