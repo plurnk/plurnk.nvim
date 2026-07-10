@@ -28,7 +28,7 @@ function M.run(thread_id, prompt, opts, on_done)
   local t = M.target()
   if t == nil then return nil end
   local dispatch = require("plurnk.dispatch")
-  local final = 200
+  local final = nil   -- NO fabricated success: only loop/terminated sets it (else 502)
   local tool = {}   -- the TOOL_CALL triple assembler (terminate-resume proposals)
   local paused = false
   local on_event
@@ -39,14 +39,15 @@ function M.run(thread_id, prompt, opts, on_done)
     if n.method == "loop/proposal" then paused = true end
     if n.method == "loop/terminated" then
       paused = false
-      final = (type(n.params) == "table" and n.params.finalStatus) or final
+      final = (type(n.params) == "table" and n.params.finalStatus) or 502
     end
     pcall(dispatch.handle_notification, n)
   end
   -- resolve.lua answers via M.resolve below; the resume run's events feed the SAME
   -- on_event/on_done, so the run-tab renders the continuation seamlessly.
   M._active = { thread_id = thread_id, on_event = on_event, on_done = function(_)
-    if not paused and on_done then on_done(final) end
+    -- A stream that died without terminal truth is a broken wire — 502, never 200.
+    if not paused and on_done then on_done(final or 502) end
   end }
   return agui.run(t, { threadId = thread_id, prompt = prompt, forwardedProps = opts and opts.forwardedProps or nil },
     on_event, M._active.on_done)
