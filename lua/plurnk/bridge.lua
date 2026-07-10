@@ -53,21 +53,36 @@ function M.run(thread_id, prompt, opts, on_done)
 end
 
 -- A verb is a §3 action run. cb(result); an action error surfaces as a notify —
--- honest, never silent.
+-- honest, never silent. The action stream ALSO carries any events the dispatch
+-- emits (log/entry from a client op, a proposal from a gated EXEC, stream chunks)
+-- — feed them through the same unproject→dispatch path as a run, or client ops
+-- would render nothing and gated ops would hang unresolved.
 function M.rpc(thread_id, method, params, cb)
   local t = M.target()
+  local dispatch = require("plurnk.dispatch")
+  local tool = {}
   agui.rpc(t, thread_id, method, params, function(result, err)
     if err ~= nil then vim.notify("plurnk: " .. method .. " — " .. err, vim.log.levels.WARN) end
     if cb then cb(result) end
+  end, function(e)
+    local n = agui.unproject(e, tool)
+    if n ~= nil then pcall(dispatch.handle_notification, n) end
   end)
 end
 
 -- Answer a stopped-world proposal: the tool-result resume run. The continued
--- loop's events ride the SAME dispatch path as the original run.
+-- work's events (a loop's rows OR an action's exec streams + result) ride the
+-- SAME unproject→dispatch path as every other stream — a loop run's registered
+-- on_done still fires so its inflight state clears.
 function M.resolve(thread_id, r, cb)
   local t = M.target()
   local a = M._active
-  local on_event = (a ~= nil and a.thread_id == thread_id) and a.on_event or function(_) end
+  local dispatch = require("plurnk.dispatch")
+  local tool = {}
+  local on_event = (a ~= nil and a.thread_id == thread_id) and a.on_event or function(e)
+    local n = agui.unproject(e, tool)
+    if n ~= nil then pcall(dispatch.handle_notification, n) end
+  end
   local on_done = (a ~= nil and a.thread_id == thread_id) and a.on_done or function(_) end
   agui.resolve(t, vim.tbl_extend("force", { threadId = thread_id }, r), on_event, function(code)
     on_done(code)

@@ -93,6 +93,7 @@ function M.run(target, run, on_event, on_done)
       local events, rest = M.parse_sse(buffer)
       buffer = rest
       for _, e in ipairs(events) do
+        if os.getenv("PLURNK_AGUI_DIAG") == "1" then io.stderr:write("EVT " .. tostring(e.type) .. " " .. tostring(e.name or e.toolCallId or "") .. "\n") end
         vim.schedule(function() on_event(e) end)
       end
     end,
@@ -114,7 +115,7 @@ end
 
 -- A verb is a §3 action run: forwardedProps.plurnk.action in, plurnk.action.result
 -- out. cb(result, err) — an ok:false projects err, never a silent nil.
-function M.rpc(target, thread_id, method, params, cb)
+function M.rpc(target, thread_id, method, params, cb, on_event)
   local result, errmsg = nil, nil
   M.run(target, {
     threadId = thread_id,
@@ -124,7 +125,9 @@ function M.rpc(target, thread_id, method, params, cb)
     if type(e) == "table" and e.type == "CUSTOM" and e.name == "plurnk.action.result" then
       local v = e.value
       if type(v) == "table" and v.ok == true then result = v.result else errmsg = (type(v) == "table" and v.error) or "action failed" end
+      return
     end
+    if on_event then on_event(e) end   -- everything else the dispatch emitted rides here
   end, function(_)
     if cb then cb(result, errmsg) end
   end)

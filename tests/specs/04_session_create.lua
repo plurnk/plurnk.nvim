@@ -11,7 +11,9 @@ local ok, err = pcall(function()
   -- Confirm it's listed.
   local list = H.call("session.list")
   local found = false
-  for _, s in ipairs(list.sessions) do if s.name == fresh_name then found = true end end
+  -- AG-UI+: the returned name is the THREAD handle; the daemon session is the
+  -- module-namespaced agui-<handle> (threadId ↔ session mapping).
+  for _, s in ipairs(list.sessions) do if s.name == "agui-" .. fresh_name then found = true end end
   H.assert_truthy(found, "session not in list after create")
 end)
 if ok then H.finish(NAME) else H.fail(NAME, err) end
