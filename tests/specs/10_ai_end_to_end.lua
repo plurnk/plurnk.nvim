@@ -13,10 +13,12 @@ local ok, err = pcall(function()
   local orig = dispatch.handle_loop_terminated
   dispatch.handle_loop_terminated = function(p, sn) terminated = p; orig(p, sn) end
 
-  -- Ask mode: grammar-constrained sampling (svc#189) makes bare prompts
-  -- provoke EXEC attempts → proposal pauses this spec never resolves.
-  -- Ask 403s exec at dispatch — deterministic AND dogfoods the habit.
-  vim.cmd("AI ? Hello, world.")
+  -- Ask mode is read-only: a FACTUAL question elicits a direct prose answer
+  -- (SEND[200]) — the operator's real happy path. (A "do something" prompt like
+  -- "Hello, world." instead provokes EXEC attempts that ask 403s; the model then
+  -- cycles on the identical 403 and the StrikeRail fires 508 — a bad test input,
+  -- not the happy path. Exec-blocking-in-ask has its own coverage.)
+  vim.cmd("AI ? What is the capital of France? Answer in one word.")
   -- 9 minutes: dramatically generous so a failure is unambiguously a real hang,
   -- never "the model was slow" (under the runner's 600s SIGKILL).
   H.wait_for(function() return terminated ~= nil end, 540000, "loop/terminated")
