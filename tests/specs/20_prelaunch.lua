@@ -50,14 +50,15 @@ local ok, err = pcall(function()
   -- not transport.send directly — stub the discover reply there.
   require("plurnk.client").send = function(method, _, _, cb)
     if method == "discover" and cb then
-      cb({ methods = { ping = {}, ["loop.run"] = {} }, notifications = {} })
+      -- A manifest missing the AG-UI+ markers this client depends on (op.exec/op.look).
+      cb({ methods = { ping = {}, ["session.list"] = {} }, notifications = {} })
     end
   end
   notes = {}
   require("plurnk.client").check_daemon_once()
   local stale = false
   for _, n in ipairs(notes) do
-    if n.msg:match("OLDER") and n.msg:match("loop%.cancel") then stale = true end
+    if n.msg:match("OLDER") and n.msg:match("op%.exec") then stale = true end
   end
   H.assert_truthy(stale, "old daemon triggers the staleness warning")
 
