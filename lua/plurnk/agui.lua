@@ -80,7 +80,10 @@ function M.run(target, run, on_event, on_done)
     -- omit when empty: vim.json.encode({}) emits an OBJECT, and RunAgentInput.messages
     -- must be an array or absent (the module tolerates absent).
     messages = run.messages or (run.prompt ~= nil and { { role = "user", content = run.prompt } } or nil),
-    forwardedProps = run.forwardedProps ~= nil and { plurnk = run.forwardedProps } or nil,
+    -- The session (world) is REQUIRED — a run has no existence without one. The client
+    -- resolves ONE session name and IS its threadId (one conversation per world until
+    -- #366 splits them); send it verbatim, never letting the module forge one.
+    forwardedProps = { plurnk = vim.tbl_extend("force", { session = run.threadId }, run.forwardedProps or {}) },
   })
   local args = { "curl", "-sN", "-X", "POST", target.url .. "/" }
   vim.list_extend(args, auth_headers(target))
