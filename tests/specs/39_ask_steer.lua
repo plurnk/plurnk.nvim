@@ -5,10 +5,11 @@
 -- says don't retry. This drives the ORIGINAL failing prompt live and pins
 -- exactly that regression: the loop must never CYCLE-strike (508). Verified
 -- distribution post-fix (2026-07-11, 5 runs): 508×0, 500×3, 200×1, timeout×1 —
--- the cycle is dead; the residual 500s (model still taught/permitted EXEC it
--- can't use — plurnk-grammar#64) are svc#367's open half, tracked there, and
--- deliberately NOT gated here: this suite pins the client-visible regression,
--- not the service's open model-quality work.
+-- the cycle is dead; the residual 500s (the model still attempts ops it can't
+-- use in ask mode) are svc#367's open half — tracked THERE (grammar#64 was
+-- retracted by its author; the un-teaching is core's) — and deliberately NOT
+-- gated here: this suite pins the client-visible regression, not the service's
+-- open model-quality work.
 local NAME = "39_ask_steer"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
