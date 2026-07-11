@@ -26,6 +26,9 @@ M.text = function()
   local glyph = status_glyph(session)
   if glyph then parts[#parts + 1] = glyph end
 
+  -- The abacus: re-embedding in progress (token recount) — one glyph, edge-toggled.
+  if state.is_embedding(session) then parts[#parts + 1] = "🧮" end
+
   local ok_diff, diff = pcall(require, "plurnk.diff")
   if ok_diff and diff.is_yolo and diff.is_yolo() then parts[#parts + 1] = "🔥" end
 

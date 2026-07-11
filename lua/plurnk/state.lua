@@ -173,6 +173,12 @@ end
 M.is_loop_inflight = function(name) local s = ensure_session(name); return s and s.loop_inflight or false end
 M.set_loop_inflight = function(name, v) local s = ensure_session(name); if s then s.loop_inflight = not not v end end
 
+-- The abacus: engine:derivation embed_progress toggles this while re-embedding
+-- (token recount). The statusline shows 🧮 on the edge — never a waterfall line,
+-- mirroring the TUI (which toggles a 🧮 prompt slot instead of spamming progress).
+M.is_embedding = function(name) local s = ensure_session(name); return s and s.embedding or false end
+M.set_embedding = function(name, v) local s = ensure_session(name); if s then s.embedding = not not v end end
+
 M.get_status_text = function(name) local s = ensure_session(name); return s and s.status_text end
 M.set_status_text = function(name, text) local s = ensure_session(name); if s then s.status_text = text end end
 

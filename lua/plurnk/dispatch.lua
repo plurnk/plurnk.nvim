@@ -117,6 +117,7 @@ end
 M.handle_loop_terminated = function(params, session_name)
   if not params or not session_name then return end
   state.set_loop_inflight(session_name, false)
+  state.set_embedding(session_name, false)  -- the abacus never outlives the loop
   state.record_loop_usage(session_name, params.usage)  -- last loop only; NOT a session total (svc#254)
   if type(params.finalStatus) == "number" then
     state.set_final_status(session_name, params.finalStatus)
@@ -146,6 +147,18 @@ end
 M.handle_telemetry_event = function(params, session_name)
   if not params or type(params.event) ~= "table" then return end
   local event = params.event
+  -- engine:turn liveness is the ⏳ gutter, not a waterfall line (mirrors the TUI).
+  if event.source == "engine:turn" then return end
+  -- embed_progress toggles the 🧮 abacus on the EDGE — never a per-tick line.
+  if event.source == "engine:derivation" and event.kind == "embed_progress" then
+    local active = tonumber(event.completed) ~= nil and tonumber(event.total) ~= nil
+      and tonumber(event.completed) < tonumber(event.total)
+    if session_name and active ~= state.is_embedding(session_name) then
+      state.set_embedding(session_name, active)
+      redraw_statusline()
+    end
+    return
+  end
   vim.schedule(function()
     local tag = tostring(event.source or "?") .. ":" .. tostring(event.kind or "?")
     local headline = "  📡 " .. tag
