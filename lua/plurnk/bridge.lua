@@ -2,8 +2,9 @@
 -- BridgeTransport. When PLURNK_AGUI_URL is set, runs ride agui.run (curl -N SSE)
 -- with each event un-projected into the SAME dispatch.handle_notification the WS
 -- path feeds, so the run-tab renders unchanged; verbs + resolve ride the
--- management + resolve endpoints. The threadId is the session name (the bridge
--- lazy-creates agui-<threadId>); session options ride the first run's forwardedProps.
+-- management + resolve endpoints. The threadId IS the session (workspace) name,
+-- verbatim — no prefix, no forging (module §agui-thread-is-run: the session is the
+-- world, the thread binds its model run); session options ride the first run's forwardedProps.
 local M = {}
 local agui = require("plurnk.agui")
 
