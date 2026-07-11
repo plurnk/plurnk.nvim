@@ -1,3 +1,4 @@
+-- [§nvim-alias-resolution]
 -- #90: client-side alias resolution — resolve PLURNK_MODEL_<alias> to
 -- "<provider>/<model>" from nvim's fresh env, sent as loop.run.model so a stale
 -- long-lived daemon can't reject "unknown alias". Case-folded suffix; the model

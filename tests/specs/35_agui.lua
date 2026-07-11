@@ -1,3 +1,4 @@
+-- [§nvim-sse-parser]
 -- nvim#65 phase 1: the bridge consumer's pure SSE frame parser. Feeds buffers
 -- (incl. a frame split across chunks) and asserts decoded events + the retained
 -- tail — the reassembly logic, testable without curl or a live bridge.

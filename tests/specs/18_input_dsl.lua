@@ -1,3 +1,4 @@
+-- [§nvim-input-dsl]
 -- Input-buffer raw DSL passthrough (TUI parity): `<<…` lines go to
 -- op.parse verbatim; plain text still routes to loop.run.
 -- Pure module path; stubs client.send.

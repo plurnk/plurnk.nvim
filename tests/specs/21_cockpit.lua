@@ -1,3 +1,4 @@
+-- [§nvim-cockpit-gauge]
 -- Phase 3 cockpit: the winbar gauge (LAST-loop snapshot, never a client
 -- tally), the lean statusline glance, and the HUD headless fallback.
 local NAME = "21_cockpit"

@@ -1,3 +1,4 @@
+-- [§nvim-execs-policy]
 -- #132: per-session exec-policy — forward PLURNK_EXECS_* verbatim so the daemon
 -- intersects it with its ceiling (subtractive). MCP SERVER configs
 -- (PLURNK_EXECS_MCP_*: URLs, bearer tokens) must NEVER ride the wire; the bare

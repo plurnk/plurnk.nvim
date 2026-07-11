@@ -1,3 +1,4 @@
+-- [§nvim-vim-conventions]
 -- Default keymaps converge the verb set into nvim. Verifies the set is applied,
 -- including the new fork shortcut (run > loop > turn > op).
 local NAME = "30_keymaps"

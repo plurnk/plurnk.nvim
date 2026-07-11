@@ -1,3 +1,4 @@
+-- [§nvim-lean-statusline]
 -- The statusline is LEAN (🐹 + status emoji + 🔥yolo); the rich detail
 -- (session/model/L·T/tokens/money trio) lives in the winbar — run_tab.winbar_text.
 local NAME = "08_statusline"

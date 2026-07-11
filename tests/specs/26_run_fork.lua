@@ -1,3 +1,4 @@
+-- [§nvim-run-fork]
 -- run.fork (svc#248): :PlurnkFork / :AI???? branch the conversation into a new
 -- run, optionally named at instantiation (immutable after), then bind to it.
 local NAME = "26_run_fork"

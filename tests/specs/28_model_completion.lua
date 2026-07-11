@@ -1,3 +1,4 @@
+-- [§nvim-model-selection][§nvim-completion]
 -- Model selection sticks (persists past one loop) + :AI cmdline completion.
 local NAME = "28_model_completion"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

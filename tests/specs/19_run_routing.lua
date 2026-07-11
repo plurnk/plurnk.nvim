@@ -1,3 +1,4 @@
+-- [§nvim-run-routing]
 -- Run-keyed waterfalls (#16 topology): entries route to THEIR run's
 -- buffer by entry.run_id (no interleaving), the pending record (created
 -- before the run id is known) is adopted by the first run seen, and

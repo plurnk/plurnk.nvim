@@ -1,3 +1,4 @@
+-- [§nvim-two-lane-glyphs]
 -- Renderer unit test: every op type produces the right glyph layout.
 -- Pure module; no daemon required.
 local NAME = "06_render"

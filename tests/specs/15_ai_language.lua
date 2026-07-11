@@ -1,3 +1,4 @@
+-- [§nvim-ai-language][§nvim-scope-repetition]
 -- The :AI metacommand language (#16 phase 1): cmdline abbreviations
 -- (`:AI?` without a space), scope prefixes (`???` headless session,
 -- `????` fork-lite new run), full `/` routing, and `:AI` toggle.

@@ -1,3 +1,4 @@
+-- [§nvim-name-is-identity]
 -- session.create returns { id, name }. Subsequent session.list contains it.
 local NAME = "04_session_create"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

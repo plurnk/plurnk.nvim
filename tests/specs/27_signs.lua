@@ -1,3 +1,4 @@
+-- [§nvim-membership-signs]
 -- Membership gutter signs (svc#243): session.members → a line-1 extmark sign
 -- for the EXCEPTIONS only (view 🔒, hidden 🚫); a plain member and any
 -- non-member project file get NO sign (the quiet default).

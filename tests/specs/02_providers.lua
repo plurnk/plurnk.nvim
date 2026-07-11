@@ -1,3 +1,4 @@
+-- [§nvim-control-plane]
 -- providers.list returns { aliases: [{ alias, provider, model, active }, ...] }.
 local NAME = "02_providers"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

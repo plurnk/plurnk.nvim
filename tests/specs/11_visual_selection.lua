@@ -1,3 +1,4 @@
+-- [§nvim-visual-selection]
 -- :2,3 AI: explain — single-prefix range form wraps the visual selection
 -- into the loop.run prompt, against the live daemon.
 local NAME = "11_visual_selection"

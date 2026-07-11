@@ -1,3 +1,4 @@
+-- [§nvim-auth-device-grant]
 -- #116: OAuth Device Authorization Grant leg. auth.run(target) → auth.authorize
 -- → show verificationUri + userCode → poll auth.authorize.poll until authorized/
 -- denied/expired. No redirect, no local server (works over a remote daemon).

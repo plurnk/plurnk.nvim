@@ -1,3 +1,4 @@
+-- [§nvim-model-run-waterfall]
 -- Run-split routing (#214): only the model run (the conversation) is shown
 -- in the waterfall. The conversation run is adopted from events arriving
 -- while a loop is in flight (those are the model run); client-run

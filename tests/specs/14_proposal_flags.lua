@@ -1,3 +1,4 @@
+-- [§nvim-server-resolved]
 -- Server-resolved proposal suppression: loop/proposal carrying flags.yolo
 -- (server-side YOLO auto-accept) or flags.noProposals (server-side
 -- auto-reject) settles in-process on the daemon — dispatch must drop it

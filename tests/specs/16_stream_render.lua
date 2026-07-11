@@ -1,3 +1,4 @@
+-- [§nvim-stream-windows]
 -- Stream-window parity (#16 phase 2): channel prefixes + interleave,
 -- batched flush (one entry.read per tick burst), partial-line hold,
 -- conclusion footer, and BufWipeout → SEND[499] cancel.

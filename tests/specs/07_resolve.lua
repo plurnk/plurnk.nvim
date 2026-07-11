@@ -1,3 +1,4 @@
+-- [§nvim-proposal-review]
 -- resolve.lua diffsplit + accept-with-edits regenerates a valid udiff.
 -- Pure unit test (stubbed client.send); no daemon round-trip.
 local NAME = "07_resolve"

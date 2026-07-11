@@ -1,3 +1,4 @@
+-- [§nvim-questions]
 -- #346: SEND[300] questions via the proposal path. process() detects a SEND
 -- carrying attrs {question, choices}, picks via vim.ui.select (+ a Free Response
 -- escape) or vim.ui.input, and resolves loop.resolve with decision=accept +

@@ -1,3 +1,4 @@
+-- [§nvim-run-tab]
 -- :AI opens a session tabpage with TWO windows: waterfall on top, input
 -- at the bottom. Submitting from the input populates the waterfall and
 -- leaves focus on the input. Drives against the live daemon.

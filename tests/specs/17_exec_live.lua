@@ -1,3 +1,4 @@
+-- [§nvim-exec-e2e]
 -- :AI! end-to-end against a real daemon: op.exec dispatches through the
 -- engine, the exec scheme streams stdout over stream/event, and the
 -- stream split renders prefixed lines. The launch demo, asserted.

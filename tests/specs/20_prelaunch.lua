@@ -1,3 +1,4 @@
+-- [§nvim-stale-daemon-probe]
 -- Pre-launch hardening: :AI/ help screen (no RPC), the in-flight
 -- connection-drop warning, and the daemon staleness check.
 -- Pure module path; stubs transport/client send + vim.notify.

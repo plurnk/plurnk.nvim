@@ -1,3 +1,4 @@
+-- [§nvim-conversation-e2e]
 -- End-to-end :AI flow against the live daemon. This is the spec that
 -- would have caught the missing session-routing in v0.3.0: drives the
 -- exact command the user types, waits for loop/terminated, then asserts

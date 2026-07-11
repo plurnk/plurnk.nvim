@@ -1,3 +1,4 @@
+-- [§nvim-name-is-identity]
 -- session.list returns { sessions: [{ id, name, project_root?, ... }] }.
 local NAME = "03_session_list"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

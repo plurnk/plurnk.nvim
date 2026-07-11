@@ -1,3 +1,4 @@
+-- [§nvim-prompt-prefixes][§nvim-stop]
 -- :AI command — prefix-stripping, /stop, ??-new-session.
 -- Pure module path; stubs client.send so no daemon round-trip.
 local NAME = "09_ai_command"

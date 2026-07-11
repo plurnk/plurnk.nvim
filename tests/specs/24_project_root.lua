@@ -1,3 +1,4 @@
+-- [§nvim-project-root]
 -- Project root defaults to the editor cwd, so session.create is NOT headless.
 -- Regression: set_project_path was never called → project_path nil →
 -- session.create sent no projectRoot → daemon stored null → file ops 400.

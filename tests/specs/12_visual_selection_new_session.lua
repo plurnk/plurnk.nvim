@@ -1,3 +1,4 @@
+-- [§nvim-visual-selection][§nvim-scope-repetition]
 -- :1,2 AI?? recap — double-prefix form (rummy ?? = new session) wraps the
 -- visual selection into the loop.run prompt. Regression coverage for the
 -- :AI?? path that bypassed wrap_with_selection in v0.3.0.

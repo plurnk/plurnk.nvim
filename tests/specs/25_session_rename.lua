@@ -1,3 +1,4 @@
+-- [§nvim-session-rename]
 -- session.rename (svc#248): a session's name is a mutable handle on the world
 -- (a run's is immutable). Rekeys local state + the run tab in place.
 local NAME = "25_session_rename"

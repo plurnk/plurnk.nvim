@@ -45,8 +45,8 @@ vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 
 ## Internals (for agents)
 
-- Transport: main nvim ←stdio JSON-RPC→ background headless nvim ←WebSocket→ daemon. Main nvim never touches the socket.
-- Wire contract: plurnk-service `SPEC.md §13`. One live session per nvim instance; session/run switches rebind the connection in place (§13.5-rebind).
+- Transport: AG-UI+ over HTTP/SSE (`curl -N` under `vim.system`) against the daemon's in-process module; events un-project to the daemon shapes dispatch renders. The threadId is the session name, verbatim; the session (world) rides `forwardedProps.plurnk.session` on every run.
+- Client contract: `SPEC.md` (this repo) — every `{§nvim-*}` promise is cited by a spec and the lockstep spec (38) enforces it. Wire contract: the plurnk-agui SPEC; machine model: plurnk-service SPEC.
 - Notifications consumed: `log/entry` (routed per-run by `entry.run_id`), `loop/proposal` (server-resolved `flags.yolo/noProposals` are skipped), `loop/terminated`, `telemetry/event`, `stream/event`, `stream/concluded`.
 - Tests: `./tests/runner.sh` — one headless nvim per spec; boots a private daemon from the sibling `../plurnk-service` checkout (tmp DB, ephemeral port) unless `PLURNK_PORT` is set. `PLURNK_SERVICE_DIR` overrides the daemon location.
 - Project management: `AGENTS.md` (local). Audit + roadmap: [#16](https://github.com/plurnk/plurnk.nvim/issues/16).
