@@ -83,7 +83,8 @@ M.check_daemon_once = function()
   M.send("discover", {}, false, function(result)
     if type(result) ~= "table" or type(result.methods) ~= "table" then return end
     local missing = {}
-    for _, m in ipairs({ "loop.cancel", "op.exec" }) do
+    -- AG-UI+ markers this client depends on (cancellation is SSE hangup now, not a method).
+    for _, m in ipairs({ "op.exec", "op.look" }) do
       if result.methods[m] == nil then missing[#missing + 1] = m end
     end
     local notifs = result.notifications
