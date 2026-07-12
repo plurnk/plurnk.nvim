@@ -54,6 +54,9 @@ orphan citation / rotted comment ref).
   regression stays pinned).
 - **Raw DSL passes through** {§nvim-input-dsl} — `<<…` input-buffer lines go to
   `op.parse` verbatim; plain text routes to a conversation run.
+- **`<<LOOK` inspects off-run** {§nvim-look} — a READ for the human, not the model:
+  routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
+  rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
 - **Completion** {§nvim-completion} — `:AI` cmdline completion offers verbs and model
   aliases.
 
@@ -122,6 +125,10 @@ orphan citation / rotted comment ref).
 
 ## §8 Config and policy
 
+- **Session-open settings ride creation** {§nvim-session-settings} — the client id,
+  `autoReadAgents`, the execs policy, `questions`, and `filesItems` (the CLI's
+  `--files-items`, converged: -1 full / 0 off / N first-N) travel on `session.create`;
+  creation is atomic, nothing arrives later.
 - **Model selection sticks** {§nvim-model-selection} — a picked alias persists past one
   loop.
 - **Client-side alias resolution** {§nvim-alias-resolution} — `PLURNK_MODEL_<alias>`

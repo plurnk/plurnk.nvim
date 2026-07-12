@@ -46,6 +46,10 @@ local function session_settings()
   local cfg_q = require("plurnk.config").get("questions")
   local env_q = ({ ["1"] = true, ["true"] = true, ["yes"] = true, ["on"] = true })[(vim.env.PLURNK_QUESTIONS or ""):lower()]
   if cfg_q == true or (cfg_q == nil and env_q) then s.questions = true end
+  -- svc#231/#286 — session-open files preview: -1 full / 0 off / N first-N items
+  -- of plurnk://manifest.json at turn 0 (the CLI's --files-items, converged).
+  local fi = require("plurnk.config").get("files_items")
+  if type(fi) == "number" then s.filesItems = fi end
   return s
 end
 

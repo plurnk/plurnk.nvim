@@ -1,4 +1,4 @@
--- [§nvim-input-dsl]
+-- [§nvim-input-dsl][§nvim-look]
 -- Input-buffer raw DSL passthrough (TUI parity): `<<…` lines go to
 -- op.parse verbatim; plain text still routes to loop.run.
 -- Pure module path; stubs client.send.
@@ -27,6 +27,22 @@ local ok, err = pcall(function()
   H.assert_eq(sent[1].method, "op.parse", "<< input routes to op.parse")
   H.assert_eq(sent[1].params.text, "<<SEND[200]:hi:SEND", "raw DSL passes verbatim")
   H.assert_eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1], "", "input cleared after submit")
+
+  -- <<LOOK is the off-run inspection (TUI parity): a READ for the HUMAN, routed
+  -- to op.look (never op.parse — LOOK isn't a journaled op), content rendered
+  -- into the waterfall locally. A failed look surfaces; never a silent nothing.
+  local appended = {}
+  require("plurnk.run_tab").append_line = function(_, line) appended[#appended + 1] = line end
+  require("plurnk.client").send = function(method, params, _, cb)
+    table.insert(sent, { method = method, params = params })
+    if cb then cb({ status = 200, content = "line one\nline two" }) end
+  end
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<<LOOK(plurnk:///notes.md)::LOOK" })
+  vim.api.nvim_feedkeys("\r", "x", false)
+  H.assert_eq(sent[#sent].method, "op.look", "<<LOOK routes to op.look, not op.parse")
+  H.assert_eq(sent[#sent].params.text, "<<LOOK(plurnk:///notes.md)::LOOK", "the raw statement passes; the module rewrites LOOK->READ")
+  H.assert_truthy(#appended >= 2, "the content rendered into the waterfall (" .. #appended .. " lines)")
+  H.assert_match(table.concat(appended, "\n"), "line two", "content lines land verbatim")
 
   require("plurnk.state").set_session_id("smoke", 1)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "hello there" })

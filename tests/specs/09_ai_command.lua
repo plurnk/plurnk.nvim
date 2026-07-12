@@ -1,4 +1,4 @@
--- [§nvim-prompt-prefixes][§nvim-stop]
+-- [§nvim-prompt-prefixes][§nvim-stop][§nvim-session-settings]
 -- :AI command — prefix-stripping, /stop, ??-new-session.
 -- Pure module path; stubs client.send so no daemon round-trip.
 local NAME = "09_ai_command"
@@ -76,10 +76,12 @@ local ok, err = pcall(function()
   -- (§13.5-rebind, v0.17.0 — no reconnect).
   local stops = 0
   captured = {}
+  require("plurnk.config").setup({ files_items = 5 })
   ai({ args = "?? new chat", range = 0 })
   H.assert_eq(stops, 0, ":AI?? rebinds in place, never drops the socket")
   H.assert_eq(captured[1].method, "session.create", ":AI?? creates a new session")
   H.assert_eq(captured[1].params.settings.client, "plurnk.nvim", ":AI?? session.create carries the client id (#249)")
+  H.assert_eq(captured[1].params.settings.filesItems, 5, "filesItems rides session.create when configured (svc#231, CLI convergence)")
   local lr = find(captured, "loop.run")
   H.assert_truthy(lr, ":AI?? then loop.run")
   H.assert_eq(lr.params.prompt, "new chat", ":AI?? carries prompt")

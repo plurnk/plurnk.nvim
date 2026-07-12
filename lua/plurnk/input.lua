@@ -22,6 +22,25 @@ local function submit(buf, session_name)
   local text = vim.fn.trim(table.concat(lines, "\n"))
   if text == "" then return end
 
+  -- <<LOOK — the off-run inspection (TUI parity): a READ for the HUMAN, not the
+  -- model. Routed to op.look (the module rewrites LOOK→READ; Engine.look mints no
+  -- log row); content renders into the waterfall locally. A failed look SURFACES.
+  if text:upper():sub(1, 6) == "<<LOOK" then
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
+    require("plurnk.client").send("op.look", { text = text }, false, function(result)
+      local client = require("plurnk.client")
+      if type(result) ~= "table" or type(result.content) ~= "string" then
+        client.notify("look failed: " .. tostring(type(result) == "table" and (result.error or result.status) or "no result"), vim.log.levels.WARN)
+        return
+      end
+      local run_tab = require("plurnk.run_tab")
+      for line in (result.content .. "\n"):gmatch("(.-)\n") do
+        run_tab.append_line(session_name, "  " .. line)
+      end
+    end)
+    return
+  end
+
   -- Raw DSL passthrough (TUI parity, plurnk SPEC §3.1): input starting
   -- `<<` goes to op.parse — the daemon parses and dispatches each
   -- statement as actions of one turn; results arrive as log/entry.
