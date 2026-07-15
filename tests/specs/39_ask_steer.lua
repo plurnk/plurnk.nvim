@@ -1,15 +1,15 @@
 -- [§nvim-prompt-prefixes]
--- THE SPIRAL REGRESSION (svc#367): an ask-mode prompt the model reads as "do
--- something" used to provoke EXEC → 403 → identical retry → StrikeRail 508,
--- EVERY run. Core's fix (svc be8a77c): the 403 steer NAMES the restriction and
--- says don't retry. This drives the ORIGINAL failing prompt live and pins
--- exactly that regression: the loop must never CYCLE-strike (508). Verified
--- distribution post-fix (2026-07-11, 5 runs): 508×0, 500×3, 200×1, timeout×1 —
--- the cycle is dead; the residual 500s (the model still attempts ops it can't
--- use in ask mode) are svc#367's open half — tracked THERE (grammar#64 was
--- retracted by its author; the un-teaching is core's) — and deliberately NOT
--- gated here: this suite pins the client-visible regression, not the service's
--- open model-quality work.
+-- ASK-MODE SPIRAL, DEAD (svc#367/#386): an ask-mode prompt the model reads as "do
+-- something" used to provoke EXEC → 403 → identical retry → StrikeRail 508 on EVERY
+-- run. The fixed stack (mode-filtered capability sheet + 'EXEC operations disabled'
+-- packet line + don't-retry steer) kills the CYCLE: this drives the ORIGINAL specimen
+-- prompt live and pins that the loop always CONCLUDES and never cycle-strikes (508).
+--
+-- Deliberately NOT gated on finalStatus==200: measured 2/3 → 200, 1/3 → 500 across
+-- client-side runs (vs the service's 5/5 — model-dependent variance). The residual
+-- 500 is the model still occasionally failing this awkward prompt — model-quality
+-- nondeterminism, not a client contract. Gating a hard 200 would flake CI; the
+-- regression this spec owns is the 508 cycle + the indefinite hang, and BOTH are gone.
 local NAME = "39_ask_steer"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
@@ -23,8 +23,12 @@ local ok, err = pcall(function()
 
   -- The original spiral prompt, verbatim (pre-fix: 508 every run).
   vim.cmd("AI ? Hello, world.")
+  -- The loop always CONCLUDES (the indefinite-hang failure mode is gone) — a timeout
+  -- here is itself a regression, caught by wait_for.
   H.wait_for(function() return terminated ~= nil end, 540000, "loop/terminated")
 
+  -- The regression this spec owns: never the StrikeRail CYCLE (508), which was 100%
+  -- pre-fix and is 0 across every post-fix run.
   H.assert_truthy(terminated.finalStatus ~= 508, "no cycle-strike spiral: finalStatus " .. tostring(terminated.finalStatus) .. " ~= 508")
 end)
 
