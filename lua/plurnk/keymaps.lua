@@ -26,17 +26,17 @@ M.setup = function()
   map_if_empty({ "n", "x" }, "<leader>a?", ":AI? ",      "Plurnk: prompt (rummy: ask)")
   map_if_empty({ "n", "x" }, "<leader>a:", ":AI: ",      "Plurnk: prompt (rummy: act)")
   map_if_empty({ "n", "x" }, "<leader>a!", ":AI! ",      "Plurnk: prompt (rummy: run)")
-  map_if_empty("n",          "<leader>aN", ":AI?? ",     "Plurnk: new session + prompt")
-  map_if_empty("n",          "<leader>af", ":PlurnkFork<CR>", "Plurnk: fork — new run (run>loop>turn>op)")
+  map_if_empty("n",          "<leader>aN", ":AI?? ",     "Plurnk: new workspace + prompt")
+  map_if_empty("n",          "<leader>af", ":PlurnkFork<CR>", "Plurnk: fork — new worker (workspace>worker>loop>turn>op)")
   map_if_empty("n",          "<leader>ax", ":AI/stop<CR>",  "Plurnk: cancel pending")
   map_if_empty("n",          "<leader>aX", ":AI/clear<CR>", "Plurnk: cancel pending")
 
   -- ── Pickers / settings ──
   map_if_empty("n", "<leader>am", ":PlurnkModels<CR>",       "Plurnk: Models")
-  map_if_empty("n", "<leader>as", ":PlurnkSessions<CR>",     "Plurnk: Sessions")
-  map_if_empty("n", "<leader>aR", ":PlurnkSessionRuns<CR>",  "Plurnk: Runs in session")
+  map_if_empty("n", "<leader>as", ":PlurnkWorkspaces<CR>",     "Plurnk: Workspaces")
+  map_if_empty("n", "<leader>aR", ":PlurnkWorkspaceWorkers<CR>",  "Plurnk: Runs in workspace")
   map_if_empty("n", "<leader>aL", ":PlurnkLog<CR>",          "Plurnk: Log")
-  map_if_empty("n", "<leader>aO", ":PlurnkOpen<CR>",         "Plurnk: Open session tab")
+  map_if_empty("n", "<leader>aO", ":PlurnkOpen<CR>",         "Plurnk: Open workspace tab")
   map_if_empty("n", "<leader>aY", ":PlurnkYolo<CR>",         "Plurnk: Toggle YOLO")
 
   -- ── Membership overlay (svc#200) — keymap acts on the CURRENT file (one

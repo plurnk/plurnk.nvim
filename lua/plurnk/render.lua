@@ -260,7 +260,7 @@ M.render_log_entry = function(entry)
   return { table.concat(parts) }
 end
 
--- Per-loop summary line (still used by callers; the run_tab waterfall no
+-- Per-loop summary line (still used by callers; the worker_tab waterfall no
 -- longer emits "loop terminated" since SEND[200] already carries that
 -- signal).
 -- Terminal loop status → label (converge client #70). plurnk-service 0.42.0

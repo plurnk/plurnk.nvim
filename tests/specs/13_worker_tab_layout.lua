@@ -1,8 +1,8 @@
--- [§nvim-run-tab]
--- :AI opens a session tabpage with TWO windows: waterfall on top, input
+-- [§nvim-worker-tab]
+-- :AI opens a workspace tabpage with TWO windows: waterfall on top, input
 -- at the bottom. Submitting from the input populates the waterfall and
 -- leaves focus on the input. Drives against the live daemon.
-local NAME = "13_run_tab_layout"
+local NAME = "13_worker_tab_layout"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
 require("plurnk").apply_default_keymaps()
@@ -15,13 +15,13 @@ local ok, err = pcall(function()
 
   vim.cmd("AI")
 
-  -- Wait for session.create round-trip + run_tab.open.
+  -- Wait for workspace.create round-trip + worker_tab.open.
   local rec, active
   H.wait_for(function()
-    active = require("plurnk.state").get_active_session_name()
-    if active then rec = require("plurnk.run_tab").get_record(active) end
+    active = require("plurnk.state").get_active_workspace_name()
+    if active then rec = require("plurnk.worker_tab").get_record(active) end
     return rec ~= nil
-  end, 8000, "run_tab record")
+  end, 8000, "worker_tab record")
 
   H.assert_truthy(rec, "tab record exists")
   H.assert_eq(#vim.api.nvim_tabpage_list_wins(rec.tabpage), 2, "tab has 2 windows")

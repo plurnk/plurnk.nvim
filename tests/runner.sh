@@ -75,7 +75,7 @@ fail=0
 failed_names=()
 
 # The two LIVE specs (real model / real exec streaming) get a FRESH daemon: under
-# the full run's accumulated sessions + embed load the shared daemon flakes them
+# the full run's accumulated workspaces + embed load the shared daemon flakes them
 # (10's 508s predate the AG-UI migration). Isolation is the fix, not retries.
 ISOLATED_SPECS="10_ai_end_to_end 17_exec_live"
 

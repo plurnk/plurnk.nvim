@@ -5,7 +5,7 @@ CONTENTS                                                      *plurnk-contents*
 
   1. Setup ................................ |plurnk-setup|
   2. The :AI language ..................... |plurnk-ai|
-  3. Layout: sessions and runs ............ |plurnk-layout|
+  3. Layout: workspaces and workers ....... |plurnk-layout|
   4. Proposals ............................ |plurnk-proposals|
   5. Streams .............................. |plurnk-streams|
   6. Statusline ........................... |plurnk-statusline|
@@ -26,35 +26,35 @@ Requires Neovim >= 0.10 and a running plurnk-service daemon
 `:AI/` prints this table in-editor. No-space forms (`:AI?? hi`) work via
 cmdline abbreviations.
 
-  :AI               toggle session tab <-> where you came from
+  :AI               toggle workspace tab <-> where you came from
   :AI {text}        prompt (act)
   :AI? {text}       ASK: read-only loop (flags.mode="ask"; the daemon
                     403s schemes excluded in ask — file edits, exec)
   :AI: {text}       act (the default)
   :AI! {cmd}        exec {cmd} via the daemon; bare :AI! execs the
                     visual selection verbatim
-  :AI?? / ::        new session, then prompt
-  :AI???            new headless session (no project root)
-  :AI????           new run in the current session (fork)
+  :AI?? / ::        new workspace, then prompt
+  :AI???            new headless workspace (no project root)
+  :AI????           new worker in the current workspace (fork)
   :AI... {text}     inject into the running loop (pending service#193)
-  :AI/{verb}        models sessions runs session run rename log yolo ping
+  :AI/{verb}        models workspaces workers workspace worker rename log yolo ping
                     open accept reject next prev stop clear
 
 Visual mode prepends the selection: `'<,'>AI? explain this`.
 
 ==============================================================================
-3. Layout: sessions and runs                                    *plurnk-layout*
+3. Layout: workspaces and workers                               *plurnk-layout*
 
-A SESSION is the workspace (project root, entries, persona). A RUN is a
-conversation within it; the waterfall is the run's log — exactly what the
-model sees. One tab per run by default; buffers are named
-`plurnk://<session>/<run>` so any window arrangement works with vim's own
+A WORKSPACE is the world (project root, entries, persona). A WORKER is a
+conversation within it; the waterfall is the worker's log — exactly what the
+model sees. One tab per worker by default; buffers are named
+`plurnk://<workspace>/<worker>` so any window arrangement works with vim's own
 machinery.
 
-One session is live per Neovim instance. Switching sessions (or runs)
+One workspace is live per Neovim instance. Switching workspaces (or workers)
 rebinds the connection in place and notifies; a loop mid-flight continues on
 the daemon (and still completes) — you just stop seeing its live events, so
-the notify says to reopen the run to catch up.
+the notify says to reopen the worker to catch up.
 
 The input split (bottom, 3 lines): `<CR>` in normal mode submits. Prefixes
 match :AI — `? ` ask, `: ` act, `! ` exec, `<<` raw DSL.
@@ -87,8 +87,8 @@ subscription (SEND[499]).
 >lua
   vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 <
-Renders: `plurnk[session·run] · 🤖 alias · L3·T2 · ✅ 200 · 12.3k tok ·
-$0.0042` — loop/turn track the bound run only; tokens are session-total
+Renders: `plurnk[workspace·worker] · 🤖 alias · L3·T2 · ✅ 200 · 12.3k tok ·
+$0.0042` — loop/turn track the bound worker only; tokens are workspace-total
 content tokens (real provider usage arrives with service#197).
 
 ==============================================================================
@@ -97,7 +97,7 @@ content tokens (real provider usage arrives with service#197).
   main nvim  <-stdio JSON-RPC->  background headless nvim  <-WS->  daemon
 
 Main nvim never touches the socket. Wire contract: plurnk-service SPEC §13.
-One live session per instance; switches rebind the connection in place.
+One live workspace per instance; switches rebind the connection in place.
 Tests: `./tests/runner.sh` boots a private daemon (tmp DB, ephemeral port)
 from the sibling checkout; `PLURNK_SERVICE_DIR` overrides; `PLURNK_PORT`
 targets an existing daemon.

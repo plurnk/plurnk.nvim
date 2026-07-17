@@ -8,16 +8,16 @@ local ok, err = pcall(function()
   local state = require("plurnk.state")
   require("plurnk.client").notify = function() end
   require("plurnk.client").check_daemon_once = function() end
-  require("plurnk.run_tab").current_alias = function() return nil end
-  state.set_active_session_name("ms")
-  state.set_session_id("ms", 1)
+  require("plurnk.worker_tab").current_alias = function() return nil end
+  state.set_active_workspace_name("ms")
+  state.set_workspace_id("ms", 1)
 
   local cmds = require("plurnk.commands")
 
   -- :AI/model <alias> sets the model DURABLY (not just the one-shot pick) so it
   -- survives past the next loop — the "selecting a model doesn't change it" bug.
   cmds.set_model("gpt4")
-  H.assert_eq(state.get_model_alias("ms"), "gpt4", "set_model persists the session model (sticky)")
+  H.assert_eq(state.get_model_alias("ms"), "gpt4", "set_model persists the workspace model (sticky)")
   H.assert_eq(state.consume_selected_alias(), "gpt4", "set_model also sets the one-shot pick")
 
   -- Completion: alias names after `/model `

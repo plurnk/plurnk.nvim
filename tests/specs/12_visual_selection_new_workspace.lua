@@ -1,8 +1,8 @@
 -- [§nvim-visual-selection][§nvim-scope-repetition]
--- :1,2 AI?? recap — double-prefix form (rummy ?? = new session) wraps the
+-- :1,2 AI?? recap — double-prefix form (rummy ?? = new workspace) wraps the
 -- visual selection into the loop.run prompt. Regression coverage for the
 -- :AI?? path that bypassed wrap_with_selection in v0.3.0.
-local NAME = "12_visual_selection_new_session"
+local NAME = "12_visual_selection_new_workspace"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
 require("plurnk").apply_default_keymaps()

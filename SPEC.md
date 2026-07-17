@@ -22,9 +22,9 @@ orphan citation / rotted comment ref).
   `agui.parse_sse` decodes `data:` frames from accumulated chunks, retaining the
   incomplete tail; events un-project to the daemon notification shapes dispatch
   already routes.
-- **The session (world) rides every run** {§nvim-session-door} — the `threadId` IS the
-  session name, verbatim (no prefix, no forging), and the client sends it as
-  `forwardedProps.plurnk.session` on every run. The front door — `:PlurnkSessions` →
+- **The workspace (world) rides every run** {§nvim-workspace-door} — the `threadId` IS the
+  workspace name, verbatim (no prefix, no forging), and the client sends it as
+  `forwardedProps.plurnk.workspace` on every run. The front door — `:PlurnkWorkspaces` →
   pick → attached — binds by exact name; a failing attach delivers NIL plus a surfaced
   error, never a truthy empty.
 - **No fabricated success** {§nvim-honest-errors} — a stream that dies without terminal
@@ -47,41 +47,41 @@ orphan citation / rotted comment ref).
 - **Mode is a per-line prefix** {§nvim-prompt-prefixes} — `?` = ask
   (`flags.mode="ask"`), `:` = act (the daemon default, send nothing), `!` = exec.
   Converged with the TUI and the CLI; never an `--ask` flag.
-- **Repetition carries scope** {§nvim-scope-repetition} — `??` new session, `???` new
-  headless session, `????` fork-lite (new run in the current session).
+- **Repetition carries scope** {§nvim-scope-repetition} — `??` new workspace, `???` new
+  headless workspace, `????` fork-lite (new worker in the current workspace).
 - **Visual ranges wrap** {§nvim-visual-selection} — `:'<,'>AI: explain` folds the
-  selection into the prompt; the `??` new-session form wraps the same way (the v0.3.0
+  selection into the prompt; the `??` new-workspace form wraps the same way (the v0.3.0
   regression stays pinned).
 - **Raw DSL passes through** {§nvim-input-dsl} — `<<…` input-buffer lines go to
-  `op.parse` verbatim; plain text routes to a conversation run.
-- **`<<LOOK` inspects off-run** {§nvim-look} — a READ for the human, not the model:
+  `op.parse` verbatim; plain text routes to a conversation worker.
+- **`<<LOOK` inspects off-worker** {§nvim-look} — a READ for the human, not the model:
   routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
   rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
 - **Completion** {§nvim-completion} — `:AI` cmdline completion offers verbs and model
   aliases.
 
-## §4 Sessions and runs
+## §4 Workspaces and workers
 
-- **The name is the identity** {§nvim-name-is-identity} — `session.create` returns
-  `{id, name}` and the session lists by exact name; `session.list` is the world
+- **The name is the identity** {§nvim-name-is-identity} — `workspace.create` returns
+  `{id, name}` and the workspace lists by exact name; `workspace.list` is the world
   directory.
-- **The waterfall shows THE CONVERSATION** {§nvim-model-run-waterfall} — only the model
-  run renders in the session waterfall; client-run rows (the connection's op.* scratch)
-  stay out. The conversation run is adopted from events arriving while a loop is in
+- **The waterfall shows THE CONVERSATION** {§nvim-model-worker-waterfall} — only the model
+  worker renders in the workspace waterfall; client-worker rows (the connection's op.* scratch)
+  stay out. The conversation worker is adopted from events arriving while a loop is in
   flight.
-- **Run-keyed routing** {§nvim-run-routing} — entries route to their run's buffer by
-  `entry.run_id`, no interleaving; a pending record is adopted by the first run seen.
-- **Fork branches the conversation** {§nvim-run-fork} — `:PlurnkFork` / `:AI????` →
-  `run.fork`, optionally named at instantiation (immutable after), then binds to the
-  new run.
-- **Rename is a mutable handle on the world** {§nvim-session-rename} — `session.rename`
-  rekeys local state and the run tab in place; a run's name is immutable.
-- **Project root defaults to the editor cwd** {§nvim-project-root} — `session.create`
+- **Run-keyed routing** {§nvim-worker-routing} — entries route to their run's buffer by
+  `entry.worker_id`, no interleaving; a pending record is adopted by the first run seen.
+- **Fork branches the conversation** {§nvim-worker-fork} — `:PlurnkFork` / `:AI????` →
+  `worker.fork`, optionally named at instantiation (immutable after), then binds to the
+  new worker.
+- **Rename is a mutable handle on the world** {§nvim-workspace-rename} — `workspace.rename`
+  rekeys local state and the worker tab in place; a worker's name is immutable.
+- **Project root defaults to the editor cwd** {§nvim-project-root} — `workspace.create`
   is not headless by accident; file ops depend on it.
 
 ## §5 Rendering
 
-- **The run tab** {§nvim-run-tab} — `:AI` opens a session tabpage with two windows:
+- **The run tab** {§nvim-worker-tab} — `:AI` opens a workspace tabpage with two windows:
   waterfall on top, input at the bottom; submitting populates the waterfall and leaves
   focus on the input.
 - **Two glyph lanes** {§nvim-two-lane-glyphs} — every waterfall row carries identity ·
@@ -125,9 +125,9 @@ orphan citation / rotted comment ref).
 
 ## §8 Config and policy
 
-- **Session-open settings ride creation** {§nvim-session-settings} — the client id,
+- **Workspace-open settings ride creation** {§nvim-workspace-settings} — the client id,
   `autoReadAgents`, the execs policy, `questions`, and `filesItems` (the CLI's
-  `--files-items`, converged: -1 full / 0 off / N first-N) travel on `session.create`;
+  `--files-items`, converged: -1 full / 0 off / N first-N) travel on `workspace.create`;
   creation is atomic, nothing arrives later.
 - **Model selection sticks** {§nvim-model-selection} — a picked alias persists past one
   loop.
@@ -141,5 +141,5 @@ orphan citation / rotted comment ref).
   verificationUri + userCode → poll until authorized/denied/expired; no redirect, no
   local server, works over a remote daemon.
 - **Membership verbs converge with the TUI** {§nvim-membership-verbs} — pick/hide/view/
-  drop/members speak the service vocabulary live via `session.constrain`/`unconstrain`/
+  drop/members speak the service vocabulary live via `workspace.constrain`/`unconstrain`/
   `constraints`.

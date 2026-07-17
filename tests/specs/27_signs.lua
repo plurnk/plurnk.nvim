@@ -1,5 +1,5 @@
 -- [§nvim-membership-signs]
--- Membership gutter signs (svc#243): session.members → a line-1 extmark sign
+-- Membership gutter signs (svc#243): workspace.members → a line-1 extmark sign
 -- for the EXCEPTIONS only (view 🔒, hidden 🚫); a plain member and any
 -- non-member project file get NO sign (the quiet default).
 local NAME = "27_signs"
@@ -8,7 +8,7 @@ H.setup()
 
 local ok, err = pcall(function()
   local state = require("plurnk.state")
-  state.set_active_session_name("s")
+  state.set_active_workspace_name("s")
   state.set_project_path("/proj")
 
   local buf = vim.api.nvim_create_buf(true, false)
@@ -22,7 +22,7 @@ local ok, err = pcall(function()
 
   local members_reply
   require("plurnk.client").send = function(method, params, _, cb)
-    if method == "session.members" and cb then cb(members_reply) end
+    if method == "workspace.members" and cb then cb(members_reply) end
   end
 
   local function sign_for(reply)

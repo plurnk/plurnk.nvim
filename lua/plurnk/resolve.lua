@@ -21,7 +21,7 @@ local client = require("plurnk.client")
 local diff = require("plurnk.diff")
 local patch_mod = require("plurnk.patch")
 
--- Pending-proposal stack. Each entry: { session_name, proposal, focus(), accept_as_proposed(), accept_with_edits(), reject(), cancel() }.
+-- Pending-proposal stack. Each entry: { workspace_name, proposal, focus(), accept_as_proposed(), accept_with_edits(), reject(), cancel() }.
 -- index tracks which proposal :PlurnkNext / :PlurnkPrev are pointing at.
 local stack = {}
 local index = 0
@@ -106,7 +106,7 @@ end
 
 -- ── EDIT proposal: diffsplit ──────────────────────────────────────────
 
-local function review_edit(session_name, proposal)
+local function review_edit(workspace_name, proposal)
   local target = proposal.target or {}
   local pathname = target.pathname or ""
   local abs_path = pathname ~= "" and vim.fn.fnamemodify(pathname, ":p") or pathname
@@ -159,8 +159,8 @@ local function review_edit(session_name, proposal)
     for _, b in ipairs({ left_buf, right_buf }) do
       if vim.api.nvim_buf_is_valid(b) then pcall(vim.api.nvim_buf_delete, b, { force = true }) end
     end
-    if session_name then
-      require("plurnk.state").remove_proposal(session_name, proposal.logEntryId)
+    if workspace_name then
+      require("plurnk.state").remove_proposal(workspace_name, proposal.logEntryId)
     end
     for i, e in ipairs(stack) do
       if e.proposal.logEntryId == proposal.logEntryId then
@@ -211,7 +211,7 @@ local function review_edit(session_name, proposal)
   end
 
   table.insert(stack, {
-    session_name = session_name,
+    workspace_name = workspace_name,
     proposal = proposal,
     focus = focus,
     accept_as_proposed = accept_as_proposed,
@@ -224,7 +224,7 @@ end
 
 -- ── EXEC proposal: scratch buffer ────────────────────────────────────
 
-local function review_exec(session_name, proposal)
+local function review_exec(workspace_name, proposal)
   local body = proposal.body or ""
   local lines = {
     string.format("── EXEC proposal %s ──", proposal.target and proposal.target.pathname or "(no target)"),
@@ -242,8 +242,8 @@ local function review_exec(session_name, proposal)
 
   local function cleanup()
     if vim.api.nvim_buf_is_valid(buf) then pcall(vim.api.nvim_buf_delete, buf, { force = true }) end
-    if session_name then
-      require("plurnk.state").remove_proposal(session_name, proposal.logEntryId)
+    if workspace_name then
+      require("plurnk.state").remove_proposal(workspace_name, proposal.logEntryId)
     end
     for i, e in ipairs(stack) do
       if e.proposal.logEntryId == proposal.logEntryId then
@@ -264,7 +264,7 @@ local function review_exec(session_name, proposal)
   vim.keymap.set("n", "c", cancel, { buffer = buf, nowait = true })
 
   table.insert(stack, {
-    session_name = session_name,
+    workspace_name = workspace_name,
     proposal = proposal,
     focus = focus,
     accept_as_proposed = accept_as_proposed,
@@ -296,8 +296,8 @@ end
 -- vim.ui.input for the free text and for open questions. The answer resolves the
 -- world-stopped proposal via loop.resolve body. Dismiss = leave pending (the
 -- daemon's proposal timeout / a re-review still applies) — never auto-answered.
-local function review_question(session_name, proposal, q)
-  local cleanup = function() require("plurnk.state").remove_proposal(session_name, proposal.logEntryId) end
+local function review_question(workspace_name, proposal, q)
+  local cleanup = function() require("plurnk.state").remove_proposal(workspace_name, proposal.logEntryId) end
   local function free_response()
     vim.ui.input({ prompt = q.question .. " (Free Response): " }, function(input)
       if input == nil or input == "" then return end
@@ -316,14 +316,14 @@ end
 
 -- ── Entry point ──────────────────────────────────────────────────────
 
-M.process = function(session_name, proposal)
+M.process = function(workspace_name, proposal)
   if not proposal or not proposal.logEntryId then return end
 
   -- A SEND[300] question is checked BEFORE yolo: even a yolo loop stops the world
   -- for a human — never auto-answered (#346).
   local q = M.question_from_proposal(proposal)
   if q then
-    review_question(session_name, proposal, q)
+    review_question(workspace_name, proposal, q)
     return
   end
 
@@ -333,11 +333,11 @@ M.process = function(session_name, proposal)
   end
 
   if proposal.op == "EDIT" then
-    review_edit(session_name, proposal)
+    review_edit(workspace_name, proposal)
   else
     -- EXEC and any future op kind that needs review fall through to the
     -- scratch-buffer reviewer; it's a fail-safe shape (no patch parse).
-    review_exec(session_name, proposal)
+    review_exec(workspace_name, proposal)
   end
 end
 

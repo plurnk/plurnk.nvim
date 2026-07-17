@@ -3,17 +3,17 @@
 -- prompt and sysprompt. So instead of three commands we have one:
 -- :PlurnkPrompt {text}. Visual selection is prepended automatically.
 --
--- Picker commands wrap providers.list / session.list / session.runs
+-- Picker commands wrap providers.list / workspace.list / workspace.workers
 -- via vim.ui.select; the buffer/tab association from rummy is kept
--- (`vim.b.plurnk_session` instead of `vim.b.plurnk_run`).
+-- (`vim.b.plurnk_workspace` instead of `vim.b.plurnk_run`).
 
 local M = {}
 
--- #249 — session-stable frontend id, set on every session.create and forwarded
+-- #249 — workspace-stable frontend id, set on every workspace.create and forwarded
 -- by the daemon to the plurnk provider as Plurnk-Client (dropped by others).
 local CLIENT_ID = "plurnk.nvim"
 
--- #132 — the per-session exec-policy layer: forward the PLURNK_EXECS_* grammar
+-- #132 — the per-workspace exec-policy layer: forward the PLURNK_EXECS_* grammar
 -- (PLURNK_EXECS_ONLY allowlist, PLURNK_EXECS_<tag>=0 kill) so the daemon
 -- intersects it with its own ceiling (subtractive — the client can narrow, never
 -- re-enable). Forwarded VERBATIM; the daemon's execs Policy is the interpreter.
@@ -31,11 +31,11 @@ function M.collect_execs_policy()
   return any and out or nil
 end
 
--- Settings every session.create carries: the client id (#249), an optional
+-- Settings every workspace.create carries: the client id (#249), an optional
 -- AGENTS-auto-load override (#268, pure passthrough — the daemon does the
 -- picking/reading; config.auto_read_agents nil ⇒ the daemon's env default), and
 -- the exec-policy layer (#132).
-local function session_settings()
+local function workspace_settings()
   local s = { client = CLIENT_ID }
   local ar = require("plurnk.config").get("auto_read_agents")
   if type(ar) == "boolean" then s.autoReadAgents = ar end
@@ -46,7 +46,7 @@ local function session_settings()
   local cfg_q = require("plurnk.config").get("questions")
   local env_q = ({ ["1"] = true, ["true"] = true, ["yes"] = true, ["on"] = true })[(vim.env.PLURNK_QUESTIONS or ""):lower()]
   if cfg_q == true or (cfg_q == nil and env_q) then s.questions = true end
-  -- svc#231/#286 — session-open files preview: -1 full / 0 off / N first-N items
+  -- svc#231/#286 — workspace-open files preview: -1 full / 0 off / N first-N items
   -- of plurnk://manifest.json at turn 0 (the CLI's --files-items, converged).
   local fi = require("plurnk.config").get("files_items")
   if type(fi) == "number" then s.filesItems = fi end
@@ -68,15 +68,15 @@ end
 
 -- ── Buffer helpers ──────────────────────────────────────────────────
 
--- This buffer's session name, or nil. The buffer-local variable is the
+-- This buffer's workspace name, or nil. The buffer-local variable is the
 -- one source of truth; rummy's URL-parse fallback (`plurnk://input/<x>`)
 -- is unsafe here because `:AI` with no args opens `plurnk://input/scratch`
--- where "scratch" is a sentinel, not a real session.
-local function active_session()
-  local tab = require("plurnk.run_tab").current_alias()
+-- where "scratch" is a sentinel, not a real workspace.
+local function active_workspace()
+  local tab = require("plurnk.worker_tab").current_alias()
   if tab then return tab end
-  if vim.b.plurnk_session then return vim.b.plurnk_session end
-  return require("plurnk.state").get_active_session_name()
+  if vim.b.plurnk_workspace then return vim.b.plurnk_workspace end
+  return require("plurnk.state").get_active_workspace_name()
 end
 
 local function is_real_buffer()
@@ -88,15 +88,15 @@ local function is_real_buffer()
   return true
 end
 
-local function associate_buffer(bufnr, session_name)
+local function associate_buffer(bufnr, workspace_name)
   if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
-    vim.b[bufnr].plurnk_session = session_name
+    vim.b[bufnr].plurnk_workspace = workspace_name
   end
 end
 
 -- Forward declaration — defined with the connection helpers below,
--- referenced from resolve_session_then's create path above it.
-local note_model_run
+-- referenced from resolve_workspace_then's create path above it.
+local note_model_worker
 
 local function wrap_with_selection(prompt, opts)
   local mode = vim.fn.mode()
@@ -112,36 +112,36 @@ local function wrap_with_selection(prompt, opts)
   return prompt or ""
 end
 
--- ── Session resolution ─────────────────────────────────────────────
+-- ── Workspace resolution ─────────────────────────────────────────────
 
--- Resolve this buffer's session and invoke callback(session_name, model_alias).
--- If no session is attached, create one and bind it to the calling buffer.
-local function resolve_session_then(callback)
+-- Resolve this buffer's workspace and invoke callback(workspace_name, model_alias).
+-- If no workspace is attached, create one and bind it to the calling buffer.
+local function resolve_workspace_then(callback)
   local client = require("plurnk.client")
-  local session = active_session()
-  if session then
+  local workspace = active_workspace()
+  if workspace then
     client.check_daemon_once()
-    -- A picked alias wins once; then it STICKS — persist it as the session's
+    -- A picked alias wins once; then it STICKS — persist it as the workspace's
     -- model so every later loop keeps it (else it reverts to the daemon default
     -- after one loop). consume clears the one-shot pick; set_model_alias makes
     -- the choice durable (and lights it in the statusbar/winbar).
-    local model = client.consume_selected_alias() or client.get_session_model(session)
-    if model then require("plurnk.state").set_model_alias(session, model) end
-    callback(session, model)
+    local model = client.consume_selected_alias() or client.get_workspace_model(workspace)
+    if model then require("plurnk.state").set_model_alias(workspace, model) end
+    callback(workspace, model)
     return
   end
   local origin_buf = vim.api.nvim_get_current_buf()
-  -- No session attached — create a fresh one via the session.create ACTION: the
+  -- No workspace attached — create a fresh one via the workspace.create ACTION: the
   -- module binds the returned name as the threadId, so subsequent runs address it.
-  client.send("session.create", { projectRoot = client.get_project_path(), settings = session_settings() }, false, function(result)
+  client.send("workspace.create", { projectRoot = client.get_project_path(), settings = workspace_settings() }, false, function(result)
     if type(result) ~= "table" or not result.name then return end
     local name = result.name
-    require("plurnk.state").set_session_id(name, result.id)
-    require("plurnk.state").set_active_session_name(name)
+    require("plurnk.state").set_workspace_id(name, result.id)
+    require("plurnk.state").set_active_workspace_name(name)
     associate_buffer(origin_buf, name)
-    -- session.create returns the CLIENT run; the conversation lives in the
-    -- MODEL run (run-split, §13.7). Don't set a conversation run here — the
-    -- first model-run log/entry adopts it, and loop.run confirms modelRunId.
+    -- workspace.create returns the CLIENT worker; the conversation lives in the
+    -- MODEL worker (worker-split, §13.7). Don't set a conversation worker here — the
+    -- first model-worker log/entry adopts it, and loop.run confirms modelWorkerId.
     client.check_daemon_once()
     local model = client.consume_selected_alias()
     if model then require("plurnk.state").set_model_alias(name, model) end
@@ -151,156 +151,156 @@ end
 
 -- ── Connection switching ────────────────────────────────────────────
 
--- The connection rebinds in place: session.create/attach on a bound
+-- The connection rebinds in place: workspace.create/attach on a bound
 -- connection switch the binding, releasing the prior client loop
 -- (plurnk-service §13.5-rebind, v0.17.0). No reconnect. We warn only
--- when a loop is draining on the session we're leaving: after the
--- rebind we stop receiving that session's notifications, so its live
+-- when a loop is draining on the workspace we're leaving: after the
+-- rebind we stop receiving that workspace's notifications, so its live
 -- view goes stale here even though the loop completes on the daemon.
 local function warn_if_switching_live()
   local state = require("plurnk.state")
-  local session = state.get_active_session_name()
-  if session and state.is_loop_inflight(session) then
-    local run = state.get_run_name(session)
+  local workspace = state.get_active_workspace_name()
+  if workspace and state.is_loop_inflight(workspace) then
+    local worker = state.get_worker_name(workspace)
     require("plurnk.client").notify(
-      "switching away — the running loop in " .. session .. (run and ("·" .. run) or "")
-      .. " continues on the daemon; reopen the run to catch up",
+      "switching away — the running loop in " .. workspace .. (worker and ("·" .. worker) or "")
+      .. " continues on the daemon; reopen the worker to catch up",
       vim.log.levels.WARN)
   end
 end
 
--- Adopt the MODEL run as this session's conversation run (the waterfall
--- shows it). The model run is authoritative from loop.run's modelRunId or
--- session.runs (origin="model") — never from session.create (that's the
--- client run; run-split §13.7). Idempotent: the first model-run log/entry
+-- Adopt the MODEL worker as this workspace's conversation worker (the waterfall
+-- shows it). The model worker is authoritative from loop.run's modelWorkerId or
+-- workspace.workers (origin="model") — never from workspace.create (that's the
+-- client worker; worker-split §13.7). Idempotent: the first model-worker log/entry
 -- may have adopted it already; this confirms and labels it.
-note_model_run = function(session_name, run_id, run_name)
-  if type(run_id) ~= "number" then return end
+note_model_worker = function(workspace_name, worker_id, worker_name)
+  if type(worker_id) ~= "number" then return end
   local state = require("plurnk.state")
-  state.set_run_id(session_name, run_id)
-  if run_name then
-    state.set_run_name(session_name, run_name)
-    state.set_run_label(session_name, run_id, run_name)
+  state.set_worker_id(workspace_name, worker_id)
+  if worker_name then
+    state.set_worker_name(workspace_name, worker_name)
+    state.set_worker_label(workspace_name, worker_id, worker_name)
   end
-  require("plurnk.run_tab").note_run_resolved(session_name)
+  require("plurnk.worker_tab").note_run_resolved(workspace_name)
 end
 
--- Create a session (optionally named / headless) and bind it to the
+-- Create a workspace (optionally named / headless) and bind it to the
 -- calling buffer. The connection rebinds in place if one is already
 -- bound. headless = no projectRoot → file ops 400; rummy's "no repo".
-local function create_session_then(copts, callback)
+local function create_workspace_then(copts, callback)
   local client = require("plurnk.client")
-  -- v1 model (operator-ratified 2026-06-11): ONE live session per nvim
-  -- instance. Switching moves liveness; old session tabs become static.
-  local prev = active_session()
+  -- v1 model (operator-ratified 2026-06-11): ONE live workspace per nvim
+  -- instance. Switching moves liveness; old workspace tabs become static.
+  local prev = active_workspace()
   warn_if_switching_live()
-  local params = { settings = session_settings() }
+  local params = { settings = workspace_settings() }
   if not copts.headless then params.projectRoot = client.get_project_path() end
   if copts.name and copts.name ~= "" then params.name = copts.name end
   local origin_buf = vim.api.nvim_get_current_buf()
-  client.send("session.create", params, false, function(result)
+  client.send("workspace.create", params, false, function(result)
     if type(result) ~= "table" or not result.name then return end
     local state = require("plurnk.state")
-    state.set_session_id(result.name, result.id)
-    state.set_active_session_name(result.name)
+    state.set_workspace_id(result.name, result.id)
+    state.set_active_workspace_name(result.name)
     associate_buffer(origin_buf, result.name)
-    -- No conversation run from create (client run; see resolve_session_then).
+    -- No conversation worker from create (client worker; see resolve_workspace_then).
     if prev and prev ~= result.name then
-      client.notify("live session: " .. result.name .. " — tabs for " .. prev .. " are now static", vim.log.levels.INFO)
+      client.notify("live workspace: " .. result.name .. " — tabs for " .. prev .. " are now static", vim.log.levels.INFO)
     end
     client.check_daemon_once()
     callback(result.name)
   end)
 end
 
--- Conversation fork (`????`): branch the model run, carrying its history —
--- run.fork (svc#248, now wired). Optional `name` names the branch at
+-- Conversation fork (`????`): branch the model worker, carrying its history —
+-- worker.fork (svc#248, now wired). Optional `name` names the branch at
 -- instantiation (immutable after; reserved/taken rejected; defaults
--- `<parent>-fork`). Forks the session's current model run, binds this
+-- `<parent>-fork`). Forks the workspace's current model worker, binds this
 -- connection to the new run so the next loop.run lands there, then continues.
-local function fork_run_then(session_name, callback, name)
+local function fork_worker_then(workspace_name, callback, name)
   local client = require("plurnk.client")
   local params = {}
   if name and name ~= "" then params.name = name end
-  client.send("run.fork", params, false, function(result)
-    if type(result) ~= "table" or not result.runId then
-      client.notify("run.fork failed (need a model run to fork — start a loop first)", vim.log.levels.WARN)
+  client.send("worker.fork", params, false, function(result)
+    if type(result) ~= "table" or not result.workerId then
+      client.notify("worker.fork failed (need a model worker to fork — start a loop first)", vim.log.levels.WARN)
       return
     end
-    local sid = require("plurnk.state").get_session_id(session_name)
-    client.send("session.attach", { id = sid, runId = result.runId }, false, function(att)
-      local rid = (type(att) == "table" and att.runId) or result.runId
-      local rname = (type(att) == "table" and att.runName) or result.runName
-      note_model_run(session_name, rid, rname)
-      callback(session_name)
+    local sid = require("plurnk.state").get_workspace_id(workspace_name)
+    client.send("workspace.attach", { id = sid, workerId = result.workerId }, false, function(att)
+      local rid = (type(att) == "table" and att.workerId) or result.workerId
+      local rname = (type(att) == "table" and att.workerName) or result.workerName
+      note_model_worker(workspace_name, rid, rname)
+      callback(workspace_name)
     end)
   end)
 end
 
--- Rebind the connection to a specific run and adopt it as the conversation
--- run (the run picker hands a model run; submitting in a historical run's
+-- Rebind the connection to a specific worker and adopt it as the conversation
+-- worker (the worker picker hands a model worker; submitting in a historical worker's
 -- input means "switch there, then speak").
-M.switch_run = function(session_name, run_id, callback)
+M.switch_worker = function(workspace_name, worker_id, callback)
   local state = require("plurnk.state")
-  if state.get_run_id(session_name) == run_id then return callback() end
-  local id = state.get_session_id(session_name)
+  if state.get_worker_id(workspace_name) == worker_id then return callback() end
+  local id = state.get_workspace_id(workspace_name)
   if not id then
-    require("plurnk.client").notify("Session " .. session_name .. " not resolved", vim.log.levels.WARN)
+    require("plurnk.client").notify("Workspace " .. workspace_name .. " not resolved", vim.log.levels.WARN)
     return
   end
   warn_if_switching_live()
-  require("plurnk.client").send("session.attach", { id = id, runId = run_id }, false, function(att)
+  require("plurnk.client").send("workspace.attach", { id = id, workerId = worker_id }, false, function(att)
     if type(att) ~= "table" then return end
-    note_model_run(session_name, att.runId, att.runName)
+    note_model_worker(workspace_name, att.workerId, att.workerName)
     callback()
   end)
 end
 
--- :PlurnkFork [name] — branch the current conversation into a new run
--- (run.fork, svc#248), optionally named at instantiation (immutable after).
+-- :PlurnkFork [name] — branch the current conversation into a new worker
+-- (worker.fork, svc#248), optionally named at instantiation (immutable after).
 -- Switches to the fork; the next prompt speaks into it. No prompt of its own —
 -- `:AI???? <text>` is the fork-and-speak form.
 M.fork = function(opts)
   local name = (opts.args or ""):gsub("^%s+", ""):gsub("%s+$", "")
-  local session = active_session()
-  if not session then
-    require("plurnk.client").notify("No active session to fork", vim.log.levels.WARN)
+  local workspace = active_workspace()
+  if not workspace then
+    require("plurnk.client").notify("No active workspace to fork", vim.log.levels.WARN)
     return
   end
-  resolve_session_then(function()
-    fork_run_then(session, function(s)
-      require("plurnk.run_tab").open(s)
+  resolve_workspace_then(function()
+    fork_worker_then(workspace, function(s)
+      require("plurnk.worker_tab").open(s)
       require("plurnk.client").notify("forked" .. (name ~= "" and (" → " .. name) or ""), vim.log.levels.INFO)
     end, name ~= "" and name or nil)
   end)
 end
 
 -- Repaint the conversation waterfall from the canonical log. log.read
--- defaults to the CLIENT run (run-split); pass runId to read the model
--- run (§214). Used when opening a historical conversation.
-local function hydrate_current_run(session_name)
+-- defaults to the CLIENT worker (worker-split); pass workerId to read the model
+-- worker (§214). Used when opening a historical conversation.
+local function hydrate_current_worker(workspace_name)
   local state = require("plurnk.state")
-  local run_id = state.get_run_id(session_name)
-  if not run_id then return end
-  require("plurnk.client").send("log.read", { runId = run_id, limit = 500 }, false, function(result)
+  local worker_id = state.get_worker_id(workspace_name)
+  if not worker_id then return end
+  require("plurnk.client").send("log.read", { workerId = worker_id, limit = 500 }, false, function(result)
     if type(result) ~= "table" or type(result.entries) ~= "table" then return end
-    require("plurnk.run_tab").hydrate(session_name, run_id, result.entries)
+    require("plurnk.worker_tab").hydrate(workspace_name, worker_id, result.entries)
   end)
 end
 
--- Find the session's model run (the conversation) via session.runs and
--- adopt it as the conversation run. session.create makes the model run
--- lazily on the first loop.run, so a never-driven session has none yet —
--- then we leave the run pending and the first prompt adopts it. Calls
--- on_done after the lookup (whether or not a model run was found).
-local function adopt_model_run(session_name, on_done)
-  local id = require("plurnk.state").get_session_id(session_name)
+-- Find the workspace's model worker (the conversation) via workspace.workers and
+-- adopt it as the conversation worker. workspace.create makes the model worker
+-- lazily on the first loop.run, so a never-driven workspace has none yet —
+-- then we leave the worker pending and the first prompt adopts it. Calls
+-- on_done after the lookup (whether or not a model worker was found).
+local function adopt_model_worker(workspace_name, on_done)
+  local id = require("plurnk.state").get_workspace_id(workspace_name)
   if not id then if on_done then on_done() end return end
-  require("plurnk.client").send("session.runs", { id = id }, false, function(result)
-    if type(result) == "table" and type(result.runs) == "table" then
-      for _, run in ipairs(result.runs) do  -- most-recent first
-        if run.origin == "model" then
-          note_model_run(session_name, run.id, run.name)
+  require("plurnk.client").send("workspace.workers", { id = id }, false, function(result)
+    if type(result) == "table" and type(result.workers) == "table" then
+      for _, worker in ipairs(result.workers) do  -- most-recent first
+        if worker.origin == "model" then
+          note_model_worker(workspace_name, worker.id, worker.name)
           break
         end
       end
@@ -326,9 +326,9 @@ end
 -- it, output streams over stream/event into the stream split, and the
 -- model learns the outcome over the wire — rummy's Run mode, daemon-owned.
 local function send_exec(command)
-  -- Session-scoped like every op: resolve (or create) the session FIRST so the
-  -- stream/entry events the exec emits have an active session to render under.
-  resolve_session_then(function(_session_name, _model)
+  -- Workspace-scoped like every op: resolve (or create) the workspace FIRST so the
+  -- stream/entry events the exec emits have an active workspace to render under.
+  resolve_workspace_then(function(_workspace_name, _model)
   local client = require("plurnk.client")
   client.send("op.exec", { command = command }, false, function(result)
     if type(result) == "table" and type(result.status) == "number" and result.status >= 400 then
@@ -358,9 +358,9 @@ function M.resolve_model_spec(alias)
   return nil
 end
 
-local function send_loop_run(session_name, prompt, model_alias, flags)
+local function send_loop_run(workspace_name, prompt, model_alias, flags)
   -- Bridge mode: the run streams through the portal (agui.run → un-project →
-  -- dispatch, so the run-tab renders identically to WS). Per-run knobs (model/
+  -- dispatch, so the worker-tab renders identically to WS). Per-worker knobs (model/
   -- alias/flags/openPaths) ride forwardedProps (agui 0.2.4+; openPaths pending a
   -- bridge run-endpoint read). on_done clears inflight — the terminated event
   -- (dispatched) drives the rest. WS path unchanged (the else below).
@@ -375,10 +375,10 @@ local function send_loop_run(session_name, prompt, model_alias, flags)
     if flags then fwd.flags = flags end
     local open_paths = extract_open_paths(prompt)
     if #open_paths > 0 then fwd.openPaths = open_paths end
-    require("plurnk.state").set_loop_inflight(session_name, true)
-    bridge.run(session_name, prompt, { forwardedProps = next(fwd) ~= nil and fwd or nil }, function(_final)
-      require("plurnk.state").set_loop_inflight(session_name, false)
-      require("plurnk.run_tab").update_status(session_name)
+    require("plurnk.state").set_loop_inflight(workspace_name, true)
+    bridge.run(workspace_name, prompt, { forwardedProps = next(fwd) ~= nil and fwd or nil }, function(_final)
+      require("plurnk.state").set_loop_inflight(workspace_name, false)
+      require("plurnk.worker_tab").update_status(workspace_name)
       pcall(vim.cmd, "redrawstatus! | redrawtabline")
     end)
     return
@@ -395,26 +395,26 @@ local function send_loop_run(session_name, prompt, model_alias, flags)
   if flags then params.flags = flags end
   local open_paths = extract_open_paths(prompt)   -- @file refs → daemon turn-0 READs (#260)
   if #open_paths > 0 then params.openPaths = open_paths end
-  require("plurnk.state").set_loop_inflight(session_name, true)
+  require("plurnk.state").set_loop_inflight(workspace_name, true)
   client.send("loop.run", params, false, function(result)
     if type(result) ~= "table" then
-      require("plurnk.state").set_loop_inflight(session_name, false)
+      require("plurnk.state").set_loop_inflight(workspace_name, false)
       return
     end
-    -- The conversation lives in the model run (run-split §13.7); loop.run
-    -- returns its id. Authoritative — confirms the run the first event's
-    -- run_id already adopted, and covers the no-events edge.
-    note_model_run(session_name, result.modelRunId)
+    -- The conversation lives in the model worker (worker-split §13.7); loop.run
+    -- returns its id. Authoritative — confirms the worker the first event's
+    -- worker_id already adopted, and covers the no-events edge.
+    note_model_worker(workspace_name, result.modelWorkerId)
     -- loop.run is fire-and-forget (svc 0.45+): a finalStatus-100 ack means the
     -- loop is draining ASYNC — stay in-flight; loop/terminated (dispatch.lua)
     -- clears it and carries the real {finalStatus, usage}. A non-100 ack or an
     -- `error` IS terminal (no terminated follows), so settle it here.
     local fs = result.finalStatus
     if result.error ~= nil or (type(fs) == "number" and fs ~= 100) then
-      require("plurnk.state").set_loop_inflight(session_name, false)
+      require("plurnk.state").set_loop_inflight(workspace_name, false)
       local terminal = type(fs) == "number" and fs or result.status
       if type(terminal) == "number" then
-        require("plurnk.state").set_final_status(session_name, terminal)
+        require("plurnk.state").set_final_status(workspace_name, terminal)
       end
       -- #120: a 501 = no model configured. The daemon's boot-time pointer is easy
       -- to miss under a supervisor; surface the ~/.plurnk/.env pointer here, where
@@ -422,10 +422,10 @@ local function send_loop_run(session_name, prompt, model_alias, flags)
       if terminal == 501 then
         require("plurnk.client").notify(
           "no model configured — edit ~/.plurnk/.env and uncomment one option (local / cloud / plurnk.ai)",
-          vim.log.levels.ERROR, session_name)
+          vim.log.levels.ERROR, workspace_name)
       end
     end
-    require("plurnk.run_tab").update_status(session_name)
+    require("plurnk.worker_tab").update_status(workspace_name)
     vim.cmd("redrawstatus! | redrawtabline")
   end)
 end
@@ -440,116 +440,116 @@ M.prompt = function(opts)
     require("plurnk.client").notify("PlurnkPrompt: no prompt text", vim.log.levels.WARN)
     return
   end
-  resolve_session_then(function(session_name, model_alias)
-    require("plurnk.run_tab").open(session_name)
-    send_loop_run(session_name, text, model_alias, opts.flags)
+  resolve_workspace_then(function(workspace_name, model_alias)
+    require("plurnk.worker_tab").open(workspace_name)
+    send_loop_run(workspace_name, text, model_alias, opts.flags)
   end)
 end
 
--- :PlurnkSessions  → vim.ui.select over session.list, attach to selection.
-M.sessions = function()
+-- :PlurnkWorkspaces  → vim.ui.select over workspace.list, attach to selection.
+M.workspaces = function()
   local client = require("plurnk.client")
-  client.send("session.list", {}, false, function(result)
-    if type(result) ~= "table" or type(result.sessions) ~= "table" then return end
-    local items = result.sessions
+  client.send("workspace.list", {}, false, function(result)
+    if type(result) ~= "table" or type(result.workspaces) ~= "table" then return end
+    local items = result.workspaces
     if #items == 0 then
-      client.notify("No sessions on the daemon", vim.log.levels.INFO)
+      client.notify("No workspaces on the daemon", vim.log.levels.INFO)
       return
     end
     vim.ui.select(items, {
-      prompt = "Plurnk session",
+      prompt = "Plurnk workspace",
       format_item = function(s)
         return string.format("%s  (%s)", s.name, s.project_root or "(headless)")
       end,
     }, function(choice)
       if not choice then return end
-      -- Bind the connection to the chosen session for real — state alone
+      -- Bind the connection to the chosen workspace for real — state alone
       -- isn't enough; loop.run goes wherever the connection is attached.
       warn_if_switching_live()
-      require("plurnk.client").send("session.attach", { id = choice.id }, false, function(att)
+      require("plurnk.client").send("workspace.attach", { id = choice.id }, false, function(att)
         if type(att) ~= "table" then return end
         local state = require("plurnk.state")
-        state.set_session_id(choice.name, choice.id)
-        state.set_active_session_name(choice.name)
+        state.set_workspace_id(choice.name, choice.id)
+        state.set_active_workspace_name(choice.name)
         associate_buffer(vim.api.nvim_get_current_buf(), choice.name)
-        -- The conversation is the model run, not the client run this attach
+        -- The conversation is the model worker, not the client worker this attach
         -- bound; find it and hydrate (§214).
-        adopt_model_run(choice.name, function()
-          require("plurnk.run_tab").open(choice.name)
-          hydrate_current_run(choice.name)
+        adopt_model_worker(choice.name, function()
+          require("plurnk.worker_tab").open(choice.name)
+          hydrate_current_worker(choice.name)
         end)
       end)
     end)
   end)
 end
 
--- :PlurnkSessionNew [name]
-M.session_new = function(opts)
-  create_session_then({ name = opts.args }, function(name)
-    require("plurnk.run_tab").open(name)
-    require("plurnk.client").notify("Session created: " .. name, vim.log.levels.INFO)
+-- :PlurnkWorkspaceNew [name]
+M.workspace_new = function(opts)
+  create_workspace_then({ name = opts.args }, function(name)
+    require("plurnk.worker_tab").open(name)
+    require("plurnk.client").notify("Workspace created: " .. name, vim.log.levels.INFO)
   end)
 end
 
--- :PlurnkSessionRename <newname> — rename the active session (session.rename,
--- svc#248). A session's name is a mutable handle on the world; a run's is
--- immutable. Rekeys local state + the run tab in place.
-M.session_rename = function(opts)
+-- :PlurnkWorkspaceRename <newname> — rename the active workspace (workspace.rename,
+-- svc#248). A workspace's name is a mutable handle on the world; a worker's is
+-- immutable. Rekeys local state + the worker tab in place.
+M.workspace_rename = function(opts)
   local new_name = (opts.args or ""):gsub("^%s+", ""):gsub("%s+$", "")
   if new_name == "" then
     require("plurnk.client").notify(":AI/rename needs a new name", vim.log.levels.WARN)
     return
   end
-  local session = active_session()
-  if not session then
-    require("plurnk.client").notify("No active session to rename", vim.log.levels.WARN)
+  local workspace = active_workspace()
+  if not workspace then
+    require("plurnk.client").notify("No active workspace to rename", vim.log.levels.WARN)
     return
   end
-  resolve_session_then(function()
-    require("plurnk.client").send("session.rename", { name = new_name }, false, function(result)
+  resolve_workspace_then(function()
+    require("plurnk.client").send("workspace.rename", { name = new_name }, false, function(result)
       if type(result) ~= "table" or not result.name then return end
       local state = require("plurnk.state")
-      local sid = state.get_session_id(session)
-      state.rename_session(session, result.name)
-      if sid then state.set_session_id(result.name, sid) end
-      state.set_active_session_name(result.name)
-      require("plurnk.run_tab").rename(session, result.name)
+      local sid = state.get_workspace_id(workspace)
+      state.rename_workspace(workspace, result.name)
+      if sid then state.set_workspace_id(result.name, sid) end
+      state.set_active_workspace_name(result.name)
+      require("plurnk.worker_tab").rename(workspace, result.name)
       associate_buffer(vim.api.nvim_get_current_buf(), result.name)
-      require("plurnk.client").notify("renamed " .. session .. " → " .. result.name, vim.log.levels.INFO)
+      require("plurnk.client").notify("renamed " .. workspace .. " → " .. result.name, vim.log.levels.INFO)
     end)
   end)
 end
 
--- :PlurnkSessionRuns  → list runs in the active session.
-M.session_runs = function()
-  local session = active_session()
-  if not session then
-    require("plurnk.client").notify("No active session", vim.log.levels.WARN)
+-- :PlurnkWorkspaceWorkers  → list runs in the active workspace.
+M.workspace_workers = function()
+  local workspace = active_workspace()
+  if not workspace then
+    require("plurnk.client").notify("No active workspace", vim.log.levels.WARN)
     return
   end
-  local id = require("plurnk.state").get_session_id(session)
+  local id = require("plurnk.state").get_workspace_id(workspace)
   if not id then
-    require("plurnk.client").notify("Session " .. session .. " not resolved", vim.log.levels.WARN)
+    require("plurnk.client").notify("Workspace " .. workspace .. " not resolved", vim.log.levels.WARN)
     return
   end
   local client = require("plurnk.client")
-  client.send("session.runs", { id = id }, false, function(result)
-    if type(result) ~= "table" or type(result.runs) ~= "table" then return end
-    -- Conversations are model runs; the client/plurnk runs are housekeeping.
-    local runs = {}
-    for _, r in ipairs(result.runs) do if r.origin == "model" then runs[#runs+1] = r end end
-    if #runs == 0 then
-      client.notify("No conversations in " .. session, vim.log.levels.INFO)
+  client.send("workspace.workers", { id = id }, false, function(result)
+    if type(result) ~= "table" or type(result.workers) ~= "table" then return end
+    -- Conversations are model workers; the client/plurnk workers are housekeeping.
+    local workers = {}
+    for _, r in ipairs(result.workers) do if r.origin == "model" then workers[#workers+1] = r end end
+    if #workers == 0 then
+      client.notify("No conversations in " .. workspace, vim.log.levels.INFO)
       return
     end
-    vim.ui.select(runs, {
-      prompt = "Plurnk conversation (session " .. session .. ")",
+    vim.ui.select(workers, {
+      prompt = "Plurnk conversation (workspace " .. workspace .. ")",
       format_item = function(r) return r.name .. "  (" .. (r.created_at or "?") .. ")" end,
     }, function(choice)
       if not choice then return end
-      M.switch_run(session, choice.id, function()
-        require("plurnk.run_tab").open(session)
-        hydrate_current_run(session)
+      M.switch_worker(workspace, choice.id, function()
+        require("plurnk.worker_tab").open(workspace)
+        hydrate_current_worker(workspace)
       end)
     end)
   end)
@@ -574,22 +574,22 @@ M.models = function()
 end
 
 -- :AI/model <alias> — set the model directly (sticky); bare opens the picker.
--- Sets the one-shot pick AND the durable session model so it survives past the
+-- Sets the one-shot pick AND the durable workspace model so it survives past the
 -- next loop, and lights immediately in the statusbar/winbar.
 M.set_model = function(args)
   local alias = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
   if alias == "" then M.models() return end
   local state = require("plurnk.state")
   state.set_selected_alias(alias)
-  local session = active_session()
-  if session then state.set_model_alias(session, alias) end
+  local workspace = active_workspace()
+  if workspace then state.set_model_alias(workspace, alias) end
   require("plurnk.client").notify("Model alias: " .. alias, vim.log.levels.INFO)
   pcall(vim.cmd, "redrawstatus!")
 end
 
 -- Membership overlay (svc#200) — service vocabulary, converged with the TUI:
 -- pick tracks file(s) in manifest, hide blocks them, view tracks
--- read-only. Live via session.constrain (session-scoped, re-resolved now).
+-- read-only. Live via workspace.constrain (workspace-scoped, re-resolved now).
 -- Native vim file completion supplies an explicit glob (no bespoke completer).
 
 -- Resolve the membership glob: an explicit arg, else the current buffer's
@@ -609,10 +609,10 @@ local function constrain(effect, arg)
     require("plurnk.client").notify(":AI/" .. effect .. " needs a glob, or run it in a file buffer", vim.log.levels.WARN)
     return
   end
-  resolve_session_then(function(session_name)
-    require("plurnk.client").send("session.constrain", { effect = effect, glob = glob }, false, function()
+  resolve_workspace_then(function(workspace_name)
+    require("plurnk.client").send("workspace.constrain", { effect = effect, glob = glob }, false, function()
       require("plurnk.client").notify(effect .. ": " .. glob, vim.log.levels.INFO)
-      require("plurnk.signs").refresh(session_name)
+      require("plurnk.signs").refresh(workspace_name)
     end)
   end)
 end
@@ -636,10 +636,10 @@ M.repo = function(opts)
     end
     dir = vim.fn.fnamemodify(name, ":.:h")  -- workspace-relative dir of the current file
   end
-  resolve_session_then(function(session_name)
-    require("plurnk.client").send("session.constrain", { effect = "repo", glob = dir }, false, function()
+  resolve_workspace_then(function(workspace_name)
+    require("plurnk.client").send("workspace.constrain", { effect = "repo", glob = dir }, false, function()
       require("plurnk.client").notify("repo: " .. dir, vim.log.levels.INFO)
-      require("plurnk.signs").refresh(session_name)
+      require("plurnk.signs").refresh(workspace_name)
     end)
   end)
 end
@@ -652,8 +652,8 @@ M.drop = function(opts)
     require("plurnk.client").notify(":AI/drop needs a glob, or run it in a file buffer", vim.log.levels.WARN)
     return
   end
-  resolve_session_then(function(session_name)
-    require("plurnk.client").send("session.constraints", {}, false, function(result)
+  resolve_workspace_then(function(workspace_name)
+    require("plurnk.client").send("workspace.constraints", {}, false, function(result)
       local constraints = type(result) == "table" and result.constraints or {}
       local matches = vim.tbl_filter(function(c) return c.glob == glob end, constraints)
       if #matches == 0 then
@@ -661,10 +661,10 @@ M.drop = function(opts)
         return
       end
       for _, c in ipairs(matches) do
-        require("plurnk.client").send("session.unconstrain", { effect = c.effect, glob = c.glob }, false)
+        require("plurnk.client").send("workspace.unconstrain", { effect = c.effect, glob = c.glob }, false)
       end
       require("plurnk.client").notify("dropped " .. #matches .. " constraint(s): " .. glob, vim.log.levels.INFO)
-      require("plurnk.signs").refresh(session_name)
+      require("plurnk.signs").refresh(workspace_name)
     end)
   end)
 end
@@ -674,9 +674,9 @@ end
 -- here would misinform — they're the deltas, not what the model sees. The
 -- constraint list rides along as a footer (it's what /drop targets).
 M.members = function()
-  resolve_session_then(function()
+  resolve_workspace_then(function()
     local client = require("plurnk.client")
-    client.send("session.members", {}, false, function(result)
+    client.send("workspace.members", {}, false, function(result)
       local members = type(result) == "table" and result.members or {}
       local hidden = type(result) == "table" and result.hidden or {}
       local editable, view = {}, {}
@@ -699,7 +699,7 @@ M.members = function()
         end
       end
       -- the rules that produced this — also what /drop targets; NOT the universe
-      client.send("session.constraints", {}, false, function(cres)
+      client.send("workspace.constraints", {}, false, function(cres)
         local constraints = type(cres) == "table" and cres.constraints or {}
         if #constraints == 0 then
           lines[#lines + 1] = "rules: none (git-tracked files only)"
@@ -716,9 +716,9 @@ end
 
 -- :PlurnkLog [limit]
 M.log = function(opts)
-  local session = active_session()
-  if not session then
-    require("plurnk.client").notify("No active session", vim.log.levels.WARN)
+  local workspace = active_workspace()
+  if not workspace then
+    require("plurnk.client").notify("No active workspace", vim.log.levels.WARN)
     return
   end
   local params = {}
@@ -726,8 +726,8 @@ M.log = function(opts)
   require("plurnk.client").send("log.read", params, false, function(result)
     if type(result) ~= "table" then return end
     local entries = result.entries or {}
-    require("plurnk.run_tab").open(session)
-    require("plurnk.run_tab").append_history(session, entries)
+    require("plurnk.worker_tab").open(workspace)
+    require("plurnk.worker_tab").append_history(workspace, entries)
   end)
 end
 
@@ -767,8 +767,8 @@ M.prev         = function() require("plurnk.resolve").prev() end
 M.stop = function()
   local n = require("plurnk.resolve").cancel_all()
   local client = require("plurnk.client")
-  if not active_session() then
-    client.notify(string.format("Cancelled %d pending proposal%s (no active session)",
+  if not active_workspace() then
+    client.notify(string.format("Cancelled %d pending proposal%s (no active workspace)",
       n, n == 1 and "" or "s"), vim.log.levels.INFO)
     return
   end
@@ -782,19 +782,19 @@ M.stop = function()
   end)
 end
 
--- :PlurnkClear — stop + close the session tab.
+-- :PlurnkClear — stop + close the workspace tab.
 M.clear = function()
-  local session = active_session()
+  local workspace = active_workspace()
   M.stop()
-  if session then require("plurnk.run_tab").close(session) end
+  if workspace then require("plurnk.worker_tab").close(workspace) end
 end
 
--- :AI (no args) — toggle between the session tab and wherever you came
+-- :AI (no args) — toggle between the workspace tab and wherever you came
 -- from. One-level memory, rummy's RummyToggle semantics.
 local return_tabpage = nil
 M.toggle = function()
-  local run_tab = require("plurnk.run_tab")
-  if run_tab.session_for_tabpage(vim.api.nvim_get_current_tabpage()) then
+  local worker_tab = require("plurnk.worker_tab")
+  if worker_tab.workspace_for_tabpage(vim.api.nvim_get_current_tabpage()) then
     if return_tabpage and vim.api.nvim_tabpage_is_valid(return_tabpage) then
       vim.api.nvim_set_current_tabpage(return_tabpage)
     else
@@ -804,27 +804,27 @@ M.toggle = function()
     return
   end
   return_tabpage = vim.api.nvim_get_current_tabpage()
-  local existing = active_session()
+  local existing = active_workspace()
   if existing then
-    require("plurnk.run_tab").open(existing)
+    require("plurnk.worker_tab").open(existing)
     return
   end
-  resolve_session_then(function(session_name)
-    require("plurnk.run_tab").open(session_name)
+  resolve_workspace_then(function(workspace_name)
+    require("plurnk.worker_tab").open(workspace_name)
   end)
 end
 
 -- `:AI/` bare (or /help) — the whole language on one screen. This is
 -- the entire discoverability budget: no menus, no tutorial mode.
 local HELP = table.concat({
-  ":AI                toggle session tab ⇄ where you came from",
+  ":AI                toggle workspace tab ⇄ where you came from",
   ":AI <text>         prompt (act)",
   ":AI? <text>        ASK — read-only loop; edits/exec 403 at dispatch",
   ":AI: <text>        act (the default)",
   ":AI! <cmd>         exec via the daemon; bare ! execs the visual selection",
-  ":AI?? / ::         new session    ??? headless    ???? new run (fork)",
+  ":AI?? / ::         new workspace    ??? headless    ???? new run (fork)",
   ":AI... <text>      inject into the running model loop (loop.inject)",
-  ":AI/<verb>         models sessions runs session run rename log yolo ping",
+  ":AI/<verb>         models workspaces runs workspace run rename log yolo ping",
   "                   pick hide view repo drop members (membership overlay)",
   "                   script <path> (run a .plk file via op.parse)",
   "                   open accept reject next prev stop clear",
@@ -880,14 +880,14 @@ local SLASH = {
   -- `/model <alias>` sets it directly (converged with the TUI); bare `/model`
   -- opens the picker. Completion offers aliases (see ai_complete).
   model    = function(args) M.set_model(args) end,
-  -- Singular CREATEs, plural LISTs (converged with the TUI): /session opens a
-  -- fresh session, /sessions lists; /run forks a new run, /runs lists. The old
-  -- ambiguous /new (session or run?) is gone.
-  sessions = function() M.sessions() end,
-  runs     = function() M.session_runs() end,
-  session  = function(args) M.session_new({ args = args }) end,
-  rename   = function(args) M.session_rename({ args = args }) end,
-  run      = function(args) M.fork({ args = args }) end,
+  -- Singular CREATEs, plural LISTs (converged with the TUI): /workspace opens a
+  -- fresh workspace, /workspaces lists; /run forks a new run, /runs lists. The old
+  -- ambiguous /new (workspace or run?) is gone.
+  workspaces = function() M.workspaces() end,
+  workers  = function() M.workspace_workers() end,
+  workspace  = function(args) M.workspace_new({ args = args }) end,
+  rename   = function(args) M.workspace_rename({ args = args }) end,
+  worker   = function(args) M.fork({ args = args }) end,
   log      = function(args) M.log({ args = args }) end,
   pick     = function(args) M.pick({ args = args }) end,
   hide     = function(args) M.hide({ args = args }) end,
@@ -947,7 +947,7 @@ end
 -- :AI — the central user command. Rummy's metacommand language, adapted
 -- to the daemon-owned loop (no client-side mode taxonomy):
 --
---   :AI                 → toggle: session tab ⇄ where you came from
+--   :AI                 → toggle: workspace tab ⇄ where you came from
 --   :AI <text>          → loop.run with prompt (visual selection prepended)
 --   :AI? <text>         → ASK: loop.run with flags.mode="ask" — schemes
 --                         declaring excludedInAsk (file edits, exec, …)
@@ -956,10 +956,10 @@ end
 --   :AI! <cmd>          → op.exec — daemon-owned shell, output streams
 --                         into the stream split; no <cmd> execs the
 --                         visual selection verbatim
---   :AI?? <text>        → NEW session, then prompt
---   :AI??? <text>       → new HEADLESS session (no projectRoot), then prompt
---   :AI???? <text>      → new RUN in the current session (fork-lite)
---   :AI... <text>       → mid-loop inject into the model run (loop.inject)
+--   :AI?? <text>        → NEW workspace, then prompt
+--   :AI??? <text>       → new HEADLESS workspace (no projectRoot), then prompt
+--   :AI???? <text>      → new WORKER in the current workspace (fork-lite)
+--   :AI... <text>       → mid-loop inject into the model worker (loop.inject)
 --   :AI/<sub> [args]    → route to the Plurnk* surface (see SLASH)
 --
 -- Cmdline abbreviations (M.setup) make the no-space forms work: `:AI?? hi`.
@@ -974,7 +974,7 @@ M.ai = function(opts)
 
   if raw:sub(1, 3) == "..." then
     -- BTW inject (plurnk-service#193): speak into the running model loop.
-    -- The daemon targets the session's model run (ctx.session.modelRunId)
+    -- The daemon targets the workspace's model worker (ctx.workspace.modelWorkerId)
     -- — there must be one (start a loop first).
     local msg = raw:sub(4):gsub("^%s+", "")
     if msg == "" then
@@ -1021,39 +1021,39 @@ M.ai = function(opts)
       require("plurnk.client").notify(":AI! needs a command (text or visual selection)", vim.log.levels.WARN)
       return
     end
-    local go = function(session_name)
-      require("plurnk.run_tab").open(session_name)
+    local go = function(workspace_name)
+      require("plurnk.worker_tab").open(workspace_name)
       send_exec(command)
     end
     if prefix_len >= 4 then
-      local session = active_session()
-      if session then return fork_run_then(session, go) end
-      return create_session_then({}, go)
+      local workspace = active_workspace()
+      if workspace then return fork_worker_then(workspace, go) end
+      return create_workspace_then({}, go)
     end
     if prefix_len >= 2 then
-      return create_session_then({ headless = prefix_len == 3 }, go)
+      return create_workspace_then({ headless = prefix_len == 3 }, go)
     end
-    return resolve_session_then(function(session_name) go(session_name) end)
+    return resolve_workspace_then(function(workspace_name) go(workspace_name) end)
   end
 
   if prefix_len >= 2 then
     -- Wrap selection NOW (before any async hop) — the marks still hold
     -- here; they may not after a round-trip.
     local wrapped = wrap_with_selection(rest, opts)
-    local after = function(session_name)
-      require("plurnk.run_tab").open(session_name)
+    local after = function(workspace_name)
+      require("plurnk.worker_tab").open(workspace_name)
       if wrapped ~= "" then
-        send_loop_run(session_name, wrapped, require("plurnk.client").consume_selected_alias(), flags)
+        send_loop_run(workspace_name, wrapped, require("plurnk.client").consume_selected_alias(), flags)
       end
     end
     if prefix_len >= 4 then
-      -- `????` — fork-lite: new run in the current session.
-      local session = active_session()
-      if session then return fork_run_then(session, after) end
-      return create_session_then({}, after)
+      -- `????` — fork-lite: new run in the current workspace.
+      local workspace = active_workspace()
+      if workspace then return fork_worker_then(workspace, after) end
+      return create_workspace_then({}, after)
     end
-    -- `??` new session / `???` new headless session.
-    return create_session_then({ headless = prefix_len == 3 }, after)
+    -- `??` new workspace / `???` new headless workspace.
+    return create_workspace_then({ headless = prefix_len == 3 }, after)
   end
 
   -- Single-prefix (`?`, `:`) or bare text — prompt, with ask flags when
@@ -1068,11 +1068,11 @@ M.setup = function()
   local cmd = vim.api.nvim_create_user_command
 
   cmd("PlurnkPrompt",      M.prompt,       { nargs = "*", range = true })
-  cmd("PlurnkSessions",    M.sessions,     {})
-  cmd("PlurnkSessionNew",  M.session_new,  { nargs = "?" })
-  cmd("PlurnkSessionRename", M.session_rename, { nargs = "?" })
+  cmd("PlurnkWorkspaces",    M.workspaces,     {})
+  cmd("PlurnkWorkspaceNew",  M.workspace_new,  { nargs = "?" })
+  cmd("PlurnkWorkspaceRename", M.workspace_rename, { nargs = "?" })
   cmd("PlurnkFork",        M.fork,         { nargs = "?" })
-  cmd("PlurnkSessionRuns", M.session_runs, {})
+  cmd("PlurnkWorkspaceWorkers", M.workspace_workers, {})
   cmd("PlurnkModels",      M.models,       {})
   cmd("PlurnkLog",         M.log,          { nargs = "?" })
   cmd("PlurnkPick",        M.pick,         { nargs = "?", complete = "file" })
@@ -1128,11 +1128,11 @@ M.setup = function()
   ]])
 
   -- Convenience: a single-buffer scratch transcript without binding to
-  -- a file. Useful for "just talk to the model" sessions.
+  -- a file. Useful for "just talk to the model" workspaces.
   cmd("PlurnkOpen", function()
-    local session = active_session()
-    if session then require("plurnk.run_tab").open(session); return end
-    M.session_new({ args = "" })
+    local workspace = active_workspace()
+    if workspace then require("plurnk.worker_tab").open(workspace); return end
+    M.workspace_new({ args = "" })
   end, {})
 end
 

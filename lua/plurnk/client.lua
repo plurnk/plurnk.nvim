@@ -4,7 +4,7 @@
 local M = {}
 local state = require("plurnk.state")
 
--- ── Re-export state (session-scoped) ────────────────────────────────
+-- ── Re-export state (workspace-scoped) ────────────────────────────────
 
 M.get_project_path = state.get_project_path
 M.set_project_path = state.set_project_path
@@ -16,14 +16,14 @@ M.consume_selected_alias = state.consume_selected_alias
 M.has_interacted = state.has_interacted
 M.mark_interacted = state.mark_interacted
 
-M.get_session_id = state.get_session_id
-M.set_session_id = state.set_session_id
+M.get_workspace_id = state.get_workspace_id
+M.set_workspace_id = state.set_workspace_id
 
-M.get_run_id = state.get_run_id
-M.set_run_id = state.set_run_id
+M.get_worker_id = state.get_worker_id
+M.set_worker_id = state.set_worker_id
 
-M.get_session_model = state.get_model_alias
-M.set_session_model = state.set_model_alias
+M.get_workspace_model = state.get_model_alias
+M.set_workspace_model = state.set_model_alias
 M.get_model_display = state.get_model_display
 M.set_model_display = state.set_model_display
 
@@ -40,7 +40,7 @@ M.set_cost_pico = state.set_cost_pico
 
 M.is_project_file = state.is_project_file
 M.get_relative_path = state.get_relative_path
-M.rename_session = state.rename_session
+M.rename_workspace = state.rename_workspace
 
 -- ── Re-export transport ─────────────────────────────────────────────
 
@@ -49,25 +49,25 @@ M.rename_session = state.rename_session
 -- tool-result run; loop.run never reaches here (send_loop_run drives bridge.run).
 M.send = function(method, params, _is_notification, callback)
   local bridge = require("plurnk.bridge")
-  local thread = state.get_active_session_name() or "nvim"
+  local thread = state.get_active_workspace_name() or "nvim"
   if method == "loop.resolve" then
     bridge.resolve(thread, params or {}, function() if callback then callback({}) end end)
   else
     -- FAIL-HARD ACROSS LAYERS (the 2026-07-10 rule): a failed action delivers NIL —
     -- bridge.rpc has already surfaced the error. `result or {}` here converted every
     -- contract violation into silent half-behavior; that fallback shipped the
-    -- session-door disaster and is permanently banned.
+    -- workspace-door disaster and is permanently banned.
     bridge.rpc(thread, method, params, function(result) if callback then callback(result) end end)
   end
 end
 
 -- ── Client-level actions ────────────────────────────────────────────
 
--- A session-aware notification: prefixes the model display so the user
--- knows which session it's about.
-M.notify = function(msg, level, session)
+-- A workspace-aware notification: prefixes the model display so the user
+-- knows which workspace it's about.
+M.notify = function(msg, level, workspace)
   state.mark_interacted()
-  local prefix = state.get_model_display(session)
+  local prefix = state.get_model_display(workspace)
   vim.notify(prefix .. ": " .. msg, level or vim.log.levels.INFO)
   pcall(vim.cmd, "redrawstatus! | redrawtabline")
 end

@@ -5,10 +5,10 @@ local NAME = "05_op_parse_logentry"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
 local ok, err = pcall(function()
-  -- Need a session for the log/entry to belong to.
+  -- Need a workspace for the log/entry to belong to.
   local fresh = string.format("plurnk-nvim-test-%d-%d", vim.loop.hrtime(), math.random(1, 1e6))
-  local sess = H.call("session.create", { name = fresh })
-  H.assert_type(sess.id, "number", "session id")
+  local sess = H.call("workspace.create", { name = fresh })
+  H.assert_type(sess.id, "number", "workspace id")
 
   -- Tap log/entry notifications. The dispatch already routes them through
   -- state; we additionally observe them by patching the handler.

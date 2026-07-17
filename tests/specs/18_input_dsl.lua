@@ -18,7 +18,7 @@ local ok, err = pcall(function()
     table.insert(sent, { method = method, params = params })
   end
 
-  require("plurnk.run_tab").open("smoke")
+  require("plurnk.worker_tab").open("smoke")
   local buf = vim.api.nvim_get_current_buf()
   H.assert_match(vim.api.nvim_buf_get_name(buf), "plurnk://input/smoke", "input focused")
 
@@ -28,11 +28,11 @@ local ok, err = pcall(function()
   H.assert_eq(sent[1].params.text, "<<SEND[200]:hi:SEND", "raw DSL passes verbatim")
   H.assert_eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1], "", "input cleared after submit")
 
-  -- <<LOOK is the off-run inspection (TUI parity): a READ for the HUMAN, routed
+  -- <<LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, routed
   -- to op.look (never op.parse — LOOK isn't a journaled op), content rendered
   -- into the waterfall locally. A failed look surfaces; never a silent nothing.
   local appended = {}
-  require("plurnk.run_tab").append_line = function(_, line) appended[#appended + 1] = line end
+  require("plurnk.worker_tab").append_line = function(_, line) appended[#appended + 1] = line end
   require("plurnk.client").send = function(method, params, _, cb)
     table.insert(sent, { method = method, params = params })
     if cb then cb({ status = 200, content = "line one\nline two" }) end
@@ -44,7 +44,7 @@ local ok, err = pcall(function()
   H.assert_truthy(#appended >= 2, "the content rendered into the waterfall (" .. #appended .. " lines)")
   H.assert_match(table.concat(appended, "\n"), "line two", "content lines land verbatim")
 
-  require("plurnk.state").set_session_id("smoke", 1)
+  require("plurnk.state").set_workspace_id("smoke", 1)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "hello there" })
   vim.api.nvim_feedkeys("\r", "x", false)
   local last = sent[#sent]

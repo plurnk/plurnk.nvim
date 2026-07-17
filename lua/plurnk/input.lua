@@ -1,4 +1,4 @@
--- Chat input scratch buffer. Lives at the bottom of the session tab.
+-- Chat input scratch buffer. Lives at the bottom of the workspace tab.
 -- Vim-canonical: <CR> from NORMAL mode submits; <Esc> drops to normal to
 -- navigate/submit; window nav is `<C-w>k` (vim's own), not a custom shortcut.
 -- We DO `startinsert` on open (operator, 2026-06-19): the box is always empty
@@ -8,21 +8,21 @@
 local M = {}
 local INPUT_HEIGHT = 3
 
-local function buffer_name(session_name, run_id)
-  return "plurnk://input/" .. (session_name or "scratch") .. "/" .. (run_id or "pending")
+local function buffer_name(workspace_name, worker_id)
+  return "plurnk://input/" .. (workspace_name or "scratch") .. "/" .. (worker_id or "pending")
 end
 
--- Exposed so run_tab can re-derive the input buffer's URI on session.rename
--- (the session is a mutable handle; its open buffers follow the new name).
+-- Exposed so worker_tab can re-derive the input buffer's URI on workspace.rename
+-- (the workspace is a mutable handle; its open buffers follow the new name).
 M.buffer_name = buffer_name
 
-local function submit(buf, session_name)
+local function submit(buf, workspace_name)
   if not vim.api.nvim_buf_is_valid(buf) then return end
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local text = vim.fn.trim(table.concat(lines, "\n"))
   if text == "" then return end
 
-  -- <<LOOK — the off-run inspection (TUI parity): a READ for the HUMAN, not the
+  -- <<LOOK — the off-worker inspection (TUI parity): a READ for the HUMAN, not the
   -- model. Routed to op.look (the module rewrites LOOK→READ; Engine.look mints no
   -- log row); content renders into the waterfall locally. A failed look SURFACES.
   if text:upper():sub(1, 6) == "<<LOOK" then
@@ -33,9 +33,9 @@ local function submit(buf, session_name)
         client.notify("look failed: " .. tostring(type(result) == "table" and (result.error or result.status) or "no result"), vim.log.levels.WARN)
         return
       end
-      local run_tab = require("plurnk.run_tab")
+      local worker_tab = require("plurnk.worker_tab")
       for line in (result.content .. "\n"):gmatch("(.-)\n") do
-        run_tab.append_line(session_name, "  " .. line)
+        worker_tab.append_line(workspace_name, "  " .. line)
       end
     end)
     return
@@ -75,17 +75,17 @@ local function submit(buf, session_name)
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
 
-  -- Ensure plurnk_session is bound to this buffer so commands.prompt's
-  -- active_session() picks it up — the buffer-local var is the source
-  -- of truth for which session the prompt is going to.
-  if session_name then vim.b[buf].plurnk_session = session_name end
+  -- Ensure plurnk_workspace is bound to this buffer so commands.prompt's
+  -- active_workspace() picks it up — the buffer-local var is the source
+  -- of truth for which workspace the prompt is going to.
+  if workspace_name then vim.b[buf].plurnk_workspace = workspace_name end
 
-  -- Prompts go to the connection's BOUND run. Submitting in another
-  -- run's input means "switch to that run, then speak" — rebind first.
-  local target_run = vim.b[buf].plurnk_run_id
-  local current_run = session_name and require("plurnk.state").get_run_id(session_name)
-  if target_run and current_run and target_run ~= current_run then
-    require("plurnk.commands").switch_run(session_name, target_run, function()
+  -- Prompts go to the connection's BOUND worker. Submitting in another
+  -- worker's input means "switch to that worker, then speak" — rebind first.
+  local target_worker = vim.b[buf].plurnk_worker_id
+  local current_worker = workspace_name and require("plurnk.state").get_worker_id(workspace_name)
+  if target_worker and current_worker and target_worker ~= current_worker then
+    require("plurnk.commands").switch_worker(workspace_name, target_worker, function()
       require("plurnk.commands").prompt({ args = text, range = 0, flags = flags })
     end)
     return
@@ -96,7 +96,7 @@ end
 
 -- Decorate the input window (no numbers, wrap on, fixed-height). No
 -- winbar: it spent a third of the 3-line split on a static hint; the
--- session identity lives on the waterfall winbar, <CR> submit lives in
+-- workspace identity lives on the waterfall winbar, <CR> submit lives in
 -- the docs. All 3 rows are for typing.
 local function decorate_input_win(win)
   vim.wo[win].wrap = true
@@ -107,25 +107,25 @@ local function decorate_input_win(win)
   vim.wo[win].cursorline = true
 end
 
-local function bind_keymaps(buf, session_name)
-  vim.keymap.set("n", "<CR>", function() submit(buf, session_name) end,
+local function bind_keymaps(buf, workspace_name)
+  vim.keymap.set("n", "<CR>", function() submit(buf, workspace_name) end,
     { buffer = buf, silent = true, desc = "Plurnk: submit prompt" })
 end
 
 -- Create the input split in the CURRENT tab (assumes the waterfall
--- window is already set up — called from run_tab.open). One input per
--- (session, run); run_id may be nil pre-resolution (run_tab adopts the
--- record and restamps plurnk_run_id when the id is learned). Returns
+-- window is already set up — called from worker_tab.open). One input per
+-- (workspace, worker); worker_id may be nil pre-resolution (worker_tab adopts the
+-- record and restamps plurnk_worker_id when the id is learned). Returns
 -- buf, win.
-M.create_in_tab = function(session_name, run_id)
-  -- Reuse an existing input buffer for this (session, run).
-  local existing = vim.fn.bufnr(buffer_name(session_name, run_id))
+M.create_in_tab = function(workspace_name, worker_id)
+  -- Reuse an existing input buffer for this (workspace, worker).
+  local existing = vim.fn.bufnr(buffer_name(workspace_name, worker_id))
   local buf
   if existing ~= -1 and vim.api.nvim_buf_is_valid(existing) then
     buf = existing
   else
     buf = vim.api.nvim_create_buf(false, true)
-    pcall(vim.api.nvim_buf_set_name, buf, buffer_name(session_name, run_id))
+    pcall(vim.api.nvim_buf_set_name, buf, buffer_name(workspace_name, worker_id))
     vim.bo[buf].buftype = "nofile"
     vim.bo[buf].bufhidden = "hide"
     vim.bo[buf].swapfile = false
@@ -136,25 +136,25 @@ M.create_in_tab = function(session_name, run_id)
   vim.api.nvim_win_set_buf(win, buf)
   decorate_input_win(win)
 
-  if session_name then vim.b[buf].plurnk_session = session_name end
-  if run_id then vim.b[buf].plurnk_run_id = run_id end
-  bind_keymaps(buf, session_name)
+  if workspace_name then vim.b[buf].plurnk_workspace = workspace_name end
+  if worker_id then vim.b[buf].plurnk_worker_id = worker_id end
+  bind_keymaps(buf, workspace_name)
   -- Fresh empty box → start in insert; the only possible action is to type.
   vim.cmd("startinsert")
   return buf, win
 end
 
 -- Back-compat wrapper. Called by `:AI` (no args) — opens the full
--- run-tab layout (waterfall on top, input on the bottom) and focuses
--- the input. If no session is attached, the caller is expected to
+-- worker-tab layout (waterfall on top, input on the bottom) and focuses
+-- the input. If no workspace is attached, the caller is expected to
 -- resolve one first; if none was passed we just open a scratch input.
-M.open = function(session_name)
-  if session_name then
-    require("plurnk.run_tab").open(session_name)
+M.open = function(workspace_name)
+  if workspace_name then
+    require("plurnk.worker_tab").open(workspace_name)
     return
   end
-  -- No session — fallback: a lone scratch input split. This path is
-  -- used very early in :AI flows before session.create returns.
+  -- No workspace — fallback: a lone scratch input split. This path is
+  -- used very early in :AI flows before workspace.create returns.
   vim.cmd("botright " .. INPUT_HEIGHT .. "split")
   local win = vim.api.nvim_get_current_win()
   local buf = vim.api.nvim_create_buf(false, true)

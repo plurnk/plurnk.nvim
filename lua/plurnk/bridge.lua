@@ -1,10 +1,10 @@
 -- The nvim bridge transport (nvim#65 phase 2/3) — mirrors the client's
 -- BridgeTransport. When PLURNK_AGUI_URL is set, runs ride agui.run (curl -N SSE)
 -- with each event un-projected into the SAME dispatch.handle_notification the WS
--- path feeds, so the run-tab renders unchanged; verbs + resolve ride the
--- management + resolve endpoints. The threadId IS the session (workspace) name,
--- verbatim — no prefix, no forging (module §agui-thread-is-run: the session is the
--- world, the thread binds its model run); session options ride the first run's forwardedProps.
+-- path feeds, so the worker-tab renders unchanged; verbs + resolve ride the
+-- management + resolve endpoints. The threadId IS the workspace (workspace) name,
+-- verbatim — no prefix, no forging (module §agui-thread-is-run: the workspace is the
+-- world, the thread binds its model worker); workspace options ride the first run's forwardedProps.
 local M = {}
 local agui = require("plurnk.agui")
 
@@ -23,7 +23,7 @@ end
 function M.enabled() return true end
 
 -- Run a prompt through the bridge. Events un-project into the dispatcher (the
--- run-tab renders identically to WS); on_done(finalStatus). Returns the vim.system
+-- worker-tab renders identically to WS); on_done(finalStatus). Returns the vim.system
 -- handle (handle:kill() = /stop, the bridge cancels on hangup).
 function M.run(thread_id, prompt, opts, on_done)
   local t = M.target()
@@ -45,7 +45,7 @@ function M.run(thread_id, prompt, opts, on_done)
     pcall(dispatch.handle_notification, n)
   end
   -- resolve.lua answers via M.resolve below; the resume run's events feed the SAME
-  -- on_event/on_done, so the run-tab renders the continuation seamlessly.
+  -- on_event/on_done, so the worker-tab renders the continuation seamlessly.
   M._active = { thread_id = thread_id, on_event = on_event, on_done = function(_)
     -- A stream that died without terminal truth is a broken wire — 502, never 200.
     if not paused and on_done then on_done(final or 502) end

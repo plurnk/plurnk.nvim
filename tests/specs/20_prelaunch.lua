@@ -24,24 +24,24 @@ local ok, err = pcall(function()
 
   -- ── In-flight switch warns; idle switch is silent ──────────────────
   local state = require("plurnk.state")
-  state.set_session_id("busy", 9)
-  state.set_active_session_name("busy")
-  vim.b.plurnk_session = "busy"
-  state.set_run_name("busy", "main-thread")
+  state.set_workspace_id("busy", 9)
+  state.set_active_workspace_name("busy")
+  vim.b.plurnk_workspace = "busy"
+  state.set_worker_name("busy", "main-thread")
   state.set_loop_inflight("busy", true)
 
   notes = {}
-  -- switch_run to a different run forces fresh_connection.
-  require("plurnk.commands").switch_run("busy", 777, function() end)
+  -- switch_worker to a different run forces fresh_connection.
+  require("plurnk.commands").switch_worker("busy", 777, function() end)
   local warned = false
   for _, n in ipairs(notes) do
     if n.msg:match("continues on the daemon") and n.msg:match("busy·main%-thread") then warned = true end
   end
-  H.assert_truthy(warned, "in-flight switch warns with session·run")
+  H.assert_truthy(warned, "in-flight switch warns with workspace·run")
 
   state.set_loop_inflight("busy", false)
   notes = {}
-  require("plurnk.commands").switch_run("busy", 778, function() end)
+  require("plurnk.commands").switch_worker("busy", 778, function() end)
   for _, n in ipairs(notes) do
     H.assert_truthy(not n.msg:match("continues on the daemon"), "idle switch stays quiet")
   end
@@ -52,7 +52,7 @@ local ok, err = pcall(function()
   require("plurnk.client").send = function(method, _, _, cb)
     if method == "discover" and cb then
       -- A manifest missing the AG-UI+ markers this client depends on (op.exec/op.look).
-      cb({ methods = { ping = {}, ["session.list"] = {} }, notifications = {} })
+      cb({ methods = { ping = {}, ["workspace.list"] = {} }, notifications = {} })
     end
   end
   notes = {}

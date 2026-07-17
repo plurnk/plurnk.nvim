@@ -1,10 +1,10 @@
 -- Pure state container. No side effects, no requires of plurnk modules.
--- Every accessor requires an explicit session name.
+-- Every accessor requires an explicit workspace name.
 --
 -- Concept mapping from rummy → plurnk:
---   rummy "run alias" → plurnk "session name" (long-lived agent state).
+--   rummy "run alias" → plurnk "workspace name" (long-lived agent state).
 --   rummy "turn"      → plurnk loop turn (within current loop).
---   rummy "cost"      → plurnk `cost_pico` from session.list / session.runs.
+--   rummy "cost"      → plurnk `cost_pico` from workspace.list / workspace.workers.
 --
 -- Dropped from rummy: context_max/effective, budget_*, tokens_in/out
 -- (plurnk wire does not expose these per-loop; the model's packet.system
@@ -16,18 +16,18 @@ local project_path = nil
 local available_aliases = {}  -- providers.list result
 local selected_alias = nil    -- user-picked, consumed by next loop.run
 local interacted = false
-local active_session_name = nil  -- most recently attached session on this connection
+local active_workspace_name = nil  -- most recently attached workspace on this connection
 
--- Per-session state buckets. Keyed by session name.
-local session_states = {}
+-- Per-workspace state buckets. Keyed by workspace name.
+local workspace_states = {}
 
-local function ensure_session(name)
+local function ensure_workspace(name)
   if not name then return nil end
-  if not session_states[name] then
-    session_states[name] = {
-      id = nil,                -- daemon-side session id
-      run_id = nil,            -- attached run id (per-connection)
-      run_name = nil,          -- attached run name
+  if not workspace_states[name] then
+    workspace_states[name] = {
+      id = nil,                -- daemon-side workspace id
+      worker_id = nil,            -- attached worker id (per-connection)
+      worker_name = nil,          -- attached worker name
       model_alias = nil,       -- alias passed on most recent loop.run
       model_display = nil,     -- "(no model)" or "alias=provider/model"
       current_loop_id = nil,
@@ -39,14 +39,14 @@ local function ensure_session(name)
       pending_proposals = {},  -- keyed by logEntryId
     }
   end
-  return session_states[name]
+  return workspace_states[name]
 end
 
 -- ── Project ─────────────────────────────────────────────────────────
 
 -- Default to the editor's cwd when no root was explicitly set. Co-location
 -- makes nvim's cwd the daemon's workspace, and getcwd() is absolute (valid for
--- the daemon). Without this, project_path stays nil and EVERY session.create
+-- the daemon). Without this, project_path stays nil and EVERY workspace.create
 -- goes out headless — projectRoot omitted → daemon stores null → file ops 400,
 -- no git substrate. nvim intends non-headless (`:AI???` is the explicit headless).
 local function resolved_root() return project_path or vim.fn.getcwd() end
@@ -60,8 +60,8 @@ M.set_available_aliases = function(aliases) available_aliases = aliases or {} en
 
 M.set_selected_alias = function(alias) selected_alias = alias end
 
-M.get_active_session_name = function() return active_session_name end
-M.set_active_session_name = function(name) active_session_name = name end
+M.get_active_workspace_name = function() return active_workspace_name end
+M.set_active_workspace_name = function(name) active_workspace_name = name end
 M.consume_selected_alias = function()
   local out = selected_alias
   selected_alias = nil
@@ -73,39 +73,39 @@ end
 M.has_interacted = function() return interacted end
 M.mark_interacted = function() interacted = true end
 
--- ── Session-scoped accessors ────────────────────────────────────────
+-- ── Workspace-scoped accessors ────────────────────────────────────────
 
-M.get_session_id = function(name) local s = ensure_session(name); return s and s.id end
-M.set_session_id = function(name, id) local s = ensure_session(name); if s then s.id = id end end
+M.get_workspace_id = function(name) local s = ensure_workspace(name); return s and s.id end
+M.set_workspace_id = function(name, id) local s = ensure_workspace(name); if s then s.id = id end end
 
-M.get_run_id = function(name) local s = ensure_session(name); return s and s.run_id end
-M.set_run_id = function(name, id) local s = ensure_session(name); if s then s.run_id = id end end
+M.get_worker_id = function(name) local s = ensure_workspace(name); return s and s.worker_id end
+M.set_worker_id = function(name, id) local s = ensure_workspace(name); if s then s.worker_id = id end end
 
-M.get_run_name = function(name) local s = ensure_session(name); return s and s.run_name end
-M.set_run_name = function(name, run) local s = ensure_session(name); if s then s.run_name = run end end
+M.get_worker_name = function(name) local s = ensure_workspace(name); return s and s.worker_name end
+M.set_worker_name = function(name, worker) local s = ensure_workspace(name); if s then s.worker_name = worker end end
 
--- Per-run display labels (run_id → name) for waterfall titles/winbars —
--- the current run_name only covers the bound run.
-M.get_run_label = function(name, run_id)
-  local s = ensure_session(name)
-  return s and s.run_labels and s.run_labels[run_id]
+-- Per-worker display labels (worker_id → name) for waterfall titles/winbars —
+-- the current worker_name only covers the bound worker.
+M.get_worker_label = function(name, worker_id)
+  local s = ensure_workspace(name)
+  return s and s.worker_labels and s.worker_labels[worker_id]
 end
-M.set_run_label = function(name, run_id, label)
-  local s = ensure_session(name)
-  if not s or type(run_id) ~= "number" or not label then return end
-  s.run_labels = s.run_labels or {}
-  s.run_labels[run_id] = label
+M.set_worker_label = function(name, worker_id, label)
+  local s = ensure_workspace(name)
+  if not s or type(worker_id) ~= "number" or not label then return end
+  s.worker_labels = s.worker_labels or {}
+  s.worker_labels[worker_id] = label
 end
 
-M.get_model_alias = function(name) local s = ensure_session(name); return s and s.model_alias end
-M.set_model_alias = function(name, alias) local s = ensure_session(name); if s then s.model_alias = alias end end
+M.get_model_alias = function(name) local s = ensure_workspace(name); return s and s.model_alias end
+M.set_model_alias = function(name, alias) local s = ensure_workspace(name); if s then s.model_alias = alias end end
 
--- The model alias in effect: the one last sent on this session's loop.run,
+-- The model alias in effect: the one last sent on this workspace's loop.run,
 -- else the daemon's active default (providers.list `active`), else nil. Shared
 -- by the winbar (the header) and the statusline so both name the same model the
 -- TUI header does. Converges with @plurnk/plurnk buildHeader's resolution.
 M.get_active_model = function(name)
-  local s = name and session_states[name]
+  local s = name and workspace_states[name]
   if s and s.model_alias then return s.model_alias end
   for _, a in ipairs(available_aliases) do
     if a.active then return a.alias end
@@ -115,8 +115,8 @@ end
 
 -- The active model's context window (svc#263) — the context-gauge denominator.
 -- Only the daemon's active default carries contextSize on providers.list (a
--- session-pinned non-active model reports null), so this is the active default's
--- window; approximate if a session pins a different model.
+-- workspace-pinned non-active model reports null), so this is the active default's
+-- window; approximate if a workspace pins a different model.
 M.get_active_context_size = function()
   for _, a in ipairs(available_aliases) do
     if a.active then return a.contextSize end
@@ -125,35 +125,35 @@ M.get_active_context_size = function()
 end
 
 M.get_model_display = function(name)
-  local s = name and session_states[name]
+  local s = name and workspace_states[name]
   if s and s.model_display then return s.model_display end
   return "🐹"
 end
 M.set_model_display = function(name, display)
-  local s = ensure_session(name); if s then s.model_display = display end
+  local s = ensure_workspace(name); if s then s.model_display = display end
 end
 
-M.get_current_loop_id = function(name) local s = ensure_session(name); return s and s.current_loop_id end
-M.set_current_loop_id = function(name, lid) local s = ensure_session(name); if s then s.current_loop_id = lid end end
+M.get_current_loop_id = function(name) local s = ensure_workspace(name); return s and s.current_loop_id end
+M.set_current_loop_id = function(name, lid) local s = ensure_workspace(name); if s then s.current_loop_id = lid end end
 
-M.get_current_turn = function(name) local s = ensure_session(name); return s and s.current_turn end
-M.set_current_turn = function(name, t) local s = ensure_session(name); if s then s.current_turn = t end end
+M.get_current_turn = function(name) local s = ensure_workspace(name); return s and s.current_turn end
+M.set_current_turn = function(name, t) local s = ensure_workspace(name); if s then s.current_turn = t end end
 
-M.get_final_status = function(name) local s = ensure_session(name); return s and s.final_status end
-M.set_final_status = function(name, st) local s = ensure_session(name); if s then s.final_status = st end end
+M.get_final_status = function(name) local s = ensure_workspace(name); return s and s.final_status end
+M.set_final_status = function(name, st) local s = ensure_workspace(name); if s then s.final_status = st end end
 
--- Real provider usage (plurnk-service #197), accumulated per session
+-- Real provider usage (plurnk-service #197), accumulated per workspace
 -- from loop/terminated — the ONE accumulation point (loop.run's result
 -- carries the same numbers; adding both would double-count).
-M.get_usage = function(name) local s = ensure_session(name); return s and s.usage end
--- Record the LAST loop's usage — a snapshot, NOT a running total. The session
--- lifetime cost is the daemon's to aggregate (svc#254): runs spawn/fork and
--- multiple clients drive one session, so no client sees every turn; a
+M.get_usage = function(name) local s = ensure_workspace(name); return s and s.usage end
+-- Record the LAST loop's usage — a snapshot, NOT a running total. The workspace
+-- lifetime cost is the daemon's to aggregate (svc#254): workers spawn/fork and
+-- multiple clients drive one workspace, so no client sees every turn; a
 -- client-side tally only sums the loops THIS client witnessed — a lie about
 -- money. We show only "what the last loop cost" + account balance (svc#252).
 M.record_loop_usage = function(name, u)
   if type(u) ~= "table" then return end
-  local s = ensure_session(name)
+  local s = ensure_workspace(name)
   if not s then return end
   s.usage = s.usage or { prompt = 0, completion = 0 }
   if type(u.promptTokens) == "number" then s.usage.prompt = u.promptTokens end
@@ -162,57 +162,57 @@ M.record_loop_usage = function(name, u)
   -- (NOT the double-counting promptTokens sum).
   if type(u.contextTokens) == "number" then s.usage.context_tokens = u.contextTokens end
   if type(u.costPico) == "number" then s.cost_pico = u.costPico end  -- last loop's cost, not a total
-  -- sessionCostPico = the DAEMON's authoritative cumulative session total
+  -- sessionCostPico = the DAEMON's authoritative cumulative workspace total
   -- (svc#254), pushed on the wire — NOT a client tally. We only render it.
-  if type(u.sessionCostPico) == "number" then s.session_cost_pico = u.sessionCostPico end
+  if type(u.sessionCostPico) == "number" then s.workspace_cost_pico = u.sessionCostPico end
   if type(u.balancePico) == "number" then s.balance_pico = u.balancePico end  -- account balance snapshot
 end
 
 -- True between loop.run dispatch and loop/terminated — drives the
 -- "switching away from a live loop" notify.
-M.is_loop_inflight = function(name) local s = ensure_session(name); return s and s.loop_inflight or false end
-M.set_loop_inflight = function(name, v) local s = ensure_session(name); if s then s.loop_inflight = not not v end end
+M.is_loop_inflight = function(name) local s = ensure_workspace(name); return s and s.loop_inflight or false end
+M.set_loop_inflight = function(name, v) local s = ensure_workspace(name); if s then s.loop_inflight = not not v end end
 
 -- The abacus: engine:derivation embed_progress toggles this while re-embedding
 -- (token recount). The statusline shows 🧮 on the edge — never a waterfall line,
 -- mirroring the TUI (which toggles a 🧮 prompt slot instead of spamming progress).
-M.is_embedding = function(name) local s = ensure_session(name); return s and s.embedding or false end
-M.set_embedding = function(name, v) local s = ensure_session(name); if s then s.embedding = not not v end end
+M.is_embedding = function(name) local s = ensure_workspace(name); return s and s.embedding or false end
+M.set_embedding = function(name, v) local s = ensure_workspace(name); if s then s.embedding = not not v end end
 
-M.get_status_text = function(name) local s = ensure_session(name); return s and s.status_text end
-M.set_status_text = function(name, text) local s = ensure_session(name); if s then s.status_text = text end end
+M.get_status_text = function(name) local s = ensure_workspace(name); return s and s.status_text end
+M.set_status_text = function(name, text) local s = ensure_workspace(name); if s then s.status_text = text end end
 
--- The LAST loop's cost (snapshot), not a session total — the lifetime total is
--- the daemon's (svc#254), surfaced in `session list`, never reconstructed here.
-M.get_cost_pico = function(name) local s = ensure_session(name); return s and s.cost_pico or 0 end
-M.set_cost_pico = function(name, c) local s = ensure_session(name); if s then s.cost_pico = c or 0 end end
+-- The LAST loop's cost (snapshot), not a workspace total — the lifetime total is
+-- the daemon's (svc#254), surfaced in `workspace list`, never reconstructed here.
+M.get_cost_pico = function(name) local s = ensure_workspace(name); return s and s.cost_pico or 0 end
+M.set_cost_pico = function(name, c) local s = ensure_workspace(name); if s then s.cost_pico = c or 0 end end
 
--- Daemon's authoritative session total (svc#254); nil until the wire carries
+-- Daemon's authoritative workspace total (svc#254); nil until the wire carries
 -- sessionCostPico. Rendered, never reconstructed.
-M.get_session_cost_pico = function(name) local s = ensure_session(name); return s and s.session_cost_pico end
+M.get_workspace_cost_pico = function(name) local s = ensure_workspace(name); return s and s.workspace_cost_pico end
 
 -- Account balance snapshot (svc#252); nil until the wire carries balancePico.
-M.get_balance_pico = function(name) local s = ensure_session(name); return s and s.balance_pico end
+M.get_balance_pico = function(name) local s = ensure_workspace(name); return s and s.balance_pico end
 
-M.get_last_seen_log_id = function(name) local s = ensure_session(name); return s and s.last_seen_log_id or 0 end
+M.get_last_seen_log_id = function(name) local s = ensure_workspace(name); return s and s.last_seen_log_id or 0 end
 M.set_last_seen_log_id = function(name, id)
-  local s = ensure_session(name); if s and id and id > s.last_seen_log_id then s.last_seen_log_id = id end
+  local s = ensure_workspace(name); if s and id and id > s.last_seen_log_id then s.last_seen_log_id = id end
 end
 
 -- ── Proposal tracking ───────────────────────────────────────────────
 
 M.add_proposal = function(name, log_entry_id, proposal)
-  local s = ensure_session(name); if s then s.pending_proposals[log_entry_id] = proposal end
+  local s = ensure_workspace(name); if s then s.pending_proposals[log_entry_id] = proposal end
 end
 M.remove_proposal = function(name, log_entry_id)
-  local s = ensure_session(name); if s then s.pending_proposals[log_entry_id] = nil end
+  local s = ensure_workspace(name); if s then s.pending_proposals[log_entry_id] = nil end
 end
 M.get_proposal = function(name, log_entry_id)
-  local s = name and session_states[name]
+  local s = name and workspace_states[name]
   return s and s.pending_proposals[log_entry_id] or nil
 end
 
--- ── Session/buffer helpers ──────────────────────────────────────────
+-- ── Workspace/buffer helpers ──────────────────────────────────────────
 
 M.is_project_file = function(path)
   local root = resolved_root()
@@ -229,26 +229,26 @@ M.get_relative_path = function(path)
   return path
 end
 
-M.rename_session = function(old_name, new_name)
+M.rename_workspace = function(old_name, new_name)
   if not old_name or not new_name or old_name == new_name then return end
-  if session_states[old_name] then
-    session_states[new_name] = session_states[old_name]
-    session_states[old_name] = nil
+  if workspace_states[old_name] then
+    workspace_states[new_name] = workspace_states[old_name]
+    workspace_states[old_name] = nil
   end
 end
 
-M.all_session_names = function()
+M.all_workspace_names = function()
   local names = {}
-  for k in pairs(session_states) do names[#names+1] = k end
+  for k in pairs(workspace_states) do names[#names+1] = k end
   table.sort(names)
   return names
 end
 
--- Reverse lookup for notification routing: the daemon stamps sessionId
+-- Reverse lookup for notification routing: the daemon stamps workspaceId
 -- on every notification (plurnk-service #191); we key state by name.
-M.session_name_for_id = function(id)
+M.workspace_name_for_id = function(id)
   if type(id) ~= "number" then return nil end
-  for name, s in pairs(session_states) do
+  for name, s in pairs(workspace_states) do
     if s.id == id then return name end
   end
   return nil

@@ -56,7 +56,7 @@ local function get_or_create(entry_id, target)
   return st
 end
 
--- Open (or find) the stream split: below the session waterfall when one
+-- Open (or find) the stream split: below the workspace waterfall when one
 -- exists, else below the current window. Focus stays where the user is.
 local function ensure_window(st)
   if st.win and vim.api.nvim_win_is_valid(st.win)
@@ -173,7 +173,7 @@ end
 
 -- stream/event: a channel grew or transitioned state. Mark dirty; the
 -- flush timer batches ticks into one entry.read.
-M.on_event = function(params, _session_name)
+M.on_event = function(params, _workspace_name)
   if not params or type(params.entryId) ~= "number" then return end
   if type(params.target) ~= "string" or #params.target == 0 then return end
   local st = get_or_create(params.entryId, params.target)
@@ -188,7 +188,7 @@ end
 
 -- stream/concluded: final pull, flush held partials, footer + winbar +
 -- toast; drop tracking (the buffer persists for reading).
-M.on_concluded = function(params, _session_name)
+M.on_concluded = function(params, _workspace_name)
   if not params or type(params.entryId) ~= "number" then return end
   local st = streams[params.entryId]
 

@@ -1,5 +1,5 @@
--- [§nvim-prompt-prefixes][§nvim-stop][§nvim-session-settings]
--- :AI command — prefix-stripping, /stop, ??-new-session.
+-- [§nvim-prompt-prefixes][§nvim-stop][§nvim-workspace-settings]
+-- :AI command — prefix-stripping, /stop, ??-new-workspace.
 -- Pure module path; stubs client.send so no daemon round-trip.
 local NAME = "09_ai_command"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
@@ -17,11 +17,11 @@ local ok, err = pcall(function()
   end
   require("plurnk.client").send = function(method, params, _, cb)
     table.insert(captured, { method = method, params = params })
-    -- For session.create called by `??`, fire the callback (returning the
-    -- run identity directly, §13.5-session-create) so the second send
+    -- For workspace.create called by `??`, fire the callback (returning the
+    -- run identity directly, §13.5-workspace-create) so the second send
     -- (loop.run) actually happens.
-    if method == "session.create" and cb then
-      cb({ id = 99, name = "ai-test-session", runId = 7, runName = "auto-run" })
+    if method == "workspace.create" and cb then
+      cb({ id = 99, name = "ai-test-workspace", workerId = 7, workerName = "auto-run" })
     end
   end
   local function find(list, method)
@@ -29,10 +29,10 @@ local ok, err = pcall(function()
     return nil
   end
 
-  -- Bind a session so prompt() can resolve.
+  -- Bind a workspace so prompt() can resolve.
   local buf = vim.api.nvim_get_current_buf()
-  vim.b[buf].plurnk_session = "smoke"
-  require("plurnk.state").set_session_id("smoke", 1)
+  vim.b[buf].plurnk_workspace = "smoke"
+  require("plurnk.state").set_workspace_id("smoke", 1)
 
   local ai = require("plurnk.commands").ai
 
@@ -71,54 +71,54 @@ local ok, err = pcall(function()
   H.assert_eq(captured[1].params.openPaths[1], "src/a.ts", "@file: first ref")
   H.assert_eq(captured[1].params.openPaths[2], "docs/b.md", "@file: second ref")
 
-  -- :AI?? on a session-attached buffer: drops the bound connection and
-  -- creates a NEW session by rebinding the connection in place
+  -- :AI?? on a workspace-attached buffer: drops the bound connection and
+  -- creates a NEW workspace by rebinding the connection in place
   -- (§13.5-rebind, v0.17.0 — no reconnect).
   local stops = 0
   captured = {}
   require("plurnk.config").setup({ files_items = 5 })
   ai({ args = "?? new chat", range = 0 })
   H.assert_eq(stops, 0, ":AI?? rebinds in place, never drops the socket")
-  H.assert_eq(captured[1].method, "session.create", ":AI?? creates a new session")
-  H.assert_eq(captured[1].params.settings.client, "plurnk.nvim", ":AI?? session.create carries the client id (#249)")
-  H.assert_eq(captured[1].params.settings.filesItems, 5, "filesItems rides session.create when configured (svc#231, CLI convergence)")
+  H.assert_eq(captured[1].method, "workspace.create", ":AI?? creates a new workspace")
+  H.assert_eq(captured[1].params.settings.client, "plurnk.nvim", ":AI?? workspace.create carries the client id (#249)")
+  H.assert_eq(captured[1].params.settings.filesItems, 5, "filesItems rides workspace.create when configured (svc#231, CLI convergence)")
   local lr = find(captured, "loop.run")
   H.assert_truthy(lr, ":AI?? then loop.run")
   H.assert_eq(lr.params.prompt, "new chat", ":AI?? carries prompt")
 
-  -- :AI?? on a fresh buffer with no session: session.create then loop.run.
-  -- Move to a fresh empty buffer so no plurnk_session is bound here.
+  -- :AI?? on a fresh buffer with no workspace: workspace.create then loop.run.
+  -- Move to a fresh empty buffer so no plurnk_workspace is bound here.
   vim.cmd("enew")
-  require("plurnk.state").set_active_session_name(nil)
+  require("plurnk.state").set_active_workspace_name(nil)
   captured = {}
   ai({ args = "?? fresh chat", range = 0 })
-  H.assert_eq(captured[1].method, "session.create", ":AI?? creates session when none attached")
+  H.assert_eq(captured[1].method, "workspace.create", ":AI?? creates workspace when none attached")
   local lr2 = find(captured, "loop.run")
   H.assert_truthy(lr2, ":AI?? then loop.run")
-  H.assert_eq(lr2.params.prompt, "fresh chat", ":AI?? carries prompt after session.create")
+  H.assert_eq(lr2.params.prompt, "fresh chat", ":AI?? carries prompt after workspace.create")
 
-  -- :AI/stop with an active session — cancels the run's loop over the
+  -- :AI/stop with an active workspace — cancels the run's loop over the
   -- wire (loop.cancel landed in plurnk-service 0.8.0).
   captured = {}
   ai({ args = "/stop", range = 0 })
   H.assert_eq(captured[1].method, "loop.cancel", ":AI/stop sends loop.cancel")
 
-  -- :AI/stop with NO session — proposal cleanup only, no RPC.
+  -- :AI/stop with NO workspace — proposal cleanup only, no RPC.
   vim.cmd("enew")
-  require("plurnk.state").set_active_session_name(nil)
-  vim.b.plurnk_session = nil
+  require("plurnk.state").set_active_workspace_name(nil)
+  vim.b.plurnk_workspace = nil
   captured = {}
   ai({ args = "/stop", range = 0 })
-  H.assert_eq(#captured, 0, ":AI/stop without session sends nothing")
+  H.assert_eq(#captured, 0, ":AI/stop without workspace sends nothing")
 
-  -- #268 — config.auto_read_agents flows to session.create as settings.autoReadAgents.
+  -- #268 — config.auto_read_agents flows to workspace.create as settings.autoReadAgents.
   require("plurnk.config").setup({ auto_read_agents = false })
   vim.cmd("enew")
-  require("plurnk.state").set_active_session_name(nil)
-  vim.b.plurnk_session = nil
+  require("plurnk.state").set_active_workspace_name(nil)
+  vim.b.plurnk_workspace = nil
   captured = {}
   ai({ args = "?? off-agents", range = 0 })
-  local sc = find(captured, "session.create")
+  local sc = find(captured, "workspace.create")
   H.assert_eq(sc.params.settings.autoReadAgents, false, "auto_read_agents=false → settings.autoReadAgents")
   H.assert_eq(sc.params.settings.client, "plurnk.nvim", "client id still present alongside the override")
 end)

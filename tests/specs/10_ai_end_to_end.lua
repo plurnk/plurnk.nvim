@@ -1,8 +1,8 @@
 -- [§nvim-conversation-e2e]
 -- End-to-end :AI flow against the live daemon. This is the spec that
--- would have caught the missing session-routing in v0.3.0: drives the
+-- would have caught the missing workspace-routing in v0.3.0: drives the
 -- exact command the user types, waits for loop/terminated, then asserts
--- the run_tab buffer contains the model's broadcast response.
+-- the worker_tab buffer contains the model's broadcast response.
 local NAME = "10_ai_end_to_end"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
@@ -27,12 +27,12 @@ local ok, err = pcall(function()
 
   H.assert_eq(terminated.finalStatus, 200, "loop terminated 200")
 
-  local session_buf
+  local workspace_buf
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(b):match("^plurnk://session%-") then session_buf = b end
+    if vim.api.nvim_buf_get_name(b):match("^plurnk://workspace%-") then workspace_buf = b end
   end
-  H.assert_truthy(session_buf, "run_tab session buffer exists")
-  local content = table.concat(vim.api.nvim_buf_get_lines(session_buf, 0, -1, false), "\n")
+  H.assert_truthy(workspace_buf, "worker_tab workspace buffer exists")
+  local content = table.concat(vim.api.nvim_buf_get_lines(workspace_buf, 0, -1, false), "\n")
   H.assert_match(content, "💡", "waterfall has the answer glyph")
   H.assert_match(content, "💡    200", "waterfall has terminal SEND status")
   -- The leading line is the SEND[200] header itself, not a blank.

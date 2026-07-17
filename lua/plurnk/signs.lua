@@ -1,5 +1,5 @@
 -- Membership gutter signs (svc#243). On entering a project file (and after any
--- membership change), fetch session.members and place a line-1 gutter sign for
+-- membership change), fetch workspace.members and place a line-1 gutter sign for
 -- its RESOLVED effect — daemon-resolved, ZERO client glob-matching (the daemon
 -- owns git + the overlay; the client only signs what it's told). Only the
 -- EXCEPTIONS are signed — a plain member (the default) gets nothing, so the
@@ -7,7 +7,7 @@
 --   view    🔒  — a member, but read-only to the model (/view)
 --   hidden  🚫  — a tracked file the model can't see (/hide)
 -- A plain member and any non-member project file get no sign.
--- No cache: the daemon is co-located, so session.members is a cheap local call
+-- No cache: the daemon is co-located, so workspace.members is a cheap local call
 -- on each BufEnter (membership is not money — nothing here is worth staleness).
 local M = {}
 local ns = vim.api.nvim_create_namespace("plurnk_membership_signs")
@@ -44,11 +44,11 @@ local function sign_buf(bufnr, resolved)
   place(bufnr, effect)
 end
 
--- Fetch session.members → re-sign every visible project buffer. No cache: called
+-- Fetch workspace.members → re-sign every visible project buffer. No cache: called
 -- on BufEnter and after every membership change (pick/hide/view/repo/drop).
-M.refresh = function(session)
-  if not session then return end
-  require("plurnk.client").send("session.members", {}, false, function(result)
+M.refresh = function(workspace)
+  if not workspace then return end
+  require("plurnk.client").send("workspace.members", {}, false, function(result)
     if type(result) ~= "table" then return end
     local by_path, hidden = {}, {}
     for _, m in ipairs(result.members or {}) do by_path[m.path] = m.effect end
@@ -66,8 +66,8 @@ M.setup = function()
   vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, {
     group = grp,
     callback = function()
-      local session = require("plurnk.state").get_active_session_name()
-      if session then M.refresh(session) end
+      local workspace = require("plurnk.state").get_active_workspace_name()
+      if workspace then M.refresh(workspace) end
     end,
   })
 end
