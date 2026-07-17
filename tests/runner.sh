@@ -10,6 +10,12 @@
 # manage). Without it, the runner boots a PRIVATE plurnk-service from the
 # sibling repo — tmp DB, ephemeral port, killed on exit — so the suite
 # never touches a developer's live daemon on 3044.
+#
+# Model env: export PLURNK_MODEL=<alias> (forwarded into the private daemon —
+# the operator's active default may be broken, svc#501) plus the box's envelope
+# quartet (PLURNK_SERVICE_{CONTEXT_WINDOW,REASONING,COMPLETION,SAFETY}_<alias>)
+# matching the serving box's launch flags — floor-default tokenomics against a
+# mismatched box make model loops wander past every timeout.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -51,16 +57,28 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   (
     cd "$SERVICE_DIR"
     printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" > "$DAEMON_DIR/test.env"
+    # The model-driven specs need an ACTIVE model. The operator's ~/.plurnk/.env may
+    # name none (svc#501); a caller-exported PLURNK_MODEL outranks it in the daemon's
+    # cascade via this file. Alias declarations still come from the operator env.
+    [ -n "${PLURNK_MODEL:-}" ] && printf 'PLURNK_MODEL=%s\n' "$PLURNK_MODEL" >> "$DAEMON_DIR/test.env"
     # the service loads env IN-SCRIPT (process.loadEnvFile overrides process env), so
     # exports don't survive — its own --env-file flags, loaded last, are the override.
-    node "$SERVICE_BIN" --env-file-if-exists=.env --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
+    # A TS-source entrypoint (the monorepo) runs its WORKSPACE SIBLINGS from source
+    # too — plurnk-dev is the monorepo's own convention. Without it, providers load
+    # lazily from stale dist/ and the first loop dies on ERR_MODULE_NOT_FOUND while
+    # the control plane answers fine.
+    NODE_CONDITIONS=""
+    case "$SERVICE_BIN" in *.ts) NODE_CONDITIONS="--conditions=plurnk-dev" ;; esac
+    node $NODE_CONDITIONS "$SERVICE_BIN" --env-file-if-exists=.env --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
   # AG-UI+ is the client surface. The banner prints the CONFIGURED port (0 stays 0 —
   # service bug, filed), so allocate a concrete free port up front and pass it in.
   # (Port was exported before boot; just await the module answering.)
-  for _ in $(seq 1 50); do
+  # A --conditions=plurnk-dev daemon compiles the TS graph on boot — well past the
+  # old 10s window; specs 01-05 starved on cold boots. 60s, first answer wins.
+  for _ in $(seq 1 300); do
     curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}' && break
     sleep 0.2
   done
@@ -88,13 +106,25 @@ reboot_daemon() {
   (
     cd "$SERVICE_DIR"
     printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" > "$DAEMON_DIR/test.env"
+    # The model-driven specs need an ACTIVE model. The operator's ~/.plurnk/.env may
+    # name none (svc#501); a caller-exported PLURNK_MODEL outranks it in the daemon's
+    # cascade via this file. Alias declarations still come from the operator env.
+    [ -n "${PLURNK_MODEL:-}" ] && printf 'PLURNK_MODEL=%s\n' "$PLURNK_MODEL" >> "$DAEMON_DIR/test.env"
     # the service loads env IN-SCRIPT (process.loadEnvFile overrides process env), so
     # exports don't survive — its own --env-file flags, loaded last, are the override.
-    node "$SERVICE_BIN" --env-file-if-exists=.env --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
+    # A TS-source entrypoint (the monorepo) runs its WORKSPACE SIBLINGS from source
+    # too — plurnk-dev is the monorepo's own convention. Without it, providers load
+    # lazily from stale dist/ and the first loop dies on ERR_MODULE_NOT_FOUND while
+    # the control plane answers fine.
+    NODE_CONDITIONS=""
+    case "$SERVICE_BIN" in *.ts) NODE_CONDITIONS="--conditions=plurnk-dev" ;; esac
+    node $NODE_CONDITIONS "$SERVICE_BIN" --env-file-if-exists=.env --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
-  for _ in $(seq 1 50); do
+  # A --conditions=plurnk-dev daemon compiles the TS graph on boot — well past the
+  # old 10s window; specs 01-05 starved on cold boots. 60s, first answer wins.
+  for _ in $(seq 1 300); do
     curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}' && break
     sleep 0.2
   done

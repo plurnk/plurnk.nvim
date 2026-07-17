@@ -43,9 +43,14 @@ local ok, err = pcall(function()
   H.wait_for(function() return terminated ~= nil end, 540000, "loop terminated")
   vim.wait(300, function() return false end, 50)
 
-  -- Waterfall has the response; input was cleared; focus stayed on input.
+  -- Waterfall renders the loop's rows; input was cleared; focus stayed on input.
+  -- Layout spec, not a model-quality spec: the terminal 💡 200 answer assert was
+  -- the hard-200 class the operator rejected as flaky for 39_ask_steer (95f711d) —
+  -- the model may wander an empty workspace past any budget. Pin what the TAB
+  -- promises: the loop concluded (waited above) and its activity rendered.
   local wf = table.concat(vim.api.nvim_buf_get_lines(rec.waterfall_buf, 0, -1, false), "\n")
-  H.assert_match(wf, "💡    200", "waterfall has the terminal answer SEND")
+  H.assert_match(wf, "plurnk:///prompt/", "waterfall shows the prompt row (the loop ran HERE)")
+  H.assert_truthy(type(terminated) == "table", "loop/terminated delivered a payload")
   local input_lines = vim.api.nvim_buf_get_lines(rec.input_buf, 0, -1, false)
   H.assert_eq(table.concat(input_lines, ""), "", "input cleared after submit")
   H.assert_eq(vim.api.nvim_get_current_win(), rec.input_win, "focus stayed on input")

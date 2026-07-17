@@ -59,16 +59,35 @@ end
 -- emits (log/entry from a client op, a proposal from a gated EXEC, stream chunks)
 -- — feed them through the same unproject→dispatch path as a run, or client ops
 -- would render nothing and gated ops would hang unresolved.
+-- ONE management lane (the WS-era socket, restored): the module routes a
+-- workspace's stream/result events to the LAST-bound run, so concurrent action
+-- runs steal each other's streams (a resumed exec's output lands on a finished
+-- members-fetch). Serialize: one action run in flight, the rest queue.
+local lane = { busy = false, queue = {} }
+local function lane_next()
+  local job = table.remove(lane.queue, 1)
+  if job == nil then lane.busy = false; return end
+  job()
+end
+local function lane_run(job)
+  if lane.busy then lane.queue[#lane.queue + 1] = job; return end
+  lane.busy = true
+  job()
+end
+
 function M.rpc(thread_id, method, params, cb)
   local t = M.target()
   local dispatch = require("plurnk.dispatch")
   local tool = {}
-  agui.rpc(t, thread_id, method, params, function(result, err)
-    if err ~= nil then vim.notify("plurnk: " .. method .. " — " .. err, vim.log.levels.WARN) end
-    if cb then cb(result) end
-  end, function(e)
-    local n = agui.unproject(e, tool)
-    if n ~= nil then pcall(dispatch.handle_notification, n) end
+  lane_run(function()
+    agui.rpc(t, thread_id, method, params, function(result, err)
+      if err ~= nil then vim.notify("plurnk: " .. method .. " — " .. err, vim.log.levels.WARN) end
+      vim.schedule(lane_next)
+      if cb then cb(result) end
+    end, function(e)
+      local n = agui.unproject(e, tool)
+      if n ~= nil then pcall(dispatch.handle_notification, n) end
+    end)
   end)
 end
 
@@ -86,9 +105,14 @@ function M.resolve(thread_id, r, cb)
     if n ~= nil then pcall(dispatch.handle_notification, n) end
   end
   local on_done = (a ~= nil and a.thread_id == thread_id) and a.on_done or function(_) end
-  agui.resolve(t, vim.tbl_extend("force", { threadId = thread_id }, r), on_event, function(code)
-    on_done(code)
-    if cb then cb(code) end
+  -- The resume run rides the same lane: its rebound stream carries the continued
+  -- work's events (exec output, loop rows) — nothing may steal the binding mid-run.
+  lane_run(function()
+    agui.resolve(t, vim.tbl_extend("force", { threadId = thread_id }, r), on_event, function(code)
+      vim.schedule(lane_next)
+      on_done(code)
+      if cb then cb(code) end
+    end)
   end)
 end
 
