@@ -130,7 +130,13 @@ function M.rpc(target, thread_id, method, params, cb, on_event)
       return
     end
     if on_event then on_event(e) end   -- everything else the dispatch emitted rides here
-  end, function(_)
+  end, function(code)
+    -- A stream that ended with NEITHER a result NOR an action error never reached
+    -- a daemon (curl 7 refused / 6 unresolvable / 28 timeout) — name it; a silent
+    -- nil here was the old behavior and it hid the first-run moment entirely.
+    if result == nil and errmsg == nil then
+      errmsg = "no daemon listening (curl exit " .. tostring(code) .. ")"
+    end
     if cb then cb(result, errmsg) end
   end)
 end

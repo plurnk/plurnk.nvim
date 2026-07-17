@@ -31,6 +31,10 @@ orphan citation / rotted comment ref).
   truth is 502; a missing action result is an error; resolve acks are nil on failed
   delivery. Errors cross every layer intact.
 - **The stale-daemon probe** {§nvim-stale-daemon-probe} — `discover` runs once per
+- **Cold no-daemon onboarding** {§nvim-connection-onboarding} — a management run against a dead
+  port surfaces one WARN notify naming the condition with the quick-start (`npx
+  @plurnk/plurnk-service start`) and install lines — one message with the CLI's
+  `client:connection:refused` block; never a silent nil result.
   instance; a manifest missing the AG-UI+ markers this client depends on (`op.exec`,
   `op.look`) warns bluntly that the daemon is older than the client.
 - **Control-plane liveness** {§nvim-control-plane} — `ping` answers an empty-object

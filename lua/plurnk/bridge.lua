@@ -81,7 +81,16 @@ function M.rpc(thread_id, method, params, cb)
   local tool = {}
   lane_run(function()
     agui.rpc(t, thread_id, method, params, function(result, err)
-      if err ~= nil then vim.notify("plurnk: " .. method .. " — " .. err, vim.log.levels.WARN) end
+      if err ~= nil and err:find("no daemon listening", 1, true) then
+        -- The first-run moment, not a stack trace (one message with the CLI, §cli-connection-onboarding):
+        vim.notify(table.concat({
+          "plurnk: no daemon is running — the plurnk client connects to one.",
+          "  Quick start (no install):  npx @plurnk/plurnk-service start",
+          "  Or install it:             npm i -g @plurnk/plurnk-service && plurnk-service",
+        }, "\n"), vim.log.levels.WARN)
+      elseif err ~= nil then
+        vim.notify("plurnk: " .. method .. " — " .. err, vim.log.levels.WARN)
+      end
       vim.schedule(lane_next)
       if cb then cb(result) end
     end, function(e)
