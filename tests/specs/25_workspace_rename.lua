@@ -37,16 +37,16 @@ local ok, err = pcall(function()
 
   -- The open tab's buffers follow the rename. The input buffer's URI carries
   -- the workspace, and the tab/statusline `%f` reads that name — so it must stop
-  -- showing plurnk://input/<old>/… after a rename (operator bug, 2026-06-20).
+  -- showing plurnk-nvim://input/<old>/… after a rename (operator bug, 2026-06-20).
   local worker_tab = require("plurnk.worker_tab")
   worker_tab.reset()
   worker_tab.open("renameme")
   local rec = worker_tab.get_record("renameme")
   H.assert_truthy(rec and rec.input_buf, "open created an input buffer")
-  H.assert_match(vim.api.nvim_buf_get_name(rec.input_buf), "plurnk://input/renameme/", "input URI carries the workspace")
+  H.assert_match(vim.api.nvim_buf_get_name(rec.input_buf), "plurnk%-nvim://input/renameme/", "input URI carries the workspace")
   worker_tab.rename("renameme", "renamed")
   local nm = vim.api.nvim_buf_get_name(rec.input_buf)
-  H.assert_match(nm, "plurnk://input/renamed/", "input URI follows the rename")
+  H.assert_match(nm, "plurnk%-nvim://input/renamed/", "input URI follows the rename")
   H.assert_truthy(not nm:match("/renameme/"), "no stale old-workspace URI in the input buffer name")
 end)
 

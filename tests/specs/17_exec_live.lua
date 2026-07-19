@@ -15,7 +15,7 @@ local ok, err = pcall(function()
 
   local function stream_lines()
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_get_name(buf):match("^plurnk://stream/") then
+      if vim.api.nvim_buf_get_name(buf):match("^plurnk%-nvim://stream/") then
         return vim.api.nvim_buf_get_lines(buf, 0, -1, false)
       end
     end

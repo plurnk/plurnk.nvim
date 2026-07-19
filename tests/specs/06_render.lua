@@ -97,9 +97,9 @@ local ok, err = pcall(function()
   H.assert_eq(R2(202), "💤", "202 → 💤 parked")
   H.assert_eq(R2(499), "✋", "499 → ✋ abort")
 
-  -- Prompt entry (plurnk://prompt/*) renders as USER SPEECH, not an EDIT trace.
+  -- Prompt entry (prompt:///<loop>/<turn>, svc#527) renders as USER SPEECH, not an EDIT trace.
   local prompt_block = R({
-    op = "EDIT", origin = "plurnk", scheme = "plurnk", pathname = "prompt/3/1",
+    op = "EDIT", origin = "plurnk", scheme = "prompt", pathname = "/3/1",
     status_rx = 201, tx = { body = "What is the capital of France?" },
   })
   H.assert_match(prompt_block[1], "🐹", "prompt speaks as the user (converged brand head)")
@@ -108,18 +108,18 @@ local ok, err = pcall(function()
   H.assert_truthy(not prompt_block[1]:match("📝"), "no EDIT glyph on prompts")
 
   local long_prompt = R({
-    op = "EDIT", origin = "plurnk", scheme = "plurnk", pathname = "prompt/3/1",
+    op = "EDIT", origin = "plurnk", scheme = "prompt", pathname = "/3/1",
     status_rx = 201, tx = { body = "line one\nline two" },
   })
   H.assert_eq(#long_prompt, 3, "multi-line prompt = header + body lines")
   H.assert_match(long_prompt[2], "line one", "prompt body present")
 
-  -- Non-prompt plurnk:// EDIT stays an op trace.
+  -- A worker:/// entry EDIT stays an op trace (not a prompt).
   local manifest = R({
-    op = "EDIT", origin = "plurnk", scheme = "plurnk", pathname = "manifest.json",
+    op = "EDIT", origin = "model", scheme = "worker", pathname = "/manifest.json",
     status_rx = 201, tx = { body = "{}" },
   })
-  H.assert_match(manifest[1], "📝", "non-prompt plurnk EDIT keeps the EDIT glyph")
+  H.assert_match(manifest[1], "📝", "a non-prompt worker:/// EDIT keeps the EDIT glyph")
 
   -- Coordinate prefix (svc#208): rendered from the wire ordinals
   -- (loop_seq/turn_seq), padded; DB ids (loop_id/turn_id) never used.

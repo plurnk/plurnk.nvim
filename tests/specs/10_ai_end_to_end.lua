@@ -29,7 +29,7 @@ local ok, err = pcall(function()
 
   local workspace_buf
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(b):match("^plurnk://workspace%-") then workspace_buf = b end
+    if vim.api.nvim_buf_get_name(b):match("^plurnk%-nvim://workspace%-") then workspace_buf = b end
   end
   H.assert_truthy(workspace_buf, "worker_tab workspace buffer exists")
   local content = table.concat(vim.api.nvim_buf_get_lines(workspace_buf, 0, -1, false), "\n")

@@ -1,7 +1,7 @@
 -- Worker-tab UI scaffold — WORKER-keyed (#16 topology, 2026-06-10).
 --
 -- The log is the RUN's history (plurnk-service SPEC §0.6), so the
--- waterfall is a worker's buffer: `plurnk://<workspace>/<worker-label>`, with a
+-- waterfall is a worker's buffer: `plurnk-nvim://<workspace>/<worker-label>`, with a
 -- matching input split below. Tabs are the DEFAULT view (one per worker);
 -- buffers are the unit of content, so users can compose other layouts
 -- with vim's own window machinery.
@@ -31,7 +31,7 @@ end
 
 local function buffer_title(workspace, key)
   local rid = type(key) == "number" and key or nil
-  return "plurnk://" .. workspace .. "/" .. worker_label(workspace, rid)
+  return "plurnk-nvim://" .. workspace .. "/" .. worker_label(workspace, rid)
 end
 
 -- The winbar is plurnk's OWN window header — its real estate, so the rich
@@ -240,7 +240,7 @@ M.rename = function(old_workspace, new_workspace)
     end
     rename_buf(rec.waterfall_buf, buffer_title(new_workspace, key))
     -- The input buffer's URI carries the workspace too — follow the rename, or
-    -- the tab/statusline keeps showing plurnk://input/<old>/… (operator).
+    -- the tab/statusline keeps showing plurnk-nvim://input/<old>/… (operator).
     rename_buf(rec.input_buf, require("plurnk.input").buffer_name(new_workspace, rec.worker_id))
     if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
       decorate_waterfall_win(rec.waterfall_win, new_workspace, key)

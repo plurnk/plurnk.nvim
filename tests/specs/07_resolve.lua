@@ -23,7 +23,7 @@ local ok, err = pcall(function()
   })
   local right
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(b):match("^plurnk://proposed/") then right = b end
+    if vim.api.nvim_buf_get_name(b):match("^plurnk%-nvim://proposed/") then right = b end
   end
   H.assert_truthy(right, "proposed buffer")
   -- Hit \a
@@ -42,7 +42,7 @@ local ok, err = pcall(function()
     body = original_udiff,
   })
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(b):match("^plurnk://proposed/") then right = b end
+    if vim.api.nvim_buf_get_name(b):match("^plurnk%-nvim://proposed/") then right = b end
   end
   vim.api.nvim_buf_set_lines(right, 0, -1, false, { "hello", "PLANET" })
   for _, m in ipairs(vim.api.nvim_buf_get_keymap(right, "n")) do

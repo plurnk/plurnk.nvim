@@ -35,7 +35,7 @@ local function get_or_create(entry_id, target)
 
   local buf = vim.api.nvim_create_buf(true, true)
   local safe = (target or ("entry-" .. entry_id)):gsub("[:/%%]", "_")
-  pcall(vim.api.nvim_buf_set_name, buf, "plurnk://stream/" .. safe)
+  pcall(vim.api.nvim_buf_set_name, buf, "plurnk-nvim://stream/" .. safe)
   vim.bo[buf].buftype = "nofile"
   vim.bo[buf].bufhidden = "hide"
   vim.bo[buf].swapfile = false

@@ -20,7 +20,7 @@ local ok, err = pcall(function()
 
   require("plurnk.worker_tab").open("smoke")
   local buf = vim.api.nvim_get_current_buf()
-  H.assert_match(vim.api.nvim_buf_get_name(buf), "plurnk://input/smoke", "input focused")
+  H.assert_match(vim.api.nvim_buf_get_name(buf), "plurnk%-nvim://input/smoke", "input focused")
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<<SEND[200]:hi:SEND" })
   vim.api.nvim_feedkeys("\r", "x", false)
@@ -37,10 +37,10 @@ local ok, err = pcall(function()
     table.insert(sent, { method = method, params = params })
     if cb then cb({ status = 200, content = "line one\nline two" }) end
   end
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<<LOOK(plurnk:///notes.md)::LOOK" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<<LOOK(worker:///notes.md)::LOOK" })
   vim.api.nvim_feedkeys("\r", "x", false)
   H.assert_eq(sent[#sent].method, "op.look", "<<LOOK routes to op.look, not op.parse")
-  H.assert_eq(sent[#sent].params.text, "<<LOOK(plurnk:///notes.md)::LOOK", "the raw statement passes; the module rewrites LOOK->READ")
+  H.assert_eq(sent[#sent].params.text, "<<LOOK(worker:///notes.md)::LOOK", "the raw statement passes; the module rewrites LOOK->READ")
   H.assert_truthy(#appended >= 2, "the content rendered into the waterfall (" .. #appended .. " lines)")
   H.assert_match(table.concat(appended, "\n"), "line two", "content lines land verbatim")
 

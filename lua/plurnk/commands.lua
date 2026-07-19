@@ -47,7 +47,7 @@ local function workspace_settings()
   local env_q = ({ ["1"] = true, ["true"] = true, ["yes"] = true, ["on"] = true })[(vim.env.PLURNK_QUESTIONS or ""):lower()]
   if cfg_q == true or (cfg_q == nil and env_q) then s.questions = true end
   -- svc#231/#286 — workspace-open files preview: -1 full / 0 off / N first-N items
-  -- of plurnk://manifest.json at turn 0 (the CLI's --files-items, converged).
+  -- of the workspace manifest at turn 0 (the CLI's --files-items, converged).
   local fi = require("plurnk.config").get("files_items")
   if type(fi) == "number" then s.filesItems = fi end
   return s
@@ -69,8 +69,8 @@ end
 -- ── Buffer helpers ──────────────────────────────────────────────────
 
 -- This buffer's workspace name, or nil. The buffer-local variable is the
--- one source of truth; rummy's URL-parse fallback (`plurnk://input/<x>`)
--- is unsafe here because `:AI` with no args opens `plurnk://input/scratch`
+-- one source of truth; rummy's URL-parse fallback (`plurnk-nvim://input/<x>`)
+-- is unsafe here because `:AI` with no args opens `plurnk-nvim://input/scratch`
 -- where "scratch" is a sentinel, not a real workspace.
 local function active_workspace()
   local tab = require("plurnk.worker_tab").current_alias()
@@ -83,7 +83,7 @@ local function is_real_buffer()
   local buf = vim.api.nvim_get_current_buf()
   local name = vim.api.nvim_buf_get_name(buf)
   if name == "" then return false end
-  if name:match("^plurnk://") then return false end
+  if name:match("^plurnk%-nvim://") then return false end
   if vim.bo[buf].buftype ~= "" then return false end
   return true
 end

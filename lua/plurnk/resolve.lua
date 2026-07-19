@@ -130,13 +130,13 @@ local function review_edit(workspace_name, proposal)
   if tail == "" then tail = "proposal" end
 
   vim.cmd("botright vsplit")
-  local left_buf = make_scratch("plurnk://disk/" .. tail, original_lines, ft)
+  local left_buf = make_scratch("plurnk-nvim://disk/" .. tail, original_lines, ft)
   vim.api.nvim_win_set_buf(0, left_buf)
   local left_win = vim.api.nvim_get_current_win()
   vim.cmd("diffthis")
 
   vim.cmd("rightbelow vsplit")
-  local right_buf = make_scratch("plurnk://proposed/" .. tail, proposed_lines, ft)
+  local right_buf = make_scratch("plurnk-nvim://proposed/" .. tail, proposed_lines, ft)
   vim.api.nvim_win_set_buf(0, right_buf)
   local right_win = vim.api.nvim_get_current_win()
   vim.cmd("diffthis")
@@ -236,7 +236,7 @@ local function review_exec(workspace_name, proposal)
   lines[#lines+1] = "[a]ccept · [r]eject · [c]ancel"
 
   vim.cmd("botright split")
-  local buf = make_scratch("plurnk://exec/" .. tostring(proposal.logEntryId), lines, "sh")
+  local buf = make_scratch("plurnk-nvim://exec/" .. tostring(proposal.logEntryId), lines, "sh")
   vim.api.nvim_win_set_buf(0, buf)
   local win = vim.api.nvim_get_current_win()
 

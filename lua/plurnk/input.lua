@@ -9,7 +9,7 @@ local M = {}
 local INPUT_HEIGHT = 3
 
 local function buffer_name(workspace_name, worker_id)
-  return "plurnk://input/" .. (workspace_name or "scratch") .. "/" .. (worker_id or "pending")
+  return "plurnk-nvim://input/" .. (workspace_name or "scratch") .. "/" .. (worker_id or "pending")
 end
 
 -- Exposed so worker_tab can re-derive the input buffer's URI on workspace.rename

@@ -49,7 +49,7 @@ local ok, err = pcall(function()
   -- the model may wander an empty workspace past any budget. Pin what the TAB
   -- promises: the loop concluded (waited above) and its activity rendered.
   local wf = table.concat(vim.api.nvim_buf_get_lines(rec.waterfall_buf, 0, -1, false), "\n")
-  H.assert_match(wf, "plurnk:///prompt/", "waterfall shows the prompt row (the loop ran HERE)")
+  H.assert_match(wf, "What is the capital of France", "waterfall shows the prompt row as speech — the loop ran HERE (svc#527: prompts render 🐹, not a URI line)")
   H.assert_truthy(type(terminated) == "table", "loop/terminated delivered a payload")
   local input_lines = vim.api.nvim_buf_get_lines(rec.input_buf, 0, -1, false)
   H.assert_eq(table.concat(input_lines, ""), "", "input cleared after submit")

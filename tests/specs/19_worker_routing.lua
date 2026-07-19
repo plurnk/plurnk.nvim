@@ -28,7 +28,7 @@ local ok, err = pcall(function()
   rt.open("topo")
   local rec = rt.get_record("topo")
   H.assert_truthy(rec, "pending record exists")
-  H.assert_match(vim.api.nvim_buf_get_name(rec.waterfall_buf), "plurnk://topo/pending", "pending title")
+  H.assert_match(vim.api.nvim_buf_get_name(rec.waterfall_buf), "plurnk%-nvim://topo/pending", "pending title")
 
   -- First entry carries worker_id 42 → pending adopted: rekeyed, renamed,
   -- and 42 becomes the workspace's current run.
@@ -36,7 +36,7 @@ local ok, err = pcall(function()
   H.assert_eq(state.get_worker_id("topo"), 42, "first run seen claims current")
   local adopted = rt.get_record("topo")
   H.assert_eq(adopted.waterfall_buf, rec.waterfall_buf, "pending record adopted, not replaced")
-  H.assert_match(vim.api.nvim_buf_get_name(adopted.waterfall_buf), "plurnk://topo/worker#42", "renamed to worker key")
+  H.assert_match(vim.api.nvim_buf_get_name(adopted.waterfall_buf), "plurnk%-nvim://topo/worker#42", "renamed to worker key")
   H.assert_eq(vim.b[adopted.waterfall_buf].plurnk_worker_id, 42, "buffer stamped with run id")
 
   -- A second run's entries land in a SEPARATE buffer — never interleaved.
@@ -45,7 +45,7 @@ local ok, err = pcall(function()
   H.assert_eq(#lines42, 1, "run 42 buffer has only its own entry")
   local buf43
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(b):match("plurnk://topo/worker#43") then buf43 = b end
+    if vim.api.nvim_buf_get_name(b):match("plurnk%-nvim://topo/worker#43") then buf43 = b end
   end
   H.assert_truthy(buf43, "run 43 got its own buffer")
   H.assert_match(table.concat(vim.api.nvim_buf_get_lines(buf43, 0, -1, false), "\n"),
@@ -62,7 +62,7 @@ local ok, err = pcall(function()
   rt.append_history("topo", { entry(9, 44) })
   local found
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(b):match("plurnk://topo/feature%-pass") then found = b end
+    if vim.api.nvim_buf_get_name(b):match("plurnk%-nvim://topo/feature%-pass") then found = b end
   end
   H.assert_truthy(found, "named run uses its label in the buffer title")
 end)

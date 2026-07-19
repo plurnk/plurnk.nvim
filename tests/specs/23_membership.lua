@@ -64,7 +64,7 @@ local ok, err = pcall(function()
 
   -- no arg in a non-file (scheme://) buffer → nothing sent
   sent = {}
-  vim.api.nvim_buf_set_name(0, "plurnk://workspace/x")
+  vim.api.nvim_buf_set_name(0, "plurnk-nvim://workspace/x")
   cmds.pick({ args = "" })
   H.assert_eq(#sent, 0, "no-arg in a non-file buffer sends nothing")
 

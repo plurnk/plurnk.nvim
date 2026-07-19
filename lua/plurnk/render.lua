@@ -183,13 +183,14 @@ M.render_broadcast = function(entry)
 end
 
 -- The user's prompt is conversation, not an op record. The engine writes
--- it as a plurnk-origin EDIT to plurnk://prompt/<loop>/<turn> (service
--- SPEC §15); render it as the user speaking — 👤 💬 with the prompt body
--- — instead of an EDIT trace. Arrives on hydration/log.read today; live
--- the moment plurnk-service#198 (prompt broadcast) lands.
+-- it as a system-origin EDIT to prompt:///<loop>/<turn> (svc#527 gave the
+-- frame its OWN self-only scheme, retiring plurnk://); render it as the user
+-- speaking — 👤 💬 with the prompt body — instead of an EDIT trace.
 M.is_prompt_entry = function(entry)
-  return entry.op == "EDIT" and entry.scheme == "plurnk"
-    and type(entry.pathname) == "string" and entry.pathname:sub(1, 7) == "prompt/"
+  -- The prompt scheme is self-identifying (verified on the wire: scheme "prompt",
+  -- pathname "/<loop>/<turn>" numeric — "loop/N" in the plan was the loop NUMBER,
+  -- not a literal). Key on the scheme, never a path-literal.
+  return entry.op == "EDIT" and entry.scheme == "prompt"
 end
 
 M.render_prompt = function(entry)
