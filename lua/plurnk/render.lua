@@ -225,7 +225,7 @@ M.render_log_entry = function(entry)
   local status = tostring(entry.status_rx or "?")
 
   -- EXEC: signal carries the executor name per grammar SPEC §3 — show it
-  -- in the path column as `[<executor>]`. The synthetic exec:// URI the
+  -- in the path column as `[<executor>]`. The runtime-tag stream entry the
   -- daemon stamps on EXEC entries is noise from the user's perspective.
   local path = ""
   if entry.op == "EXEC" then

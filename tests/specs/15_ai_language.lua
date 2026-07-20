@@ -100,10 +100,10 @@ local ok, err = pcall(function()
   -- The client never parses the file; it feeds the raw text verbatim.
   sent = {}
   local plk = vim.fn.tempname() .. ".plk"
-  vim.fn.writefile({ "<<EDIT(known://x/a):hi:EDIT", "<<READ(known://x/a):READ" }, plk)
+  vim.fn.writefile({ "<<EDIT(worker:///x/a):hi:EDIT", "<<READ(worker:///x/a):READ" }, plk)
   ai({ args = "/script " .. plk, range = 0 })
   H.assert_eq(sent[1].method, "op.parse", ":AI/script routes to op.parse")
-  H.assert_truthy(sent[1].params.text:match("<<EDIT%(known://x/a%)"), ":AI/script ships raw file text")
+  H.assert_truthy(sent[1].params.text:match("<<EDIT%(worker:///x/a%)"), ":AI/script ships raw file text")
   H.assert_truthy(sent[1].params.text:match("\n"), ":AI/script ships all statements (multiline)")
 
   sent = {}

@@ -39,9 +39,9 @@ local ok, err = pcall(function()
   local notes = {}
   local orig = vim.notify
   vim.notify = function(msg) table.insert(notes, msg) end
-  require("plurnk.hud").show("✓ exec://demo → 200")
+  require("plurnk.hud").show("✓ sh:///demo → 200")
   vim.notify = orig
-  H.assert_eq(notes[1], "✓ exec://demo → 200", "headless HUD falls back to notify")
+  H.assert_eq(notes[1], "✓ sh:///demo → 200", "headless HUD falls back to notify")
   H.assert_truthy(not require("plurnk.hud").is_open(), "no float without a UI")
 end)
 

@@ -23,7 +23,7 @@ local ok, err = pcall(function()
   -- EDIT a known scheme key — simplest op that always succeeds and emits
   -- a log/entry. The known scheme is an in-memory KV; EDIT writes a value.
   local key = "/plurnk-nvim-test-" .. tostring(vim.loop.hrtime())
-  local dsl = "<<EDIT(known://" .. key .. "):hello:EDIT"
+  local dsl = "<<EDIT(worker:///" .. key .. "):hello:EDIT"
   local parsed = H.call("op.parse", { text = dsl })
   H.assert_type(parsed, "table", "op.parse result")
   H.assert_type(parsed.results, "table", "op.parse.results")

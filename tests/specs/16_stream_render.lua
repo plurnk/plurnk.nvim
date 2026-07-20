@@ -26,12 +26,12 @@ local ok, err = pcall(function()
   end
 
   local function tick(len)
-    stream.on_event({ entryId = 1, target = "exec://demo", channel = "stdout",
+    stream.on_event({ entryId = 1, target = "sh:///demo", channel = "stdout",
       state = "active", contentLength = len })
   end
 
   local function buf_lines()
-    local buf = vim.fn.bufnr("plurnk-nvim://stream/exec___demo")
+    local buf = vim.fn.bufnr("plurnk-nvim://stream/sh____demo")
     H.assert_truthy(buf ~= -1, "stream buffer exists")
     return vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   end
@@ -57,7 +57,7 @@ local ok, err = pcall(function()
 
   -- ── Conclusion: footer + winbar + tracking dropped ─────────────────
   content.stdout = "hello\nworld\ntail-no-newline"
-  stream.on_concluded({ entryId = 1, target = "exec://demo", subscriptionId = 1,
+  stream.on_concluded({ entryId = 1, target = "sh:///demo", subscriptionId = 1,
     scheme = "exec", closeStatus = 200, summary = "demo done", wakeAction = "no-op-active-loop" })
   vim.wait(400, function()
     local ls = buf_lines()
@@ -68,19 +68,19 @@ local ok, err = pcall(function()
   H.assert_match(lines[#lines], "── concluded · 200 · demo done ──", "conclusion footer")
 
   -- Wipe AFTER conclusion → no cancel goes out.
-  vim.cmd("bwipeout! " .. vim.fn.bufnr("plurnk-nvim://stream/exec___demo"))
+  vim.cmd("bwipeout! " .. vim.fn.bufnr("plurnk-nvim://stream/sh____demo"))
   H.assert_eq(#sends, 0, "wipeout after conclusion sends nothing")
 
   -- ── Wipeout of a LIVE stream cancels the subscription ──────────────
   content.stdout = "running\n"
   content.stderr = ""
-  stream.on_event({ entryId = 2, target = "exec://live", channel = "stdout",
+  stream.on_event({ entryId = 2, target = "sh:///live", channel = "stdout",
     state = "active", contentLength = 8 })
-  vim.wait(400, function() return vim.fn.bufnr("plurnk-nvim://stream/exec___live") ~= -1 and reads >= 3 end, 10)
-  vim.cmd("bwipeout! " .. vim.fn.bufnr("plurnk-nvim://stream/exec___live"))
+  vim.wait(400, function() return vim.fn.bufnr("plurnk-nvim://stream/sh____live") ~= -1 and reads >= 3 end, 10)
+  vim.cmd("bwipeout! " .. vim.fn.bufnr("plurnk-nvim://stream/sh____live"))
   H.assert_eq(sends[1].method, "op.send", "wipeout of live stream cancels")
   H.assert_eq(sends[1].params.status, 499, "cancel is SEND[499]")
-  H.assert_eq(sends[1].params.recipient, "exec://live", "cancel addressed to the stream URI")
+  H.assert_eq(sends[1].params.recipient, "sh:///live", "cancel addressed to the stream URI")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
