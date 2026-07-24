@@ -166,6 +166,17 @@ M.handle_telemetry_event = function(params, workspace_name)
     end
     return
   end
+  -- Search page acquisition is compact edge state too: a percentage in the
+  -- statusline, never one waterfall line per milestone or candidate.
+  if type(event.source) == "string" and event.source:match("^exec:")
+      and event.kind == "search_progress" then
+    if workspace_name then
+      local active = event.phase ~= "complete" and event.phase ~= "failed"
+      state.set_search_progress(workspace_name, active and tonumber(event.percent) or nil)
+      redraw_statusline()
+    end
+    return
+  end
   vim.schedule(function()
     local tag = tostring(event.source or "?") .. ":" .. tostring(event.kind or "?")
     local headline = "  📡 " .. tag

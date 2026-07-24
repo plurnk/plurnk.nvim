@@ -99,6 +99,9 @@ orphan citation / rotted comment ref).
 - **The abacus** {§nvim-abacus} — `engine:derivation embed_progress` collapses to an
   edge-toggled 🧮 on the statusline, never a waterfall line; `engine:turn` liveness is
   the ⏳ gutter, dropped from the waterfall; the abacus never outlives the loop.
+- **Search acquisition progress** {§nvim-search-progress} — `exec:* search_progress`
+  collapses to `🔎 N%` on the statusline and clears on its terminal phase. Milestones
+  never append to the waterfall; materialized pages remain available in durable history.
 - **Membership signs mark exceptions only** {§nvim-membership-signs} — view 🔒 and
   hidden 🚫 get a line-1 extmark; plain members and non-members get no sign.
 - **The statusline is lean** {§nvim-lean-statusline} — 🐹 + one status glyph + 🔥 when

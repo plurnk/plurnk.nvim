@@ -28,6 +28,8 @@ M.text = function()
 
   -- The abacus: re-embedding in progress (token recount) — one glyph, edge-toggled.
   if state.is_embedding(workspace) then parts[#parts + 1] = "🧮" end
+  local search_progress = state.get_search_progress(workspace)
+  if search_progress ~= nil then parts[#parts + 1] = "🔎 " .. tostring(search_progress) .. "%" end
 
   local ok_diff, diff = pcall(require, "plurnk.diff")
   if ok_diff and diff.is_yolo and diff.is_yolo() then parts[#parts + 1] = "🔥" end

@@ -47,6 +47,15 @@ local ok, err = pcall(function()
   H.assert_eq(require("plurnk.statusline").text():find("🧮") ~= nil, true, "statusline shows the abacus while embedding")
   state.set_embedding(workspace, false)
   H.assert_eq(require("plurnk.statusline").text():find("🧮") == nil, true, "abacus gone when idle")
+
+  -- Search acquisition uses the same no-waterfall compact-state contract.
+  dispatch.handle_telemetry_event({ event = { source = "exec:search", kind = "search_progress", phase = "fetching", percent = 42, completed = 5, total = 12 } }, workspace)
+  H.assert_eq(state.get_search_progress(workspace), 42, "search progress stores the producer's aggregate percent")
+  H.assert_eq(#appended, 1, "search progress adds no waterfall lines")
+  H.assert_eq(require("plurnk.statusline").text():find("🔎 42%%") ~= nil, true, "statusline shows compact search progress")
+  dispatch.handle_telemetry_event({ event = { source = "exec:search", kind = "search_progress", phase = "complete", percent = 100 } }, workspace)
+  H.assert_eq(state.get_search_progress(workspace), nil, "terminal search progress clears the edge state")
+  H.assert_eq(require("plurnk.statusline").text():find("🔎") == nil, true, "search gauge gone when complete")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
