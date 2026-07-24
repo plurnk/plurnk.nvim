@@ -1,5 +1,4 @@
--- [§nvim-telemetry-severity]
--- telemetry/event severity coloring off the producer-set event.level (grammar
+-- -- telemetry/event severity coloring off the producer-set event.level (grammar
 -- 0.74.29+ / svc#276): error → ErrorMsg (red), warn → WarningMsg (yellow),
 -- info/absent → Comment (dim). Mirrors the npm client (#110) — no kind heuristic.
 local NAME = "29_telemetry_severity"

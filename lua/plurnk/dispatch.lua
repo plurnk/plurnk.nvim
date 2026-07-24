@@ -41,7 +41,7 @@ end
 -- ── Per-entry state side effects ────────────────────────────────────
 
 -- Is this entry part of the CONVERSATION (the model worker)? Worker-split
--- (§13.7): client housekeeping (op.exec etc.) lands in the client worker and
+-- Client housekeeping (op.exec etc.) lands in the client worker and
 -- is not shown in the conversation waterfall. The conversation worker is
 -- authoritative from loop.run's modelWorkerId / workspace.workers. Before it's
 -- known, events arriving WHILE we drive a loop are the model worker (the

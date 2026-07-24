@@ -1,5 +1,4 @@
--- [§nvim-name-is-identity]
--- workspace.list returns { workspaces: [{ id, name, project_root?, ... }] }.
+-- -- workspace.list returns { workspaces: [{ id, name, project_root?, ... }] }.
 local NAME = "03_workspace_list"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()

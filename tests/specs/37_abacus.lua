@@ -1,5 +1,4 @@
--- [§nvim-abacus]
--- The abacus: engine:derivation embed_progress collapses to a single edge-toggled
+-- -- The abacus: engine:derivation embed_progress collapses to a single edge-toggled
 -- 🧮 on the statusline — NOT a per-tick waterfall line — and engine:turn liveness is
 -- dropped entirely. Mirrors the TUI (tui.ts onTelemetry). The nvim used to spam every
 -- "recounting tokens N/M" tick into the worker tab (operator, 2026-07-10).

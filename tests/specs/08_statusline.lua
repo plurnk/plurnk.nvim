@@ -1,5 +1,4 @@
--- [§nvim-lean-statusline]
--- The statusline is LEAN (🐹 + status emoji + 🔥yolo); the rich detail
+-- -- The statusline is LEAN (🐹 + status emoji + 🔥yolo); the rich detail
 -- (workspace/model/L·T/tokens/money trio) lives in the winbar — worker_tab.winbar_text.
 local NAME = "08_statusline"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

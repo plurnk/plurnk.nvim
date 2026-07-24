@@ -1,5 +1,4 @@
--- [§nvim-proposal-review]
--- resolve.lua diffsplit + accept-with-edits regenerates a valid udiff.
+-- -- resolve.lua diffsplit + accept-with-edits regenerates a valid udiff.
 -- Pure unit test (stubbed client.send); no daemon round-trip.
 local NAME = "07_resolve"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

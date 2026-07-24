@@ -1,5 +1,4 @@
--- [§nvim-push-pipeline]
--- op.parse against a hand-rolled DSL packet produces a log/entry
+-- -- op.parse against a hand-rolled DSL packet produces a log/entry
 -- notification. Verifies the push pipeline: dispatch → state.set_last_seen_log_id.
 local NAME = "05_op_parse_logentry"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

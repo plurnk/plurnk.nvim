@@ -1,6 +1,9 @@
 # plurnk.nvim
 
-Neovim client for [plurnk-service](https://github.com/plurnk/plurnk-service). JSON-RPC 2.0 over WebSocket from inside Neovim; no Node, no CLI subprocess. The pitch: **use LLMs the vim way** — your buffers, your motions, your `:` line.
+Neovim client for [plurnk-service](https://github.com/plurnk/plurnk-service).
+It consumes the daemon's AG-UI+ HTTP/SSE interface directly; no Node or CLI
+subprocess. The pitch: **use LLMs the vim way** — your buffers, your motions,
+your `:` line.
 
 Requires: Neovim ≥ 0.10, a running plurnk-service daemon (default `127.0.0.1:3044`).
 
@@ -46,7 +49,7 @@ vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 ## Internals (for agents)
 
 - Transport: AG-UI+ over HTTP/SSE (`curl -N` under `vim.system`) against the daemon's in-process module; events un-project to the daemon shapes dispatch renders. The threadId is the workspace name, verbatim; the workspace (world) rides `forwardedProps.plurnk.workspace` on every run.
-- Client contract: `SPEC.md` (this repo) — every `{§nvim-*}` promise is cited by a spec and the lockstep spec (38) enforces it. Wire contract: the plurnk-agui SPEC; machine model: plurnk-service SPEC.
+- Client contract: `SPEC.md` (this repo). External protocol: the plurnk-agui SPEC. Runtime model: the plurnk-service SPEC.
 - Notifications consumed: `log/entry` (routed per-run by `entry.worker_id`), `loop/proposal` (server-resolved `flags.yolo/noProposals` are skipped), `loop/terminated`, `telemetry/event`, `stream/event`, `stream/concluded`.
 - Tests: `./tests/runner.sh` — one headless nvim per spec; boots a private daemon from the sibling `../plurnk-service` checkout (tmp DB, ephemeral port) unless `PLURNK_PORT` is set. `PLURNK_SERVICE_DIR` overrides the daemon location.
 - Project management: `AGENTS.md` (local). Audit + roadmap: [#16](https://github.com/plurnk/plurnk.nvim/issues/16).

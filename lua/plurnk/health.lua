@@ -10,9 +10,8 @@ M.check = function()
   start("plurnk.nvim")
   if vim.fn.has("nvim-0.10") == 1 then ok("Neovim >= 0.10") else error("Need Neovim >= 0.10") end
   -- plenary was dropped in v0.1.2 (vim.system is built-in ≥ 0.10) — no dependency.
-  -- curl is only needed for the plurnk-agui bridge (PLURNK_AGUI_URL); the WS path
-  -- uses vim.system + libuv directly, so a missing curl is a warning, not an error.
-  if vim.fn.executable("curl") == 1 then ok("curl present (for PLURNK_AGUI_URL bridge mode)") else warn("curl not found — needed only for PLURNK_AGUI_URL bridge mode") end
+  -- AG-UI+ is the sole transport. Neovim streams its HTTP/SSE response through curl.
+  if vim.fn.executable("curl") == 1 then ok("curl present (AG-UI+ transport)") else error("curl is required for the AG-UI+ transport") end
   local cfg = require("plurnk.config")
   ok(string.format("Configured: %s:%d", cfg.get("host"), cfg.get("port")))
   require("plurnk.client").send("ping", {}, false, function(_)

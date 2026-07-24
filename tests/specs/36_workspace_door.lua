@@ -1,5 +1,4 @@
--- [§nvim-workspace-door][§nvim-honest-errors]
--- THE FRONT DOOR (operator, 2026-07-10): :PlurnkWorkspaces → pick → ATTACHED, for
+-- -- THE FRONT DOOR (operator, 2026-07-10): :PlurnkWorkspaces → pick → ATTACHED, for
 -- real — the plurnk paradigm (the name IS the identity), with failures failing
 -- loudly instead of the or-{} pantomime that shipped the disaster.
 local NAME = "36_workspace_door"

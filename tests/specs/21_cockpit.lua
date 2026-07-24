@@ -1,5 +1,4 @@
--- [§nvim-cockpit-gauge]
--- Phase 3 cockpit: the winbar gauge (LAST-loop snapshot, never a client
+-- -- Phase 3 cockpit: the winbar gauge (LAST-loop snapshot, never a client
 -- tally), the lean statusline glance, and the HUD headless fallback.
 local NAME = "21_cockpit"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

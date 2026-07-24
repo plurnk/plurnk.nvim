@@ -44,8 +44,8 @@ M.rename_workspace = state.rename_workspace
 
 -- ── Re-export transport ─────────────────────────────────────────────
 
--- The single send point — AG-UI+ is the ONLY transport (the WS background client
--- is deleted). Verbs ride §3 action runs; loop.resolve rides the terminate-resume
+-- The single send point — AG-UI+ is the only transport. Verbs ride action runs;
+-- loop.resolve rides the terminate-resume
 -- tool-result run; loop.run never reaches here (send_loop_run drives bridge.run).
 M.send = function(method, params, _is_notification, callback)
   local bridge = require("plurnk.bridge")
@@ -72,10 +72,8 @@ M.notify = function(msg, level, workspace)
   pcall(vim.cmd, "redrawstatus! | redrawtabline")
 end
 
--- Daemon staleness check, once per nvim instance. Clients track HEAD
--- (service SPEC §13.9); a silently-old daemon produced 10 days of
--- confusion once. Probe `discover` for wire markers this client depends
--- on and warn bluntly when one is missing.
+-- Daemon compatibility check, once per nvim instance. Probe `discover` for
+-- capabilities this client depends on and surface an incompatible daemon.
 local daemon_checked = false
 M.check_daemon_once = function()
   if daemon_checked then return end

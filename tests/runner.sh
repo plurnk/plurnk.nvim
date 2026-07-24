@@ -8,7 +8,7 @@
 #
 # Daemon: with PLURNK_PORT set, the suite targets that daemon (yours to
 # manage). Without it, the runner boots a PRIVATE plurnk-service from the
-# sibling repo — tmp DB, ephemeral port, killed on exit — so the suite
+# metaproject checkout — tmp DB, ephemeral port, killed on exit — so the suite
 # never touches a developer's live daemon on 3044.
 #
 # Model env: export PLURNK_MODEL=<alias> (forwarded into the private daemon —
@@ -35,19 +35,17 @@ cleanup() {
 trap cleanup EXIT
 
 if [ -z "${PLURNK_PORT:-}" ]; then
-  # PLURNK_SERVICE_DIR overrides where the daemon is launched from —
-  # CI, or a clean worktree while the sibling checkout is mid-edit.
+  # PLURNK_SERVICE_DIR overrides the canonical metaproject checkout.
   SERVICE_BIN=""
-  for dir in "${PLURNK_SERVICE_DIR:-}" "$REPO_DIR/../plurnk-service"; do
+  for dir in "${PLURNK_SERVICE_DIR:-}" "$REPO_DIR/../../plurnk-service"; do
     [ -z "$dir" ] && continue
-    # Entrypoint has moved over time: bin/plurnk-service.{js,ts} → src/service.ts
-    # (bin: dist/service.js, 2026-06-20). Probe newest-first, old paths kept.
-    for rel in plurnk-core/src/service.ts src/service.ts dist/service.js bin/plurnk-service.ts bin/plurnk-service.js; do
-      if [ -r "$dir/$rel" ]; then SERVICE_BIN="$dir/$rel"; break 2; fi
-    done
+    if [ -r "$dir/plurnk-core/src/service.ts" ]; then
+      SERVICE_BIN="$dir/plurnk-core/src/service.ts"
+      break
+    fi
   done
   if [ -z "$SERVICE_BIN" ]; then
-    echo "plurnk-service sibling not found; set PLURNK_PORT to use an existing daemon" >&2
+    echo "plurnk-service checkout not found; set PLURNK_SERVICE_DIR or PLURNK_PORT" >&2
     exit 1
   fi
   SERVICE_DIR="$(cd "$(dirname "$SERVICE_BIN")/.." && pwd -P)"

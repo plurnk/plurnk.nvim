@@ -96,7 +96,8 @@ content tokens (real provider usage arrives with service#197).
 
   main nvim  <-stdio JSON-RPC->  background headless nvim  <-WS->  daemon
 
-Main nvim never touches the socket. Wire contract: plurnk-service SPEC §13.
+Neovim consumes the daemon's AG-UI+ HTTP/SSE interface through curl. The
+external protocol contract lives in the plurnk-agui SPEC.
 One live workspace per instance; switches rebind the connection in place.
 Tests: `./tests/runner.sh` boots a private daemon (tmp DB, ephemeral port)
 from the sibling checkout; `PLURNK_SERVICE_DIR` overrides; `PLURNK_PORT`

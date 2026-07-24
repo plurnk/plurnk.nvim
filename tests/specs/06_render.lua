@@ -1,5 +1,4 @@
--- [§nvim-two-lane-glyphs]
--- Renderer unit test: every op type produces the right glyph layout.
+-- -- Renderer unit test: every op type produces the right glyph layout.
 -- Pure module; no daemon required.
 local NAME = "06_render"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

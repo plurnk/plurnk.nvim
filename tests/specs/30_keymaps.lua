@@ -1,5 +1,4 @@
--- [§nvim-vim-conventions]
--- Default keymaps converge the verb set into nvim. Verifies the set is applied,
+-- -- Default keymaps converge the verb set into nvim. Verifies the set is applied,
 -- including the new fork shortcut (run > loop > turn > op).
 local NAME = "30_keymaps"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

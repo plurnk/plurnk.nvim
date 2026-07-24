@@ -1,5 +1,4 @@
--- [§nvim-workspace-rename]
--- workspace.rename (svc#248): a workspace's name is a mutable handle on the world
+-- -- workspace.rename (svc#248): a workspace's name is a mutable handle on the world
 -- (a worker's is immutable). Rekeys local state + the worker tab in place.
 local NAME = "25_workspace_rename"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

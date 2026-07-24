@@ -140,7 +140,7 @@ local function resolve_workspace_then(callback)
     require("plurnk.state").set_active_workspace_name(name)
     associate_buffer(origin_buf, name)
     -- workspace.create returns the CLIENT worker; the conversation lives in the
-    -- MODEL worker (worker-split, §13.7). Don't set a conversation worker here — the
+    -- MODEL worker. Don't set a conversation worker here — the
     -- first model-worker log/entry adopts it, and loop.run confirms modelWorkerId.
     client.check_daemon_once()
     local model = client.consume_selected_alias()
@@ -153,7 +153,7 @@ end
 
 -- The connection rebinds in place: workspace.create/attach on a bound
 -- connection switch the binding, releasing the prior client loop
--- (plurnk-service §13.5-rebind, v0.17.0). No reconnect. We warn only
+-- without reconnecting. We warn only
 -- when a loop is draining on the workspace we're leaving: after the
 -- rebind we stop receiving that workspace's notifications, so its live
 -- view goes stale here even though the loop completes on the daemon.
@@ -172,7 +172,7 @@ end
 -- Adopt the MODEL worker as this workspace's conversation worker (the waterfall
 -- shows it). The model worker is authoritative from loop.run's modelWorkerId or
 -- workspace.workers (origin="model") — never from workspace.create (that's the
--- client worker; worker-split §13.7). Idempotent: the first model-worker log/entry
+-- client worker). Idempotent: the first model-worker log/entry
 -- may have adopted it already; this confirms and labels it.
 note_model_worker = function(workspace_name, worker_id, worker_name)
   if type(worker_id) ~= "number" then return end
@@ -363,7 +363,7 @@ local function send_loop_run(workspace_name, prompt, model_alias, flags)
   -- dispatch, so the worker-tab renders identically to WS). Per-worker knobs (model/
   -- alias/flags/openPaths) ride forwardedProps (agui 0.2.4+; openPaths pending a
   -- bridge run-endpoint read). on_done clears inflight — the terminated event
-  -- (dispatched) drives the rest. WS path unchanged (the else below).
+  -- (dispatched) drives the rest.
   local bridge = require("plurnk.bridge")
   if true then
     local fwd = {}
@@ -401,7 +401,7 @@ local function send_loop_run(workspace_name, prompt, model_alias, flags)
       require("plurnk.state").set_loop_inflight(workspace_name, false)
       return
     end
-    -- The conversation lives in the model worker (worker-split §13.7); loop.run
+    -- The conversation lives in the model worker; loop.run
     -- returns its id. Authoritative — confirms the worker the first event's
     -- worker_id already adopted, and covers the no-events edge.
     note_model_worker(workspace_name, result.modelWorkerId)
@@ -763,7 +763,7 @@ M.prev         = function() require("plurnk.resolve").prev() end
 
 -- :PlurnkStop — abort the run's active loop (loop.cancel) and dismiss
 -- any pending proposal review UI. The daemon closes cancelled loops at
--- 499; queued loops stay enqueued (§13.5).
+-- 499; queued loops stay enqueued.
 M.stop = function()
   local n = require("plurnk.resolve").cancel_all()
   local client = require("plurnk.client")

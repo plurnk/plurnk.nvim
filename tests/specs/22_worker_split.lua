@@ -1,5 +1,4 @@
--- [§nvim-model-worker-waterfall]
--- Worker-split routing (#214): only the model worker (the conversation) is shown
+-- -- Worker-split routing (#214): only the model worker (the conversation) is shown
 -- in the waterfall. The conversation worker is adopted from events arriving
 -- while a loop is in flight (those are the model worker); client-worker
 -- housekeeping (op.exec, arriving when no loop is in flight) is never

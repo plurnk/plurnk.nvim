@@ -1,5 +1,4 @@
--- [§nvim-membership-verbs]
--- Membership overlay commands (svc#200), converged with the TUI's
+-- -- Membership overlay commands (svc#200), converged with the TUI's
 -- /pick /hide /view /drop /members. Service vocabulary; live via
 -- workspace.constrain / unconstrain / constraints. Pure module path; no daemon.
 local NAME = "23_membership"

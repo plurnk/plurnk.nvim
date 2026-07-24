@@ -1,5 +1,4 @@
--- [§nvim-project-root]
--- Project root defaults to the editor cwd, so workspace.create is NOT headless.
+-- -- Project root defaults to the editor cwd, so workspace.create is NOT headless.
 -- Regression: set_project_path was never called → project_path nil →
 -- workspace.create sent no projectRoot → daemon stored null → file ops 400.
 local NAME = "24_project_root"

@@ -1,5 +1,4 @@
--- [§nvim-ai-language][§nvim-scope-repetition]
--- The :AI metacommand language (#16 phase 1): cmdline abbreviations
+-- -- The :AI metacommand language (#16 phase 1): cmdline abbreviations
 -- (`:AI?` without a space), scope prefixes (`???` headless workspace,
 -- `????` fork-lite new worker), full `/` routing, and `:AI` toggle.
 -- Pure module path; stubs client.send + transport.stop.
@@ -15,11 +14,11 @@ local ok, err = pcall(function()
     if on_done then on_done(200) end
     return nil
   end
-  -- Rebind in place (§13.5, v0.17.0): switching never drops the socket.
+  -- Rebind in place: switching never drops the client context.
   local stops = 0
   require("plurnk.client").send = function(method, params, _, cb)
     table.insert(sent, { method = method, params = params })
-    -- workspace.create returns the worker identity directly (§13.5-workspace-create).
+    -- workspace.create returns the worker identity directly.
     if method == "workspace.create" and cb then cb({ id = 7, name = "lang-" .. #sent, workerId = 42, workerName = "auto-run" }) end
     if method == "workspace.attach" and cb then cb({ id = 7, workerId = 42, workerName = "auto-run" }) end
     if method == "loop.cancel" and cb then cb({ cancelled = true, workerId = 9 }) end
@@ -132,7 +131,7 @@ local ok, err = pcall(function()
   H.assert_eq(vim.api.nvim_get_current_tabpage(), origin, ":AI again returns to origin")
 
   -- Rebind in place: across every workspace/worker switch above, the socket
-  -- was never dropped (§13.5-rebind).
+  -- was never dropped.
   H.assert_eq(stops, 0, "switching never reconnects the transport")
 end)
 

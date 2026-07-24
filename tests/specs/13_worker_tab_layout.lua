@@ -1,5 +1,4 @@
--- [§nvim-worker-tab]
--- :AI opens a workspace tabpage with TWO windows: waterfall on top, input
+-- -- :AI opens a workspace tabpage with TWO windows: waterfall on top, input
 -- at the bottom. Submitting from the input populates the waterfall and
 -- leaves focus on the input. Drives against the live daemon.
 local NAME = "13_worker_tab_layout"

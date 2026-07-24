@@ -1,5 +1,4 @@
--- [§nvim-prompt-prefixes]
--- ASK-MODE SPIRAL, DEAD (svc#367/#386): an ask-mode prompt the model reads as "do
+-- -- ASK-MODE SPIRAL, DEAD (svc#367/#386): an ask-mode prompt the model reads as "do
 -- something" used to provoke EXEC → 403 → identical retry → StrikeRail 508 on EVERY
 -- run. The fixed stack (mode-filtered capability sheet + 'EXEC operations disabled'
 -- packet line + don't-retry steer) kills the CYCLE: this drives the ORIGINAL specimen

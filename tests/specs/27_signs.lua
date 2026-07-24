@@ -1,5 +1,4 @@
--- [§nvim-membership-signs]
--- Membership gutter signs (svc#243): workspace.members → a line-1 extmark sign
+-- -- Membership gutter signs (svc#243): workspace.members → a line-1 extmark sign
 -- for the EXCEPTIONS only (view 🔒, hidden 🚫); a plain member and any
 -- non-member project file get NO sign (the quiet default).
 local NAME = "27_signs"

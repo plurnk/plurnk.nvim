@@ -1,5 +1,4 @@
--- [§nvim-prompt-prefixes][§nvim-stop][§nvim-workspace-settings]
--- :AI command — prefix-stripping, /stop, ??-new-workspace.
+-- -- :AI command — prefix-stripping, /stop, ??-new-workspace.
 -- Pure module path; stubs client.send so no daemon round-trip.
 local NAME = "09_ai_command"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
@@ -18,7 +17,7 @@ local ok, err = pcall(function()
   require("plurnk.client").send = function(method, params, _, cb)
     table.insert(captured, { method = method, params = params })
     -- For workspace.create called by `??`, fire the callback (returning the
-    -- run identity directly, §13.5-workspace-create) so the second send
+    -- run identity directly) so the second send
     -- (loop.run) actually happens.
     if method == "workspace.create" and cb then
       cb({ id = 99, name = "ai-test-workspace", workerId = 7, workerName = "auto-run" })
@@ -73,7 +72,7 @@ local ok, err = pcall(function()
 
   -- :AI?? on a workspace-attached buffer: drops the bound connection and
   -- creates a NEW workspace by rebinding the connection in place
-  -- (§13.5-rebind, v0.17.0 — no reconnect).
+  -- (no reconnect).
   local stops = 0
   captured = {}
   require("plurnk.config").setup({ files_items = 5 })

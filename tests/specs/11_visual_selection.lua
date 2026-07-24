@@ -1,5 +1,4 @@
--- [§nvim-visual-selection]
--- :2,3 AI: explain — single-prefix range form wraps the visual selection
+-- -- :2,3 AI: explain — single-prefix range form wraps the visual selection
 -- into the loop.run prompt, against the live daemon.
 local NAME = "11_visual_selection"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

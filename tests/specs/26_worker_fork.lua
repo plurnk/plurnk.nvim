@@ -1,5 +1,4 @@
--- [§nvim-worker-fork]
--- worker.fork (svc#248): :PlurnkFork / :AI???? branch the conversation into a new
+-- -- worker.fork (svc#248): :PlurnkFork / :AI???? branch the conversation into a new
 -- run, optionally named at instantiation (immutable after), then bind to it.
 local NAME = "26_worker_fork"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

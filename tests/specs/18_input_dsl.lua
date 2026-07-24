@@ -1,5 +1,4 @@
--- [§nvim-input-dsl][§nvim-look]
--- Input-buffer raw DSL passthrough (TUI parity): `<<…` lines go to
+-- -- Input-buffer raw DSL passthrough (TUI parity): `<<…` lines go to
 -- op.parse verbatim; plain text still routes to loop.run.
 -- Pure module path; stubs client.send.
 local NAME = "18_input_dsl"

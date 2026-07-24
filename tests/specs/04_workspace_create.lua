@@ -1,5 +1,4 @@
--- [§nvim-name-is-identity]
--- workspace.create returns { id, name }. Subsequent workspace.list contains it.
+-- -- workspace.create returns { id, name }. Subsequent workspace.list contains it.
 local NAME = "04_workspace_create"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()

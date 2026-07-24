@@ -1,5 +1,5 @@
 -- Streaming-channel rendering for plurnk's stream/event + stream/concluded
--- notifications (plurnk-service SPEC §7.1 / §13.6). #16 phase 2: rummy
+-- events projected through AG-UI+. #16 phase 2: rummy
 -- stream-window parity, daemon-owned.
 --
 -- One scratch buffer per entry. Channels interleave with rummy's column

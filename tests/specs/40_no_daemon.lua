@@ -1,5 +1,4 @@
--- [§nvim-connection-onboarding]
--- Cold no-daemon: a verb against a dead port surfaces the onboarding notify
+-- -- Cold no-daemon: a verb against a dead port surfaces the onboarding notify
 -- (quick-start + install lines) — never a silent nil. Deterministic: no
 -- daemon is booted; the port is dead by construction.
 local NAME = "40_no_daemon"
