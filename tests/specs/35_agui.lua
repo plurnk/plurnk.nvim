@@ -8,6 +8,21 @@ H.setup()
 local ok, err = pcall(function()
   local agui = require("plurnk.agui")
 
+  local prompt_input = agui.input({ threadId = "world", prompt = "hello" })
+  H.assert_eq(type(prompt_input.runId), "string", "every request has a runId")
+  H.assert_eq(type(prompt_input.messages[1].id), "string", "user messages have ids")
+  H.assert_eq(prompt_input.forwardedProps.plurnk.workspace, "world", "workspace rides forwardedProps")
+
+  local resume_input = agui.input({
+    threadId = "world",
+    resume = { { interruptId = "prop:9", status = "resolved", payload = { decision = "accept" } } },
+  })
+  H.assert_eq(resume_input.resume[1].interruptId, "prop:9", "standard resume carries the interrupt id")
+  H.assert_eq(resume_input.messages, nil, "resume is not approximated by a tool message")
+  H.assert_eq(agui.has_interrupt({ type = "interrupt", interrupts = { { id = "prop:9" } } }, "prop:9"), true, "declared interrupt matches its proposal")
+  H.assert_eq(agui.has_interrupt({ type = "interrupt", interrupts = { { id = "prop:10" } } }, "prop:9"), false, "a foreign interrupt cannot authorize the proposal")
+  H.assert_eq(agui.has_interrupt(nil, "prop:9"), false, "a tool call without an interrupt outcome is not a pause")
+
   -- Two complete frames + a trailing partial (chunk boundary mid-frame).
   local buf = 'data: {"type":"RUN_STARTED"}\n\n'
     .. 'data: {"type":"CUSTOM","name":"plurnk.row","value":{"id":5}}\n\n'

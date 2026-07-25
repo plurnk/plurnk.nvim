@@ -8,6 +8,16 @@
 -- rides the CUSTOM plurnk.* events (esp. plurnk.row — the full wire row), which a
 -- later phase un-projects to the daemon shapes dispatch.lua already renders.
 local M = {}
+local id_sequence = 0
+
+local function new_id(prefix)
+  id_sequence = id_sequence + 1
+  return string.format("%s-%x-%x", prefix, vim.uv.hrtime(), id_sequence)
+end
+
+local function empty_array()
+  return vim.json.decode("[]")
+end
 
 -- Pure SSE frame extraction: split an accumulated buffer into decoded `data:`
 -- JSON values + the incomplete tail (a chunk can split a frame). Bridge frames
@@ -62,6 +72,14 @@ function M.unproject(e, tool)
   return nil
 end
 
+function M.has_interrupt(outcome, interrupt_id)
+  if type(outcome) ~= "table" or outcome.type ~= "interrupt" or type(outcome.interrupts) ~= "table" then return false end
+  for _, interrupt in ipairs(outcome.interrupts) do
+    if type(interrupt) == "table" and interrupt.id == interrupt_id then return true end
+  end
+  return false
+end
+
 local function auth_headers(target)
   local h = { "-H", "content-type: application/json" }
   if type(target.token) == "string" and #target.token > 0 then
@@ -73,18 +91,28 @@ end
 -- Run one turn through the bridge. `on_event(e)` fires per AG-UI event (on the
 -- main loop, via vim.schedule); `on_done(code)` when the stream ends. Returns the
 -- vim.system handle — handle:kill() aborts (the bridge cancels the loop on hangup).
-function M.run(target, run, on_event, on_done)
-  local body = vim.json.encode({
+function M.input(run)
+  local messages = run.messages
+  if messages == nil and run.prompt ~= nil then
+    messages = { { id = new_id("message"), role = "user", content = run.prompt } }
+  end
+  return {
     threadId = run.threadId,
-    runId = run.runId,
-    -- omit when empty: vim.json.encode({}) emits an OBJECT, and RunAgentInput.messages
-    -- must be an array or absent (the module tolerates absent).
-    messages = run.messages or (run.prompt ~= nil and { { role = "user", content = run.prompt } } or nil),
+    runId = run.runId or new_id("run"),
+    state = vim.empty_dict(),
+    tools = empty_array(),
+    context = empty_array(),
+    messages = messages,
+    resume = run.resume,
     -- The workspace (world) is REQUIRED — a run has no existence without one. The client
     -- resolves ONE workspace name and IS its threadId (one conversation per world until
     -- #366 splits them); send it verbatim, never letting the module forge one.
     forwardedProps = { plurnk = vim.tbl_extend("force", { workspace = run.threadId }, run.forwardedProps or {}) },
-  })
+  }
+end
+
+function M.run(target, run, on_event, on_done)
+  local body = vim.json.encode(M.input(run))
   local args = { "curl", "-sN", "-X", "POST", target.url .. "/" }
   vim.list_extend(args, auth_headers(target))
   vim.list_extend(args, { "-d", body })
@@ -104,14 +132,22 @@ function M.run(target, run, on_event, on_done)
   end)
 end
 
--- Answer a stopped-world proposal: the AG-UI+ resume run. The decision rides a
--- tool-result message on a NEW run; the continued loop streams there — feed its
+-- Answer a stopped-world proposal: the standard AG-UI resume on a NEW run. The
+-- continued loop streams there — feed its
 -- events through the same on_event/on_done as the original run.
 function M.resolve(target, r, on_event, on_done)
-  local content = vim.json.encode({ decision = r.decision, body = r.body })
+  local interrupt_id = "prop:" .. tostring(r.logEntryId)
+  local resume
+  if r.decision == "cancel" then
+    resume = { { interruptId = interrupt_id, status = "cancelled" } }
+  else
+    local payload = { decision = r.decision }
+    if r.body ~= nil then payload.body = r.body end
+    resume = { { interruptId = interrupt_id, status = "resolved", payload = payload } }
+  end
   return M.run(target, {
     threadId = r.threadId,
-    messages = { { role = "tool", toolCallId = "prop:" .. tostring(r.logEntryId), content = content } },
+    resume = resume,
   }, on_event, on_done)
 end
 

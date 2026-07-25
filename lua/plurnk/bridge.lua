@@ -30,14 +30,25 @@ function M.run(thread_id, prompt, opts, on_done)
   if t == nil then return nil end
   local dispatch = require("plurnk.dispatch")
   local final = nil   -- NO fabricated success: only loop/terminated sets it (else 502)
-  local tool = {}   -- the TOOL_CALL triple assembler (terminate-resume proposals)
+  local tool = {}   -- the TOOL_CALL triple assembler (interrupt/resume proposals)
   local paused = false
+  local proposed_interrupt = nil
   local on_event
   on_event = function(e)
     if type(e) == "table" and e.type == "RUN_ERROR" then final = tonumber(e.code) or 500; return end
+    if type(e) == "table" and e.type == "RUN_FINISHED" then
+      local outcome = e.outcome
+      if proposed_interrupt ~= nil then
+        if not agui.has_interrupt(outcome, proposed_interrupt) then paused = false; final = 502 end
+      end
+      return
+    end
     local n = agui.unproject(e, tool)
     if n == nil then return end
-    if n.method == "loop/proposal" then paused = true end
+    if n.method == "loop/proposal" then
+      paused = true
+      proposed_interrupt = "prop:" .. tostring(n.params.logEntryId)
+    end
     if n.method == "loop/terminated" then
       paused = false
       final = (type(n.params) == "table" and n.params.finalStatus) or 502
