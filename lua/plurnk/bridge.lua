@@ -29,7 +29,8 @@ function M.run(thread_id, prompt, opts, on_done)
   local t = M.target()
   if t == nil then return nil end
   local dispatch = require("plurnk.dispatch")
-  local final = nil   -- NO fabricated success: only loop/terminated sets it (else 502)
+  local final = nil
+  local plurnk_status = nil -- family metadata; AG-UI terminal events own lifecycle
   local tool = {}   -- the TOOL_CALL triple assembler (interrupt/resume proposals)
   local paused = false
   local proposed_interrupt = nil
@@ -39,7 +40,14 @@ function M.run(thread_id, prompt, opts, on_done)
     if type(e) == "table" and e.type == "RUN_FINISHED" then
       local outcome = e.outcome
       if proposed_interrupt ~= nil then
-        if not agui.has_interrupt(outcome, proposed_interrupt) then paused = false; final = 502 end
+        if not agui.has_interrupt(outcome, proposed_interrupt) then
+          paused = false
+          final = 502
+        end
+      elseif type(outcome) == "table" and outcome.type == "success" then
+        final = plurnk_status or 200
+      else
+        final = 502
       end
       return
     end
@@ -51,14 +59,14 @@ function M.run(thread_id, prompt, opts, on_done)
     end
     if n.method == "loop/terminated" then
       paused = false
-      final = (type(n.params) == "table" and n.params.finalStatus) or 502
+      plurnk_status = type(n.params) == "table" and n.params.finalStatus or nil
     end
     pcall(dispatch.handle_notification, n)
   end
   -- resolve.lua answers via M.resolve below; the resume run's events feed the SAME
   -- on_event/on_done, so the worker-tab renders the continuation seamlessly.
   M._active = { thread_id = thread_id, on_event = on_event, on_done = function(_)
-    -- A stream that died without terminal truth is a broken wire — 502, never 200.
+    -- A stream that died without an AG-UI terminal is a broken wire — 502, never 200.
     if not paused and on_done then on_done(final or 502) end
   end }
   return agui.run(t, { threadId = thread_id, prompt = prompt, forwardedProps = opts and opts.forwardedProps or nil },

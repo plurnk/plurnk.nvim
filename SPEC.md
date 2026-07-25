@@ -33,6 +33,8 @@ what this client guarantees. Tests are organized by observable behavior under
   their run with an AG-UI interrupt outcome, and the decision arrives in a new run
   through `RunAgentInput.resume`. A proposal tool call without its matching declared
   interrupt is a protocol error, never an invitation to infer private lifecycle state.
+  `RUN_FINISHED` and `RUN_ERROR` alone settle the client run; `plurnk.terminated`
+  supplies family-specific status and usage metadata but is not a competing lifecycle.
 - **The stale-daemon probe** — `discover` runs once per
 - **Cold no-daemon onboarding** — a management run against a dead
   port surfaces one WARN notify naming the condition with the quick-start (`npx
