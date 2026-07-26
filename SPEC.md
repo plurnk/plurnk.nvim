@@ -96,6 +96,9 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Two glyph lanes** — every waterfall row carries identity ·
   status (🐹 client; the model SEND lane is status-flavored: 💭 102, 💡 200, 💤 202,
   🤔 300), the status code in one column; width-stable glyphs only.
+- **Broadcast prose remains source-faithful except for exact terminal typography** —
+  the common inline token `$\rightarrow$` renders as `→`; this is not general LaTeX
+  or Markdown interpretation.
 - **Stream windows** — channel prefixes + interleave, batched
   flush (one `entry.read` per tick burst), partial-line hold, a conclusion footer, and
   `BufWipeout` → SEND[499] cancel.

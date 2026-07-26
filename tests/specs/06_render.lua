@@ -65,6 +65,14 @@ local ok, err = pcall(function()
   H.assert_match(bc_short[1], "200", "SEND ✅ sub-glyph")
   H.assert_match(bc_short[1], "200  Paris", "200 then 2sp then body")
 
+  local bc_arrow = R({
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 200, signal = 200,
+    tx = { body = { raw = "loading $\\rightarrow$ running" } },
+  })
+  H.assert_match(bc_arrow[1], "loading → running", "inline right arrow uses its editor glyph")
+  H.assert_truthy(not bc_arrow[1]:match("\\rightarrow"), "inline right arrow source is not rendered literally")
+
   -- Broadcast SEND[200] multi-line body — header + indented body lines.
   local bc_multi = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,

@@ -130,6 +130,12 @@ end
 -- Picked to comfortably fit "Paris", "4", "yes", short markdown phrases.
 local BROADCAST_INLINE_LIMIT = 80
 
+-- A common model-authored inline-math spelling with an exact editor glyph.
+-- This is typographic normalization, not a claim of general LaTeX support.
+local function normalize_prose(text)
+  return text:gsub("%$\\rightarrow%$", "→")
+end
+
 -- `01/02/03 ` coordinate prefix — the model's log://L/T/S address,
 -- zero-padded min-2 for alignment. Empty until the wire carries the
 -- seqs (plurnk-service#208); DB ids are NOT the user's loop/turn
@@ -167,6 +173,7 @@ M.render_broadcast = function(entry)
   elseif type(tx) == "table" and type(tx.body) == "string" then
     body_text = tx.body
   end
+  body_text = normalize_prose(body_text)
   if body_text == "" then return { header } end
 
   -- Short and single-line: inline.
