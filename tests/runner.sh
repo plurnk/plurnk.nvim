@@ -37,7 +37,7 @@ trap cleanup EXIT
 if [ -z "${PLURNK_PORT:-}" ]; then
   # PLURNK_SERVICE_DIR overrides the canonical metaproject checkout.
   SERVICE_BIN=""
-  for dir in "${PLURNK_SERVICE_DIR:-}" "$REPO_DIR/../../plurnk-service"; do
+  for dir in "${PLURNK_SERVICE_DIR:-}" "$REPO_DIR/../plurnk-service"; do
     [ -z "$dir" ] && continue
     if [ -r "$dir/plurnk-core/src/service.ts" ]; then
       SERVICE_BIN="$dir/plurnk-core/src/service.ts"
