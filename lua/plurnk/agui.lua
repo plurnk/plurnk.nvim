@@ -19,23 +19,46 @@ local function empty_array()
   return vim.json.decode("[]")
 end
 
--- Pure SSE frame extraction: split an accumulated buffer into decoded `data:`
--- JSON values + the incomplete tail (a chunk can split a frame). Bridge frames
--- are `data: <json>\n\n`. Unit-testable without curl or a bridge.
-function M.parse_sse(buffer)
-  local events, rest = {}, buffer
+-- Pure, dependency-free SSE extraction for Neovim's Lua runtime. It implements
+-- the event-stream line rules rather than assuming one LF-delimited data line:
+-- CRLF/LF/CR, comments, ignored fields, multiline data, and split chunks.
+local function next_line(buffer, start)
+  local pos = buffer:find("[\r\n]", start)
+  if pos == nil then return nil end
+  local ending = buffer:sub(pos, pos)
+  -- A trailing CR may be the first half of a CRLF split across chunks.
+  if ending == "\r" and pos == #buffer then return nil end
+  local next_pos = pos + 1
+  if ending == "\r" and buffer:sub(next_pos, next_pos) == "\n" then next_pos = next_pos + 1 end
+  return buffer:sub(start, pos - 1), next_pos
+end
+
+function M.parse_sse(buffer, eof)
+  local source = eof and (buffer .. "\n\n") or buffer
+  if source:sub(1, 3) == "\239\187\191" then source = source:sub(4) end
+  local events, data_lines = {}, {}
+  local frame_start, pos = 1, 1
   while true do
-    local sep = rest:find("\n\n", 1, true)
-    if not sep then break end
-    local frame = rest:sub(1, sep - 1)
-    rest = rest:sub(sep + 2)
-    local data = frame:match("^data: (.*)")
-    if data then
-      local okp, decoded = pcall(vim.json.decode, data, { luanil = { object = true, array = true } })
-      if okp then events[#events + 1] = decoded end
+    local line, next_pos = next_line(source, pos)
+    if line == nil then return events, eof and "" or source:sub(frame_start) end
+    if line == "" then
+      if #data_lines > 0 then
+        local data = table.concat(data_lines, "\n")
+        local okp, decoded = pcall(vim.json.decode, data, { luanil = { object = true, array = true } })
+        if not okp then error("invalid AG-UI SSE data JSON: " .. tostring(decoded), 0) end
+        events[#events + 1] = decoded
+      end
+      data_lines = {}
+      frame_start = next_pos
+    elseif line:sub(1, 1) ~= ":" then
+      local colon = line:find(":", 1, true)
+      local field = colon == nil and line or line:sub(1, colon - 1)
+      local value = colon == nil and "" or line:sub(colon + 1)
+      if value:sub(1, 1) == " " then value = value:sub(2) end
+      if field == "data" then data_lines[#data_lines + 1] = value end
     end
+    pos = next_pos
   end
-  return events, rest
 end
 
 -- Un-project one AG-UI event → the daemon notification shape dispatch.lua already
@@ -116,20 +139,36 @@ function M.run(target, run, on_event, on_done)
   local args = { "curl", "-sN", "-X", "POST", target.url .. "/" }
   vim.list_extend(args, auth_headers(target))
   vim.list_extend(args, { "-d", body })
-  local buffer = ""
-  return vim.system(args, {
+  local buffer, parse_error, handle = "", nil, nil
+  local function consume(eof)
+    local okp, events, rest = pcall(M.parse_sse, buffer, eof)
+    if not okp then
+      parse_error = tostring(events)
+      buffer = ""
+      return false
+    end
+    buffer = rest
+    for _, e in ipairs(events) do
+      vim.schedule(function() on_event(e) end)
+    end
+    return true
+  end
+  handle = vim.system(args, {
     stdout = function(err, data)
-      if err ~= nil or data == nil then return end
-      buffer = buffer .. data
-      local events, rest = M.parse_sse(buffer)
-      buffer = rest
-      for _, e in ipairs(events) do
-        vim.schedule(function() on_event(e) end)
+      if parse_error ~= nil or data == nil then return end
+      if err ~= nil then
+        parse_error = "AG-UI SSE stdout failed: " .. tostring(err)
+        vim.schedule(function() if handle ~= nil then handle:kill() end end)
+        return
       end
+      buffer = buffer .. data
+      if not consume(false) then vim.schedule(function() if handle ~= nil then handle:kill() end end) end
     end,
   }, function(res)
-    vim.schedule(function() on_done(res.code) end)
+    if parse_error == nil then consume(true) end
+    vim.schedule(function() on_done(res.code, parse_error) end)
   end)
+  return handle
 end
 
 -- Answer a stopped-world proposal: the standard AG-UI resume on a NEW run. The
@@ -166,11 +205,13 @@ function M.rpc(target, thread_id, method, params, cb, on_event)
       return
     end
     if on_event then on_event(e) end   -- everything else the dispatch emitted rides here
-  end, function(code)
+  end, function(code, transport_error)
     -- A stream that ended with NEITHER a result NOR an action error never reached
     -- a daemon (curl 7 refused / 6 unresolvable / 28 timeout) — name it; a silent
     -- nil here was the old behavior and it hid the first-run moment entirely.
-    if result == nil and errmsg == nil then
+    if transport_error ~= nil then
+      errmsg = transport_error
+    elseif result == nil and errmsg == nil then
       errmsg = "no daemon listening (curl exit " .. tostring(code) .. ")"
     end
     if cb then cb(result, errmsg) end

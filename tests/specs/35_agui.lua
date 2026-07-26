@@ -40,10 +40,62 @@ local ok, err = pcall(function()
   H.assert_eq(events2[1].value.finalStatus, 200, "terminated payload")
   H.assert_eq(rest2, "", "buffer fully drained")
 
-  -- A non-data line (comment/keepalive) is ignored; malformed JSON is skipped.
-  local events3 = agui.parse_sse(": keepalive\n\ndata: not json\n\ndata: {\"ok\":true}\n\n")
-  H.assert_eq(#events3, 1, "only the valid data frame decodes")
-  H.assert_eq(events3[1].ok, true, "valid frame")
+  -- Full SSE line semantics: comments and foreign fields are ignored; CRLF and
+  -- lone CR delimit events; consecutive data fields join with a newline.
+  local events3 = agui.parse_sse(
+    ": keepalive\r\n"
+    .. "event: message\r\n"
+    .. "data:{\"type\":\"RUN_STARTED\",\r\n"
+    .. "data: \"threadId\":\"world\",\"runId\":\"run\"}\r\n\r\n"
+    .. "id: ignored\r"
+    .. "data: {\"ok\":true}\r\r",
+    true
+  )
+  H.assert_eq(#events3, 2, "comments, fields, CRLF, CR, and multiline data conform")
+  H.assert_eq(events3[1].threadId, "world", "multiline data joined")
+  H.assert_eq(events3[2].ok, true, "lone-CR frame decoded")
+
+  local bom_events = agui.parse_sse("\239\187\191data: {\"ok\":\"bom\"}\n\n")
+  H.assert_eq(bom_events[1].ok, "bom", "one leading event-stream BOM is ignored")
+
+  -- A CRLF split between chunks is retained and reassembled rather than
+  -- misread as two line endings.
+  local split_events, split_rest = agui.parse_sse('data: {"ok":"split"}\r')
+  H.assert_eq(#split_events, 0, "trailing CR waits for a possible LF")
+  local split_done, split_tail = agui.parse_sse(split_rest .. "\n\r\n")
+  H.assert_eq(split_done[1].ok, "split", "split CRLF frame decoded")
+  H.assert_eq(split_tail, "", "split CRLF buffer drained")
+
+  -- EOF dispatches a complete final event even without a blank line.
+  local eof_events, eof_rest = agui.parse_sse('data: {"ok":"eof"}', true)
+  H.assert_eq(eof_events[1].ok, "eof", "complete event dispatched at EOF")
+  H.assert_eq(eof_rest, "", "EOF buffer drained")
+
+  -- Malformed daemon data is a transport failure, never silently discarded.
+  local malformed_ok, malformed_err = pcall(agui.parse_sse, "data: not json\n\n")
+  H.assert_eq(malformed_ok, false, "malformed JSON fails hard")
+  H.assert_match(tostring(malformed_err), "invalid AG%-UI SSE data JSON", "failure names the transport contract")
+
+  -- The streaming adapter stops and carries that parse failure through its
+  -- completion boundary rather than converting it to an ordinary curl exit.
+  local real_system = vim.system
+  local stdout, complete
+  local fake_handle = { killed = false }
+  function fake_handle:kill() self.killed = true end
+  vim.system = function(_, opts, cb)
+    stdout, complete = opts.stdout, cb
+    return fake_handle
+  end
+  local done_error
+  agui.run({ url = "http://example.test" }, { threadId = "world", messages = {} }, function() end, function(_, transport_error)
+    done_error = transport_error
+  end)
+  stdout(nil, "data: not json\n\n")
+  H.wait_for(function() return fake_handle.killed end, 1000, "malformed SSE stops curl")
+  complete({ code = 0 })
+  H.wait_for(function() return done_error ~= nil end, 1000, "parse error crosses completion")
+  vim.system = real_system
+  H.assert_match(done_error, "invalid AG%-UI SSE data JSON", "completion preserves parse error")
 
   -- unproject(e, tool): CUSTOM plurnk.* → daemon notification shapes; core events
   -- dropped; a stopped-world arrives as the request_approval TOOL_CALL triple and

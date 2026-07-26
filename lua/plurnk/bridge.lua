@@ -65,7 +65,11 @@ function M.run(thread_id, prompt, opts, on_done)
   end
   -- resolve.lua answers via M.resolve below; the resume run's events feed the SAME
   -- on_event/on_done, so the worker-tab renders the continuation seamlessly.
-  M._active = { thread_id = thread_id, on_event = on_event, on_done = function(_)
+  M._active = { thread_id = thread_id, on_event = on_event, on_done = function(_, transport_error)
+    if transport_error ~= nil then
+      final = 502
+      vim.notify("plurnk: AG-UI transport failed — " .. transport_error, vim.log.levels.ERROR)
+    end
     -- A stream that died without an AG-UI terminal is a broken wire — 502, never 200.
     if not paused and on_done then on_done(final or 502) end
   end }
@@ -136,9 +140,9 @@ function M.resolve(thread_id, r, cb)
   -- The resume run rides the same lane: its rebound stream carries the continued
   -- work's events (exec output, loop rows) — nothing may steal the binding mid-run.
   lane_run(function()
-    agui.resolve(t, vim.tbl_extend("force", { threadId = thread_id }, r), on_event, function(code)
+    agui.resolve(t, vim.tbl_extend("force", { threadId = thread_id }, r), on_event, function(code, transport_error)
       vim.schedule(lane_next)
-      on_done(code)
+      on_done(code, transport_error)
       if cb then cb(code) end
     end)
   end)

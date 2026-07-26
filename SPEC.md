@@ -17,10 +17,12 @@ what this client guarantees. Tests are organized by observable behavior under
 
 ## §2 Transport (AG-UI+)
 
-- **The SSE consumer is pure and reassembles split frames** —
-  `agui.parse_sse` decodes `data:` frames from accumulated chunks, retaining the
-  incomplete tail; events un-project to the daemon notification shapes dispatch
-  already routes.
+- **The SSE consumer is pure and standards-conformant** —
+  the dependency-free Lua parser preserves Neovim portability while handling
+  split chunks, CRLF/LF/CR endings, comments, ignored fields, multiline `data`,
+  and EOF dispatch. Malformed AG-UI JSON is a surfaced 502 transport failure,
+  never a dropped event; decoded events un-project to the daemon notification
+  shapes dispatch already routes.
 - **The workspace (world) rides every run** — the `threadId` IS the
   workspace name, verbatim (no prefix, no forging), and the client sends it as
   `forwardedProps.plurnk.workspace` on every run. The front door — `:PlurnkWorkspaces` →
