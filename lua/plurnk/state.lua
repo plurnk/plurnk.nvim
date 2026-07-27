@@ -4,7 +4,7 @@
 -- Concept mapping from rummy → plurnk:
 --   rummy "run alias" → plurnk "workspace name" (long-lived agent state).
 --   rummy "turn"      → plurnk loop turn (within current loop).
---   rummy "cost"      → plurnk `cost_pico` from workspace.list / workspace.workers.
+--   rummy "cost"      → plurnk `cost_usd` from workspace.list / workspace.workers.
 --
 -- Dropped from rummy: context_max/effective, budget_*, tokens_in/out
 -- (plurnk wire does not expose these per-loop; the model's packet.system
@@ -34,7 +34,7 @@ local function ensure_workspace(name)
       current_turn = nil,
       final_status = nil,
       status_text = nil,
-      cost_pico = 0,
+      cost_usd = 0,
       last_seen_log_id = 0,
       pending_proposals = {},  -- keyed by logEntryId
       search_progress = nil,   -- aggregate page acquisition percent; nil when idle
@@ -151,7 +151,7 @@ M.get_usage = function(name) local s = ensure_workspace(name); return s and s.us
 -- lifetime cost is the daemon's to aggregate (svc#254): workers spawn/fork and
 -- multiple clients drive one workspace, so no client sees every turn; a
 -- client-side tally only sums the loops THIS client witnessed — a lie about
--- money. We show only "what the last loop cost" + account balance (svc#252).
+-- money. We show only what the last loop cost.
 M.record_loop_usage = function(name, u)
   if type(u) ~= "table" then return end
   local s = ensure_workspace(name)
@@ -162,11 +162,7 @@ M.record_loop_usage = function(name, u)
   -- context occupancy (svc#263) — the gauge numerator, the daemon's figure
   -- (NOT the double-counting promptTokens sum).
   if type(u.contextTokens) == "number" then s.usage.context_tokens = u.contextTokens end
-  if type(u.costPico) == "number" then s.cost_pico = u.costPico end  -- last loop's cost, not a total
-  -- sessionCostPico = the DAEMON's authoritative cumulative workspace total
-  -- (svc#254), pushed on the wire — NOT a client tally. We only render it.
-  if type(u.sessionCostPico) == "number" then s.workspace_cost_pico = u.sessionCostPico end
-  if type(u.balancePico) == "number" then s.balance_pico = u.balancePico end  -- account balance snapshot
+  if type(u.costUsd) == "number" then s.cost_usd = u.costUsd end  -- last loop's cost, not a total
 end
 
 -- True between loop.run dispatch and loop/terminated — drives the
@@ -190,15 +186,8 @@ M.set_status_text = function(name, text) local s = ensure_workspace(name); if s 
 
 -- The LAST loop's cost (snapshot), not a workspace total — the lifetime total is
 -- the daemon's (svc#254), surfaced in `workspace list`, never reconstructed here.
-M.get_cost_pico = function(name) local s = ensure_workspace(name); return s and s.cost_pico or 0 end
-M.set_cost_pico = function(name, c) local s = ensure_workspace(name); if s then s.cost_pico = c or 0 end end
-
--- Daemon's authoritative workspace total (svc#254); nil until the wire carries
--- sessionCostPico. Rendered, never reconstructed.
-M.get_workspace_cost_pico = function(name) local s = ensure_workspace(name); return s and s.workspace_cost_pico end
-
--- Account balance snapshot (svc#252); nil until the wire carries balancePico.
-M.get_balance_pico = function(name) local s = ensure_workspace(name); return s and s.balance_pico end
+M.get_cost_usd = function(name) local s = ensure_workspace(name); return s and s.cost_usd or 0 end
+M.set_cost_usd = function(name, cost) local s = ensure_workspace(name); if s then s.cost_usd = cost or 0 end end
 
 M.get_last_seen_log_id = function(name) local s = ensure_workspace(name); return s and s.last_seen_log_id or 0 end
 M.set_last_seen_log_id = function(name, id)

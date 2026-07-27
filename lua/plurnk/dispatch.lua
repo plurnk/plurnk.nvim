@@ -1,13 +1,13 @@
 -- Response and notification routing.
 --
 -- Plurnk is push-driven: log/entry / loop/proposal / loop/terminated /
--- telemetry/event notifications arrive with full payloads as state
+-- notice/event notifications arrive with full payloads as state
 -- changes — no pulse-and-pull reconciliation step is needed. (Contrast
 -- with rummy, which sent content-free `run/changed` pulses and required
 -- a `getEntries` round-trip to actually learn what happened.)
 --
 -- Per plurnk SPEC §5.1 (log/entry), §6.1 (loop/proposal), §8.6
--- (telemetry/event).
+-- (notice/event).
 
 local M = {}
 local state = require("plurnk.state")
@@ -139,27 +139,27 @@ M.handle_loop_terminated = function(params, workspace_name)
   end)
 end
 
--- Severity from the producer-set event.level (grammar 0.74.29+ / svc#276) —
+-- Severity from the producer-set notice.level (grammar 0.74.29+ / svc#276) —
 -- mirrors the npm client (#110). The producer owns severity; the client colors
 -- straight off it, never re-deriving from the kind string. error → ErrorMsg
--- (red), warn → WarningMsg (yellow), info/absent → Comment (dim).
-local function telemetry_hl(level)
+-- (red), warn → WarningMsg (yellow), info → Comment (dim).
+local function notice_hl(level)
   if level == "error" then return "ErrorMsg" end
   if level == "warn" then return "WarningMsg" end
   return "Comment"
 end
 
--- telemetry/event: parse errors, engine rail signals, scheme/provider
--- failures. Per SPEC §8.6. Rendered as a `📡 source:kind` line inline.
-M.handle_telemetry_event = function(params, workspace_name)
-  if not params or type(params.event) ~= "table" then return end
-  local event = params.event
+-- notice/event: transient, nonterminal progress and diagnostics. Durable
+-- failures remain log rows. Rendered as a `📡 source:kind` line inline.
+M.handle_notice_event = function(params, workspace_name)
+  if not params or type(params.notice) ~= "table" then return end
+  local notice = params.notice
   -- engine:turn liveness is the ⏳ gutter, not a waterfall line (mirrors the TUI).
-  if event.source == "engine:turn" then return end
+  if notice.source == "engine:turn" then return end
   -- embed_progress toggles the 🧮 abacus on the EDGE — never a per-tick line.
-  if event.source == "engine:derivation" and event.kind == "embed_progress" then
-    local active = tonumber(event.completed) ~= nil and tonumber(event.total) ~= nil
-      and tonumber(event.completed) < tonumber(event.total)
+  if notice.source == "engine:derivation" and notice.kind == "embed_progress" then
+    local active = tonumber(notice.completed) ~= nil and tonumber(notice.total) ~= nil
+      and tonumber(notice.completed) < tonumber(notice.total)
     if workspace_name and active ~= state.is_embedding(workspace_name) then
       state.set_embedding(workspace_name, active)
       redraw_statusline()
@@ -168,20 +168,20 @@ M.handle_telemetry_event = function(params, workspace_name)
   end
   -- Search page acquisition is compact edge state too: a percentage in the
   -- statusline, never one waterfall line per milestone or candidate.
-  if type(event.source) == "string" and event.source:match("^exec:")
-      and event.kind == "search_progress" then
+  if type(notice.source) == "string" and notice.source:match("^exec:")
+      and notice.kind == "search_progress" then
     if workspace_name then
-      local active = event.phase ~= "complete" and event.phase ~= "failed"
-      state.set_search_progress(workspace_name, active and tonumber(event.percent) or nil)
+      local active = notice.phase ~= "complete" and notice.phase ~= "failed"
+      state.set_search_progress(workspace_name, active and tonumber(notice.percent) or nil)
       redraw_statusline()
     end
     return
   end
   vim.schedule(function()
-    local tag = tostring(event.source or "?") .. ":" .. tostring(event.kind or "?")
+    local tag = tostring(notice.source or "?") .. ":" .. tostring(notice.kind or "?")
     local headline = "  📡 " .. tag
-    if type(event.message) == "string" and #event.message > 0 then
-      headline = headline .. ' "' .. event.message .. '"'
+    if type(notice.message) == "string" and #notice.message > 0 then
+      headline = headline .. ' "' .. notice.message .. '"'
     end
     if workspace_name then
       local ok, worker_tab = pcall(require, "plurnk.worker_tab")
@@ -189,7 +189,7 @@ M.handle_telemetry_event = function(params, workspace_name)
     end
     local ok, hud = pcall(require, "plurnk.hud")
     if ok then hud.show(headline) end
-    safe_echo(headline, telemetry_hl(event.level))
+    safe_echo(headline, notice_hl(notice.level))
   end)
 end
 
@@ -221,7 +221,7 @@ M.handle_notification = function(payload)
   if method == "log/entry" then M.handle_log_entry(params, workspace_name)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, workspace_name)
   elseif method == "loop/terminated" then M.handle_loop_terminated(params, workspace_name)
-  elseif method == "telemetry/event" then M.handle_telemetry_event(params, workspace_name)
+  elseif method == "notice/event" then M.handle_notice_event(params, workspace_name)
   elseif method == "stream/event" then
     pcall(function() require("plurnk.stream").on_event(params, workspace_name) end)
   elseif method == "stream/concluded" then

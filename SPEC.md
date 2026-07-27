@@ -104,8 +104,8 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Stream windows** — channel prefixes + interleave, batched
   flush (one `entry.read` per tick burst), partial-line hold, a conclusion footer, and
   `BufWipeout` → SEND[499] cancel.
-- **Telemetry severity is producer-set** — `event.level`
-  maps error → ErrorMsg, warn → WarningMsg, info/absent → Comment; no kind heuristic.
+- **Notice severity is producer-set** — required `notice.level`
+  maps error → ErrorMsg, warn → WarningMsg, info → Comment; no kind heuristic.
 - **The abacus** — `engine:derivation embed_progress` collapses to an
   edge-toggled 🧮 on the statusline, never a waterfall line; `engine:turn` liveness is
   the ⏳ gutter, dropped from the waterfall; the abacus never outlives the loop.

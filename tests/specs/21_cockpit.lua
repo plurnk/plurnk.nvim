@@ -15,14 +15,14 @@ local ok, err = pcall(function()
   -- NOT a workspace tally. The lifetime total is the daemon's (svc#254); a client
   -- can't sum it (forks + multiple clients), and faking it lies about money.
   dispatch.handle_loop_terminated({ loopId = 1, finalStatus = 200, hitMaxTurns = false,
-    usage = { promptTokens = 2000, completionTokens = 500, costPico = 7e9 } }, "gauge")
+    usage = { promptTokens = 2000, completionTokens = 500, costUsd = 0.007 } }, "gauge")
   dispatch.handle_loop_terminated({ loopId = 2, finalStatus = 200, hitMaxTurns = false,
-    usage = { promptTokens = 1000, completionTokens = 250, costPico = 3e9 } }, "gauge")
+    usage = { promptTokens = 1000, completionTokens = 250, costUsd = 0.003 } }, "gauge")
   -- The rich gauge lives in the winbar now; the statusline is a lean glance.
   local wb = require("plurnk.worker_tab").winbar_text("gauge", nil)
   H.assert_match(wb, "🐹 gauge", "winbar names the workspace")
   H.assert_match(wb, "↑1%.0k ↓250", "shows the LAST loop's usage (snapshot), not the sum of both")
-  H.assert_eq(state.get_cost_pico("gauge"), 3e9, "cost is the last loop's, NOT accumulated (no client workspace total)")
+  H.assert_eq(state.get_cost_usd("gauge"), 0.003, "cost is the last loop's, NOT accumulated (no client workspace total)")
   local sl = require("plurnk.statusline").text()
   H.assert_match(sl, "🐹", "statusline shows the brand")
   H.assert_truthy(not sl:match("↑"), "statusline does NOT squat tokens (winbar's job)")

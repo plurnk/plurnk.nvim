@@ -87,7 +87,7 @@ function M.unproject(e, tool)
   local name, v = e.name, e.value
   if name == "plurnk.row" then return { method = "log/entry", params = { entry = v } } end
   if name == "plurnk.terminated" then return { method = "loop/terminated", params = v } end
-  if name == "plurnk.telemetry" then return { method = "telemetry/event", params = { event = v } } end
+  if name == "plurnk.notice" then return { method = "notice/event", params = { notice = v } } end
   if name == "plurnk.stream" then
     local concluded = type(v) == "table" and v.closeStatus ~= nil
     return { method = concluded and "stream/concluded" or "stream/event", params = v }

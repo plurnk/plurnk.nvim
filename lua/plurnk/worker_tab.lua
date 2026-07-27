@@ -35,10 +35,10 @@ local function buffer_title(workspace, key)
 end
 
 -- The winbar is plurnk's OWN window header — its real estate, so the rich
--- detail lives here (identity + model + live L·T/status + the persistent money
--- trio), NOT in the user's shared statusline. Reactive: refresh_winbar re-renders
+-- detail lives here (identity + model + live L·T/status + loop cost), NOT in
+-- the user's shared statusline. Reactive: refresh_winbar re-renders
 -- it on each notification so the live state stays current (operator, 2026-06-20).
-local function fmt_usd(pico) return string.format("$%.2f", pico / 1e12) end
+local function fmt_usd(cost) return string.format("$%.4f", cost) end
 local function fmt_count(n)
   if n >= 1e6 then return string.format("%.1fM", n / 1e6) end
   if n >= 1000 then return string.format("%.1fk", n / 1000) end
@@ -89,16 +89,8 @@ local function build_winbar(workspace, key)
     parts[#parts + 1] = string.format("ctx %d%%/%s", math.floor(usage.context_tokens / cs * 100 + 0.5), k)
   end
 
-  -- Money trio (loop | workspace | remaining) — daemon-sourced, each shown only
-  -- when available; the client renders, never aggregates (svc#252/#254).
-  local money = {}
-  local loop_cost = state.get_cost_pico(workspace)
-  if type(loop_cost) == "number" and loop_cost > 0 then money[#money + 1] = "loop: " .. fmt_usd(loop_cost) end
-  local sess = state.get_workspace_cost_pico(workspace)
-  if type(sess) == "number" then money[#money + 1] = "workspace: " .. fmt_usd(sess) end
-  local bal = state.get_balance_pico(workspace)
-  if type(bal) == "number" then money[#money + 1] = "remaining: " .. fmt_usd(bal) end
-  if #money > 0 then parts[#parts + 1] = table.concat(money, " | ") end
+  local loop_cost = state.get_cost_usd(workspace)
+  if type(loop_cost) == "number" and loop_cost > 0 then parts[#parts + 1] = "loop: " .. fmt_usd(loop_cost) end
 
   return " " .. table.concat(parts, " · ") .. " "
 end
@@ -120,7 +112,7 @@ M.winbar_text = function(workspace, key)
 end
 
 -- Re-render the winbar for a workspace's open waterfall window(s) — called from
--- dispatch on each state-changing notification so the live L·T / status / money
+-- dispatch on each state-changing notification so the live L·T / status / cost
 -- stay current without a statusline round-trip.
 M.refresh_winbar = function(workspace)
   local recs = records[workspace]
@@ -353,7 +345,7 @@ M.hydrate = function(workspace, worker_id, entries)
   autoscroll(rec)
 end
 
--- Free-text line (telemetry headlines etc.) — current worker's waterfall.
+-- Free-text line (Notice headlines etc.) — current worker's waterfall.
 M.append_line = function(workspace, text)
   if not workspace or not text or text == "" then return end
   local rec = M.get_record(workspace) or ensure_record(workspace, "pending")

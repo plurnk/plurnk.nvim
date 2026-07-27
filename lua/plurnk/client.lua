@@ -35,8 +35,8 @@ M.get_final_status = state.get_final_status
 M.set_final_status = state.set_final_status
 M.get_status_text = state.get_status_text
 M.set_status_text = state.set_status_text
-M.get_cost_pico = state.get_cost_pico
-M.set_cost_pico = state.set_cost_pico
+M.get_cost_usd = state.get_cost_usd
+M.set_cost_usd = state.set_cost_usd
 
 M.is_project_file = state.is_project_file
 M.get_relative_path = state.get_relative_path

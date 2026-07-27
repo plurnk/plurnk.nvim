@@ -1,5 +1,5 @@
 -- -- The statusline is LEAN (🐹 + status emoji + 🔥yolo); the rich detail
--- (workspace/model/L·T/tokens/money trio) lives in the winbar — worker_tab.winbar_text.
+-- (workspace/model/L·T/tokens/loop cost) lives in the winbar — worker_tab.winbar_text.
 local NAME = "08_statusline"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
@@ -11,7 +11,7 @@ local ok, err = pcall(function()
   state.set_model_alias("s1", "claude")
   state.set_current_loop_id("s1", 7)
   state.set_current_turn("s1", 2)
-  state.set_cost_pico("s1", 70000000000) -- $0.07 — the LAST loop's cost, not a total
+  state.set_cost_usd("s1", 0.07) -- the LAST loop's cost, not a total
   state.set_loop_inflight("s1", true)
 
   -- ── lean statusline: a glance, not a squat on shared real estate ──
@@ -30,7 +30,7 @@ local ok, err = pcall(function()
   H.assert_match(wb, "L7", "loop")
   H.assert_match(wb, "T2", "turn")
   H.assert_match(wb, "⏳", "in-flight glyph in winbar")
-  H.assert_match(wb, "loop: %$0%.07", "per-loop cost, labelled 'loop:'")
+  H.assert_match(wb, "loop: %$0%.0700", "per-loop cost, labelled 'loop:'")
 
   state.set_loop_inflight("s1", false)
   state.set_final_status("s1", 200)
@@ -38,18 +38,9 @@ local ok, err = pcall(function()
   state.set_final_status("s1", 504)
   H.assert_match(worker_tab.winbar_text("s1", 7), "❌", "error glyph")
 
-  -- workspace total + remaining (account balance) — each shown ONLY when the
-  -- daemon pushes it (svc#254 / svc#252); the client renders, never aggregates.
-  H.assert_truthy(not worker_tab.winbar_text("s1", 7):match("workspace:"), "no workspace total until the wire carries it")
-  H.assert_truthy(not worker_tab.winbar_text("s1", 7):match("remaining:"), "no remaining until the wire carries it")
-  state.record_loop_usage("s1", { sessionCostPico = 12560000000000, balancePico = 198530000000000 })
-  local m = worker_tab.winbar_text("s1", 7)
-  H.assert_match(m, "workspace: %$12%.56", "workspace total = daemon's authoritative cumulative cost")
-  H.assert_match(m, "remaining: %$198%.53", "remaining = account balance")
-
   -- record_loop_usage is a SNAPSHOT, not a tally: a second loop's cost REPLACES.
-  state.record_loop_usage("s1", { costPico = 50000000000 }) -- $0.05
-  H.assert_match(worker_tab.winbar_text("s1", 7), "loop: %$0%.05", "last loop's cost replaces, not accumulates")
+  state.record_loop_usage("s1", { costUsd = 0.05 })
+  H.assert_match(worker_tab.winbar_text("s1", 7), "loop: %$0%.0500", "last loop's cost replaces, not accumulates")
 
   -- Context-% gauge (svc#263): contextTokens / the active model's contextSize.
   state.set_available_aliases({ { alias = "opus", active = true, contextSize = 49152 } })

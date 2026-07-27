@@ -2,7 +2,7 @@
 -- statusline is shared ecosystem real estate (the user's own bar, next to
 -- file/git/LSP), so plurnk spends exactly one glance here: 🐹 + a live status
 -- emoji (⏳ running, else the last final's glyph) + a 🔥 when YOLO is armed.
--- The rich detail — identity, model, L·T, tokens, and the persistent money
+-- The rich detail — identity, model, L·T, tokens, and loop cost
 -- trio — lives in the winbar (plurnk's OWN window header; see worker_tab.lua).
 local M = {}
 local state = require("plurnk.state")

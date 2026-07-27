@@ -1,6 +1,6 @@
 -- -- The abacus: engine:derivation embed_progress collapses to a single edge-toggled
 -- 🧮 on the statusline — NOT a per-tick waterfall line — and engine:turn liveness is
--- dropped entirely. Mirrors the TUI (tui.ts onTelemetry). The nvim used to spam every
+-- dropped entirely. The nvim used to spam every
 -- "recounting tokens N/M" tick into the worker tab (operator, 2026-07-10).
 local NAME = "37_abacus"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
@@ -18,26 +18,26 @@ local ok, err = pcall(function()
   worker_tab.append_line = function(_, line) appended[#appended + 1] = line end
 
   -- Mid-recount (12/65) → abacus ON, and NOT a single waterfall line.
-  dispatch.handle_telemetry_event({ event = { source = "engine:derivation", kind = "embed_progress", completed = 12, total = 65, message = "recounting tokens 12/65" } }, workspace)
+  dispatch.handle_notice_event({ notice = { source = "engine:derivation", kind = "embed_progress", level = "info", completed = 12, total = 65, message = "recounting tokens 12/65" } }, workspace)
   H.assert_eq(state.is_embedding(workspace), true, "embed_progress 12/65 toggles the abacus ON")
   H.assert_eq(#appended, 0, "progress ticks NEVER hit the waterfall — the 🧮 replaces the spam")
 
   -- Another tick while already active — still no line, no churn.
-  dispatch.handle_telemetry_event({ event = { source = "engine:derivation", kind = "embed_progress", completed = 40, total = 65 } }, workspace)
+  dispatch.handle_notice_event({ notice = { source = "engine:derivation", kind = "embed_progress", level = "info", completed = 40, total = 65 } }, workspace)
   H.assert_eq(#appended, 0, "subsequent ticks add no lines")
 
   -- Recount complete (65/65) → abacus OFF.
-  dispatch.handle_telemetry_event({ event = { source = "engine:derivation", kind = "embed_progress", completed = 65, total = 65 } }, workspace)
+  dispatch.handle_notice_event({ notice = { source = "engine:derivation", kind = "embed_progress", level = "info", completed = 65, total = 65 } }, workspace)
   H.assert_eq(state.is_embedding(workspace), false, "embed_progress 65/65 toggles the abacus OFF")
 
   -- engine:turn liveness → dropped (it's the ⏳ gutter, not a line).
-  dispatch.handle_telemetry_event({ event = { source = "engine:turn", kind = "turn_generated", message = "parsing model response" } }, workspace)
+  dispatch.handle_notice_event({ notice = { source = "engine:turn", kind = "turn_generated", level = "info", message = "parsing model response" } }, workspace)
   H.assert_eq(#appended, 0, "engine:turn liveness is never a waterfall line")
 
-  -- A REAL telemetry event (a parse error) still rides the waterfall.
-  dispatch.handle_telemetry_event({ event = { source = "grammar", kind = "parse_error", message = "boom", level = "error" } }, workspace)
+  -- A non-progress Notice still rides the waterfall.
+  dispatch.handle_notice_event({ notice = { source = "grammar", kind = "parse_advisory", message = "boom", level = "warn" } }, workspace)
   vim.wait(300, function() return #appended > 0 end)
-  H.assert_eq(#appended, 1, "non-progress telemetry still renders its line")
+  H.assert_eq(#appended, 1, "a non-progress Notice still renders its line")
 
   -- The statusline carries 🧮 while embedding, and drops it when done.
   local buf = vim.api.nvim_get_current_buf()
@@ -48,11 +48,11 @@ local ok, err = pcall(function()
   H.assert_eq(require("plurnk.statusline").text():find("🧮") == nil, true, "abacus gone when idle")
 
   -- Search acquisition uses the same no-waterfall compact-state contract.
-  dispatch.handle_telemetry_event({ event = { source = "exec:search", kind = "search_progress", phase = "fetching", percent = 42, completed = 5, total = 12 } }, workspace)
+  dispatch.handle_notice_event({ notice = { source = "exec:search", kind = "search_progress", level = "info", phase = "fetching", percent = 42, completed = 5, total = 12 } }, workspace)
   H.assert_eq(state.get_search_progress(workspace), 42, "search progress stores the producer's aggregate percent")
   H.assert_eq(#appended, 1, "search progress adds no waterfall lines")
   H.assert_eq(require("plurnk.statusline").text():find("🔎 42%%") ~= nil, true, "statusline shows compact search progress")
-  dispatch.handle_telemetry_event({ event = { source = "exec:search", kind = "search_progress", phase = "complete", percent = 100 } }, workspace)
+  dispatch.handle_notice_event({ notice = { source = "exec:search", kind = "search_progress", level = "info", phase = "complete", percent = 100 } }, workspace)
   H.assert_eq(state.get_search_progress(workspace), nil, "terminal search progress clears the edge state")
   H.assert_eq(require("plurnk.statusline").text():find("🔎") == nil, true, "search gauge gone when complete")
 end)
