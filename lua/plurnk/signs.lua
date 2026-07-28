@@ -45,7 +45,7 @@ local function sign_buf(bufnr, resolved)
 end
 
 -- Fetch workspace.members → re-sign every visible project buffer. No cache: called
--- on BufEnter and after every membership change (pick/hide/view/repo/drop).
+-- on BufEnter and after every membership change (pick/hide/view/drop).
 M.refresh = function(workspace)
   if not workspace then return end
   require("plurnk.client").send("workspace.members", {}, false, function(result)

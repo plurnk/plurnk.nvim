@@ -30,6 +30,17 @@ M.text = function()
   if state.is_embedding(workspace) then parts[#parts + 1] = "🧮" end
   local search_progress = state.get_search_progress(workspace)
   if search_progress ~= nil then parts[#parts + 1] = "🔎 " .. tostring(search_progress) .. "%" end
+  local branch = state.get_branch_batch(workspace)
+  if branch ~= nil then
+    if branch.state == "recovery_required" then
+      parts[#parts + 1] = "🌿 ❌"
+    else
+      local completed, total = tonumber(branch.completed), tonumber(branch.total)
+      local percent = completed ~= nil and total ~= nil and total > 0
+        and math.floor((completed / total) * 100) or nil
+      parts[#parts + 1] = percent ~= nil and ("🌿 " .. tostring(percent) .. "%") or "🌿"
+    end
+  end
 
   local ok_diff, diff = pcall(require, "plurnk.diff")
   if ok_diff and diff.is_yolo and diff.is_yolo() then parts[#parts + 1] = "🔥" end

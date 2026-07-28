@@ -44,7 +44,6 @@ M.setup = function()
   map_if_empty("n", "<leader>ap", ":PlurnkPick<CR>",        "Plurnk: pick — track file(s) in manifest")
   map_if_empty("n", "<leader>ah", ":PlurnkHide<CR>",        "Plurnk: hide this file")
   map_if_empty("n", "<leader>av", ":PlurnkView<CR>",        "Plurnk: view (read-only) this file")
-  map_if_empty("n", "<leader>ar", ":PlurnkRepo<CR>",        "Plurnk: declare this file's dir a git repo")
   map_if_empty("n", "<leader>ad", ":PlurnkDrop<CR>",        "Plurnk: drop this file's constraints")
   map_if_empty("n", "<leader>aM", ":PlurnkMembers<CR>",     "Plurnk: list members")
 

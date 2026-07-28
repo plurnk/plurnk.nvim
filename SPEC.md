@@ -112,10 +112,14 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Search acquisition progress** — `exec:* search_progress`
   collapses to `🔎 N%` on the statusline and clears on its terminal phase. Milestones
   never append to the waterfall; materialized pages remain available in durable history.
+- **Serialized branch progress** — `CUSTOM plurnk.branch_batch` un-projects to
+  `workspace/branch-batch`; queued/running state collapses to `🌿 N%` on the
+  statusline. Completion or failure appends one summary and clears it;
+  `recovery_required` appends one error and remains visible as `🌿 ❌`.
 - **Membership signs mark exceptions only** — view 🔒 and
   hidden 🚫 get a line-1 extmark; plain members and non-members get no sign.
 - **The statusline is lean** — 🐹 + one status glyph + 🔥 when
-  YOLO is armed (+ 🧮 while embedding); the rich detail lives in the winbar.
+  YOLO is armed (+ compact 🧮, 🔎, or 🌿 work state); the rich detail lives in the winbar.
 - **The cockpit gauge is the daemon's number** — the winbar shows
   the LAST loop's usage snapshot, never a client-side tally.
 

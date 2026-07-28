@@ -621,29 +621,6 @@ M.pick = function(opts) constrain("pick", opts.args) end
 M.hide = function(opts) constrain("hide", opts.args) end
 M.view = function(opts) constrain("view", opts.args) end
 
--- :PlurnkRepo [dir] — track a git repo in selected folder (svc#242): its ls-files
--- join membership, addressed relative to the project root. repo is a
--- DIRECTORY, not a file — the current-file default would be wrong, so with
--- no arg we default to the current buffer's DIRECTORY (`%:h`), not the file.
-M.repo = function(opts)
-  local arg = (opts.args or ""):gsub("^%s+", ""):gsub("%s+$", "")
-  local dir = arg
-  if dir == "" then
-    local name = vim.api.nvim_buf_get_name(0)
-    if name == "" or name:match("^%a[%w+.-]*://") then
-      require("plurnk.client").notify(":AI/repo needs a directory, or run it in a file buffer", vim.log.levels.WARN)
-      return
-    end
-    dir = vim.fn.fnamemodify(name, ":.:h")  -- workspace-relative dir of the current file
-  end
-  resolve_workspace_then(function(workspace_name)
-    require("plurnk.client").send("workspace.constrain", { effect = "repo", glob = dir }, false, function()
-      require("plurnk.client").notify("repo: " .. dir, vim.log.levels.INFO)
-      require("plurnk.signs").refresh(workspace_name)
-    end)
-  end)
-end
-
 -- :PlurnkDrop [glob] — remove the constraint(s) matching the glob (any effect);
 -- no arg drops the current file's constraints.
 M.drop = function(opts)
@@ -685,7 +662,7 @@ M.members = function()
       end
       local lines = {}
       if #members == 0 and #hidden == 0 then
-        lines[1] = "the model's universe is empty — no members (/pick a file or /repo a folder)"
+        lines[1] = "the model's universe is empty — no Git members or /pick rules"
       else
         lines[1] = string.format("the model's universe: %d file%s — %d editable, %d read-only%s",
           #members, #members == 1 and "" or "s", #editable, #view,
@@ -825,7 +802,7 @@ local HELP = table.concat({
   ":AI?? / ::         new workspace    ??? headless    ???? new run (fork)",
   ":AI... <text>      inject into the running model loop (loop.inject)",
   ":AI/<verb>         models workspaces runs workspace run rename log yolo ping",
-  "                   pick hide view repo drop members (membership overlay)",
+  "                   pick hide view drop members (membership overlay)",
   "                   script <path> (run a .plk file via op.parse)",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
@@ -892,7 +869,6 @@ local SLASH = {
   pick     = function(args) M.pick({ args = args }) end,
   hide     = function(args) M.hide({ args = args }) end,
   view     = function(args) M.view({ args = args }) end,
-  repo     = function(args) M.repo({ args = args }) end,
   drop     = function(args) M.drop({ args = args }) end,
   members  = function() M.members() end,
   script   = function(args) M.script({ args = args }) end,
@@ -1078,7 +1054,6 @@ M.setup = function()
   cmd("PlurnkPick",        M.pick,         { nargs = "?", complete = "file" })
   cmd("PlurnkHide",        M.hide,         { nargs = "?", complete = "file" })
   cmd("PlurnkView",        M.view,         { nargs = "?", complete = "file" })
-  cmd("PlurnkRepo",        M.repo,         { nargs = "?", complete = "dir" })
   cmd("PlurnkDrop",        M.drop,         { nargs = "?", complete = "file" })
   cmd("PlurnkMembers",     M.members,      {})
   cmd("PlurnkScript",      M.script,       { nargs = 1, complete = "file" })

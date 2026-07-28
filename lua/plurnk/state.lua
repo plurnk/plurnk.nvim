@@ -38,6 +38,7 @@ local function ensure_workspace(name)
       last_seen_log_id = 0,
       pending_proposals = {},  -- keyed by logEntryId
       search_progress = nil,   -- aggregate page acquisition percent; nil when idle
+      branch_batch = nil,      -- active serialized branch-batch lifecycle
     }
   end
   return workspace_states[name]
@@ -179,6 +180,11 @@ M.get_search_progress = function(name) local s = ensure_workspace(name); return 
 M.set_search_progress = function(name, percent)
   local s = ensure_workspace(name)
   if s then s.search_progress = type(percent) == "number" and math.max(0, math.min(100, math.floor(percent))) or nil end
+end
+M.get_branch_batch = function(name) local s = ensure_workspace(name); return s and s.branch_batch or nil end
+M.set_branch_batch = function(name, batch)
+  local s = ensure_workspace(name)
+  if s then s.branch_batch = type(batch) == "table" and batch or nil end
 end
 
 M.get_status_text = function(name) local s = ensure_workspace(name); return s and s.status_text end

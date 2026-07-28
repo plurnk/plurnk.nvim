@@ -113,6 +113,7 @@ local ok, err = pcall(function()
   H.assert_eq(prop.params.logEntryId, 9, "logEntryId decoded from the toolCallId")
   H.assert_eq(prop.params.op, "EDIT", "args carried")
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.notice", value = { source = "engine:turn", kind = "turn_generated", level = "info" } }, tool).params.notice.source, "engine:turn", "Notice wrapped as {notice}")
+  H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.branch_batch", value = { batchId = 7, state = "queued" } }, tool).method, "workspace/branch-batch", "branch batch custom preserved")
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { closeStatus = 200 } }, tool).method, "stream/concluded", "closeStatus → concluded")
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { state = "active" } }, tool).method, "stream/event", "state → event")
 

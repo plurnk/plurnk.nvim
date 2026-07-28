@@ -200,6 +200,39 @@ M.handle_workspace_created = function(_)
   -- no-op for v0.1
 end
 
+-- Serialized branch batches are compact workspace state while queued/running.
+-- Only terminal or operator-recovery transitions append a line.
+M.handle_branch_batch = function(params, workspace_name)
+  if type(params) ~= "table" or not workspace_name then return end
+  local terminal = params.state == "completed" or params.state == "failed"
+  if terminal then
+    state.set_branch_batch(workspace_name, nil)
+  else
+    state.set_branch_batch(workspace_name, params)
+  end
+  if terminal or params.state == "recovery_required" then
+    vim.schedule(function()
+      local ok, worker_tab = pcall(require, "plurnk.worker_tab")
+      local problem = type(params.problem) == "table" and params.problem.detail or nil
+      local line
+      if params.state == "completed" then
+        line = string.format("  🌿 branch batch %s complete (%s/%s)",
+          tostring(params.batchId or "?"), tostring(params.completed or params.total or 0),
+          tostring(params.total or params.completed or 0))
+      elseif params.state == "failed" then
+        line = string.format("  ❌ branch batch %s failed: %s",
+          tostring(params.batchId or "?"), tostring(problem or "branch preflight failed"))
+      else
+        line = string.format("  ❌ branch batch %s requires recovery: %s",
+          tostring(params.batchId or "?"), tostring(problem or "inspect the workspace Git state"))
+      end
+      if ok then worker_tab.append_line(workspace_name, line) end
+      safe_echo(line, params.state == "completed" and "Comment" or "ErrorMsg")
+    end)
+  end
+  redraw_statusline()
+end
+
 -- ── Notification dispatch ───────────────────────────────────────────
 
 -- The transport doesn't know which workspace a notification belongs to
@@ -226,6 +259,7 @@ M.handle_notification = function(payload)
     pcall(function() require("plurnk.stream").on_event(params, workspace_name) end)
   elseif method == "stream/concluded" then
     pcall(function() require("plurnk.stream").on_concluded(params, workspace_name) end)
+  elseif method == "workspace/branch-batch" then M.handle_branch_batch(params, workspace_name)
   elseif method == "workspace/created" then M.handle_workspace_created(params)
   end
 end
