@@ -365,68 +365,20 @@ local function send_loop_run(workspace_name, prompt, model_alias, flags)
   -- bridge run-endpoint read). on_done clears inflight — the terminated event
   -- (dispatched) drives the rest.
   local bridge = require("plurnk.bridge")
-  if true then
-    local fwd = {}
-    if model_alias then
-      local spec = M.resolve_model_spec(model_alias)
-      if spec then fwd.model = spec end
-      fwd.alias = model_alias
-    end
-    if flags then fwd.flags = flags end
-    local open_paths = extract_open_paths(prompt)
-    if #open_paths > 0 then fwd.openPaths = open_paths end
-    require("plurnk.state").set_loop_inflight(workspace_name, true)
-    bridge.run(workspace_name, prompt, { forwardedProps = next(fwd) ~= nil and fwd or nil }, function(_final)
-      require("plurnk.state").set_loop_inflight(workspace_name, false)
-      require("plurnk.worker_tab").update_status(workspace_name)
-      pcall(vim.cmd, "redrawstatus! | redrawtabline")
-    end)
-    return
-  end
-  local client = require("plurnk.client")
-  local params = { prompt = prompt }
+  local fwd = {}
   if model_alias then
-    -- Prefer client-resolved routing (staleness-proof); fall back to the bare
-    -- alias (daemon resolves, or errors) when this env declares no such alias.
     local spec = M.resolve_model_spec(model_alias)
-    if spec then params.model = spec end   -- "<provider>/<model>"
-    params.alias = model_alias             -- always sent, for display
+    if spec then fwd.model = spec end
+    fwd.alias = model_alias
   end
-  if flags then params.flags = flags end
-  local open_paths = extract_open_paths(prompt)   -- @file refs → daemon turn-0 READs (#260)
-  if #open_paths > 0 then params.openPaths = open_paths end
+  if flags then fwd.flags = flags end
+  local open_paths = extract_open_paths(prompt)
+  if #open_paths > 0 then fwd.openPaths = open_paths end
   require("plurnk.state").set_loop_inflight(workspace_name, true)
-  client.send("loop.run", params, false, function(result)
-    if type(result) ~= "table" then
-      require("plurnk.state").set_loop_inflight(workspace_name, false)
-      return
-    end
-    -- The conversation lives in the model worker; loop.run
-    -- returns its id. Authoritative — confirms the worker the first event's
-    -- worker_id already adopted, and covers the no-events edge.
-    note_model_worker(workspace_name, result.modelWorkerId)
-    -- loop.run is fire-and-forget (svc 0.45+): a finalStatus-100 ack means the
-    -- loop is draining ASYNC — stay in-flight; loop/terminated (dispatch.lua)
-    -- clears it and carries the real {finalStatus, usage}. A non-100 ack or an
-    -- `error` IS terminal (no terminated follows), so settle it here.
-    local fs = result.finalStatus
-    if result.error ~= nil or (type(fs) == "number" and fs ~= 100) then
-      require("plurnk.state").set_loop_inflight(workspace_name, false)
-      local terminal = type(fs) == "number" and fs or result.status
-      if type(terminal) == "number" then
-        require("plurnk.state").set_final_status(workspace_name, terminal)
-      end
-      -- #120: a 501 = no model configured. The daemon's boot-time pointer is easy
-      -- to miss under a supervisor; surface the ~/.plurnk/.env pointer here, where
-      -- the user is looking (converges the client's no-model hint).
-      if terminal == 501 then
-        require("plurnk.client").notify(
-          "no model configured — edit ~/.plurnk/.env and uncomment one option (local / cloud / plurnk.ai)",
-          vim.log.levels.ERROR, workspace_name)
-      end
-    end
+  bridge.run(workspace_name, prompt, { forwardedProps = next(fwd) ~= nil and fwd or nil }, function(_final)
+    require("plurnk.state").set_loop_inflight(workspace_name, false)
     require("plurnk.worker_tab").update_status(workspace_name)
-    vim.cmd("redrawstatus! | redrawtabline")
+    pcall(vim.cmd, "redrawstatus! | redrawtabline")
   end)
 end
 
@@ -957,11 +909,7 @@ M.ai = function(opts)
       require("plurnk.client").notify(":AI... needs a message to inject", vim.log.levels.WARN)
       return
     end
-    require("plurnk.client").send("loop.inject", { prompt = msg }, false, function(result)
-      if type(result) == "table" and type(result.status) == "number" and result.status >= 400 then
-        require("plurnk.client").notify("inject rejected: " .. tostring(result.error or result.status), vim.log.levels.WARN)
-      end
-    end)
+    require("plurnk.client").send("loop.inject", { prompt = msg }, false)
     return
   end
 

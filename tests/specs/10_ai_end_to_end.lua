@@ -24,7 +24,7 @@ local ok, err = pcall(function()
   H.wait_for(function() return terminated ~= nil end, 540000, "loop/terminated")
   vim.wait(300, function() return false end, 50) -- flush appended-history schedules
 
-  H.assert_eq(terminated.finalStatus, 200, "loop terminated 200")
+  H.assert_eq(terminated.result.status, 200, "loop terminated 200")
 
   local workspace_buf
   for _, b in ipairs(vim.api.nvim_list_bufs()) do

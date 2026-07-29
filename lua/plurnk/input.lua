@@ -28,9 +28,7 @@ local function submit(buf, workspace_name)
   if text:upper():sub(1, 6) == "<<LOOK" then
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
     require("plurnk.client").send("op.look", { text = text }, false, function(result)
-      local client = require("plurnk.client")
       if type(result) ~= "table" or type(result.content) ~= "string" then
-        client.notify("look failed: " .. tostring(type(result) == "table" and (result.error or result.status) or "no result"), vim.log.levels.WARN)
         return
       end
       local worker_tab = require("plurnk.worker_tab")

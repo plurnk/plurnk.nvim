@@ -14,9 +14,9 @@ local ok, err = pcall(function()
   -- Real usage (loop/terminated, svc#197) — the LAST loop's usage, a SNAPSHOT,
   -- NOT a workspace tally. The lifetime total is the daemon's (svc#254); a client
   -- can't sum it (forks + multiple clients), and faking it lies about money.
-  dispatch.handle_loop_terminated({ loopId = 1, finalStatus = 200, hitMaxTurns = false,
+  dispatch.handle_loop_terminated({ loopId = 1, result = { status = 200 }, hitMaxTurns = false,
     usage = { promptTokens = 2000, completionTokens = 500, costUsd = 0.007 } }, "gauge")
-  dispatch.handle_loop_terminated({ loopId = 2, finalStatus = 200, hitMaxTurns = false,
+  dispatch.handle_loop_terminated({ loopId = 2, result = { status = 200 }, hitMaxTurns = false,
     usage = { promptTokens = 1000, completionTokens = 250, costUsd = 0.003 } }, "gauge")
   -- The rich gauge lives in the winbar now; the statusline is a lean glance.
   local wb = require("plurnk.worker_tab").winbar_text("gauge", nil)

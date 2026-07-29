@@ -1,12 +1,11 @@
--- The Lua consumer of the plurnk-agui bridge (nvim#65 phase 1) — the transport
--- substrate for migrating nvim off raw WS onto the exclusive portal. No fetch in
+-- The Lua consumer of the plurnk-agui bridge. No fetch in
 -- Lua, so the SSE run rides `curl -N` under vim.system with a streaming stdout
 -- callback; the management plane + resolve are one-shot curl POSTs.
 --
 -- Mirrors the client's agui.ts: run() streams AG-UI events, resolve() answers a
--- stopped-world proposal, rpc() is the /plurnk/rpc escape hatch. plurnk fidelity
+-- stopped-world proposal, and rpc() carries management actions. Plurnk fidelity
 -- rides the CUSTOM plurnk.* events (esp. plurnk.row — the full wire row), which a
--- later phase un-projects to the daemon shapes dispatch.lua already renders.
+-- is un-projected to the daemon shapes dispatch.lua already renders.
 local M = {}
 local id_sequence = 0
 
@@ -17,6 +16,27 @@ end
 
 local function empty_array()
   return vim.json.decode("[]")
+end
+
+function M.is_problem(value)
+  if type(value) ~= "table" then return false end
+  local function nonempty(field)
+    return type(field) == "string" and #field > 0
+  end
+  local function absolute_uri(field)
+    return type(field) == "string" and field:match("^[A-Za-z][A-Za-z0-9+.-]*:") ~= nil
+  end
+  return absolute_uri(value.type)
+      and nonempty(value.title)
+      and type(value.status) == "number"
+      and value.status == math.floor(value.status)
+      and value.status >= 400
+      and value.status <= 599
+      and nonempty(value.detail)
+      and (value.instance == nil or absolute_uri(value.instance))
+      and (value.stage == nil or nonempty(value.stage))
+      and (value.recovery == nil or nonempty(value.recovery))
+      and (value.retryable == nil or type(value.retryable) == "boolean")
 end
 
 -- Pure, dependency-free SSE extraction for Neovim's Lua runtime. It implements
@@ -79,7 +99,22 @@ function M.unproject(e, tool)
     local log_entry_id = tonumber(tool.id:sub(6))
     local okp, a = pcall(vim.json.decode, tool.args ~= "" and tool.args or "{}", { luanil = { object = true, array = true } })
     tool.id = nil
-    if not okp then a = {} end
+    if not okp then
+      return {
+        method = "problem/event",
+        params = {
+          problem = M.transport_problem(
+            "proposal-invalid",
+            "Proposal invalid",
+            502,
+            "The proposal contained invalid JSON arguments.",
+            false,
+            "proposal-resolution",
+            { logEntryId = log_entry_id, reason = tostring(a) }
+          ),
+        },
+      }
+    end
     a.logEntryId = log_entry_id
     return { method = "loop/proposal", params = a }
   end
@@ -87,6 +122,16 @@ function M.unproject(e, tool)
   local name, v = e.name, e.value
   if name == "plurnk.row" then return { method = "log/entry", params = { entry = v } } end
   if name == "plurnk.terminated" then return { method = "loop/terminated", params = v } end
+  if name == "plurnk.problem" then
+    local problem = M.is_problem(v) and v or M.transport_problem(
+      "problem-invalid",
+      "Problem invalid",
+      502,
+      "The AG-UI stream contained invalid Problem Details.",
+      false
+    )
+    return { method = "problem/event", params = { problem = problem } }
+  end
   if name == "plurnk.notice" then return { method = "notice/event", params = { notice = v } } end
   if name == "plurnk.branch_batch" then return { method = "workspace/branch-batch", params = v } end
   if name == "plurnk.stream" then
@@ -112,6 +157,63 @@ local function auth_headers(target)
   return h
 end
 
+function M.client_problem(owner, kind, title, status, detail, stage, retryable, extensions)
+  return vim.tbl_extend("force", {
+    type = "https://problems.plurnk.dev/client/" .. owner .. "/" .. kind,
+    title = title,
+    status = status,
+    detail = detail,
+    source = "client:" .. owner,
+    kind = kind,
+    stage = stage,
+    retryable = retryable,
+  }, extensions or {})
+end
+
+function M.transport_problem(kind, title, status, detail, retryable, stage, extensions)
+  return M.client_problem("transport", kind, title, status, detail, stage or "transport", retryable, extensions)
+end
+
+function M.operation_result(value)
+  if type(value) ~= "table" or type(value.status) ~= "number"
+      or value.status < 100 or value.status > 599 then
+    local problem = M.transport_problem(
+      "result-invalid",
+      "Result invalid",
+      502,
+      "The AG-UI stream contained an invalid operation result.",
+      false
+    )
+    return problem.status, problem
+  end
+  if value.status >= 400 then
+    if M.is_problem(value.problem) and value.problem.status == value.status then
+      return value.status, value.problem
+    end
+    local problem = M.transport_problem(
+      "problem-missing",
+      "Problem missing",
+      502,
+      "The AG-UI stream reported a failed run without its required Problem Details.",
+      false
+    )
+    return problem.status, problem
+  end
+  if value.problem ~= nil then
+    local problem = M.transport_problem(
+      "result-invalid",
+      "Result invalid",
+      502,
+      "The AG-UI stream contained an invalid operation result.",
+      false
+    )
+    return problem.status, problem
+  end
+  return value.status, nil
+end
+
+local unreachable_exit = { [5] = true, [6] = true, [7] = true, [28] = true }
+
 -- Run one turn through the bridge. `on_event(e)` fires per AG-UI event (on the
 -- main loop, via vim.schedule); `on_done(code)` when the stream ends. Returns the
 -- vim.system handle — handle:kill() aborts (the bridge cancels the loop on hangup).
@@ -120,6 +222,7 @@ function M.input(run)
   if messages == nil and run.prompt ~= nil then
     messages = { { id = new_id("message"), role = "user", content = run.prompt } }
   end
+  if messages == nil then messages = empty_array() end
   return {
     threadId = run.threadId,
     runId = run.runId or new_id("run"),
@@ -140,34 +243,80 @@ function M.run(target, run, on_event, on_done)
   local args = { "curl", "-sN", "-X", "POST", target.url .. "/" }
   vim.list_extend(args, auth_headers(target))
   vim.list_extend(args, { "-d", body })
-  local buffer, parse_error, handle = "", nil, nil
+  local buffer, transport_failure, handle = "", nil, nil
+  local saw_bytes, saw_event = false, false
+  local function decode_http_problem()
+    if not buffer:match("^%s*{") then return false end
+    local okp, value = pcall(vim.json.decode, buffer, { luanil = { object = true, array = true } })
+    if not okp or not M.is_problem(value) then
+      return false
+    end
+    transport_failure = value
+    buffer = ""
+    return true
+  end
   local function consume(eof)
     local okp, events, rest = pcall(M.parse_sse, buffer, eof)
     if not okp then
-      parse_error = tostring(events)
+      transport_failure = M.transport_problem(
+        "invalid-event-stream",
+        "Invalid event stream",
+        502,
+        "The daemon returned an AG-UI event stream that could not be decoded.",
+        false
+      )
       buffer = ""
       return false
     end
     buffer = rest
     for _, e in ipairs(events) do
+      saw_event = true
       vim.schedule(function() on_event(e) end)
     end
     return true
   end
   handle = vim.system(args, {
     stdout = function(err, data)
-      if parse_error ~= nil or data == nil then return end
+      if transport_failure ~= nil or data == nil then return end
       if err ~= nil then
-        parse_error = "AG-UI SSE stdout failed: " .. tostring(err)
+        transport_failure = M.transport_problem(
+          "stream-read-failed",
+          "Event stream read failed",
+          502,
+          "The AG-UI event stream could not be read.",
+          false
+        )
         vim.schedule(function() if handle ~= nil then handle:kill() end end)
         return
       end
+      saw_bytes = saw_bytes or #data > 0
       buffer = buffer .. data
       if not consume(false) then vim.schedule(function() if handle ~= nil then handle:kill() end end) end
     end,
   }, function(res)
-    if parse_error == nil then consume(true) end
-    vim.schedule(function() on_done(res.code, parse_error) end)
+    if transport_failure == nil and not decode_http_problem() then consume(true) end
+    if transport_failure == nil and not saw_event then
+      if not saw_bytes and unreachable_exit[res.code] == true then
+        transport_failure = M.client_problem(
+          "connection",
+          "refused",
+          "Refused",
+          503,
+          "No Plurnk daemon is listening at " .. tostring(target.url) .. ".",
+          "transport",
+          true
+        )
+      else
+        transport_failure = M.transport_problem(
+          "event-stream-empty",
+          "Event stream empty",
+          502,
+          "The AG-UI endpoint returned no events.",
+          false
+        )
+      end
+    end
+    vim.schedule(function() on_done(res.code, transport_failure) end)
   end)
   return handle
 end
@@ -191,32 +340,104 @@ function M.resolve(target, r, on_event, on_done)
   }, on_event, on_done)
 end
 
--- A verb is a §3 action run: forwardedProps.plurnk.action in, plurnk.action.result
--- out. cb(result, err) — an ok:false projects err, never a silent nil.
+-- Consume one action segment. A proposal-confirmed interrupt is a successful
+-- segment boundary, not a completed action; the caller owns the logical
+-- action across the later resume segment.
+function M.action_segment(target, run, cb, on_event)
+  local result, failure, terminal = nil, nil, nil
+  local has_result, saw_run_error = false, false
+  return M.run(target, run, function(e)
+    if type(e) == "table" and e.type == "CUSTOM" and e.name == "plurnk.action.result" then
+      local v = e.value
+      if type(v) == "table" and type(v.kind) == "string" and v.kind ~= "" and v.ok == true then
+        has_result = true
+        result = v.result
+      elseif type(v) == "table" and type(v.kind) == "string" and v.kind ~= ""
+          and v.ok == false and M.is_problem(v.problem) then
+        failure = v.problem
+      else
+        failure = M.client_problem(
+          "action",
+          "result-invalid",
+          "Result invalid",
+          502,
+          "The AG-UI action result did not satisfy the Plurnk action-result contract.",
+          "action-result",
+          false
+        )
+      end
+      return
+    end
+    if type(e) == "table" and e.type == "CUSTOM" and e.name == "plurnk.problem"
+        and type(e.value) == "table" then
+      failure = e.value
+    elseif type(e) == "table" and e.type == "RUN_FINISHED" then
+      terminal = e.outcome
+    elseif type(e) == "table" and e.type == "RUN_ERROR" then
+      saw_run_error = true
+    end
+    if on_event then on_event(e) end
+  end, function(code, transport_error)
+    if transport_error ~= nil then
+      failure = transport_error
+    elseif saw_run_error and failure == nil then
+      failure = M.transport_problem(
+        "problem-missing",
+        "Problem missing",
+        502,
+        "The AG-UI stream reported a failed run without its required Problem Details.",
+        false
+      )
+    elseif not has_result and failure == nil
+        and not (type(terminal) == "table" and terminal.type == "interrupt") then
+      local kind = type(run.forwardedProps) == "table"
+          and type(run.forwardedProps.action) == "table"
+          and tostring(run.forwardedProps.action.kind)
+          or "unknown"
+      failure = M.client_problem(
+        "action",
+        "result-missing",
+        "Result missing",
+        502,
+        "Action '" .. kind .. "' ended without a plurnk.action.result event.",
+        "action-result",
+        false
+      )
+    end
+    if failure ~= nil then
+      cb({ state = "failed", problem = failure, code = code })
+    elseif type(terminal) == "table" and terminal.type == "interrupt" then
+      cb({ state = "interrupted", outcome = terminal, code = code })
+    else
+      cb({ state = "complete", result = result, code = code })
+    end
+  end)
+end
+
+-- A verb begins as an action run. Its callback receives this segment's state;
+-- bridge.lua keeps interrupted actions alive until their resume completes.
 function M.rpc(target, thread_id, method, params, cb, on_event)
-  local result, errmsg = nil, nil
-  M.run(target, {
+  return M.action_segment(target, {
     threadId = thread_id,
     messages = {},
     forwardedProps = { action = vim.tbl_extend("force", { kind = method }, params or {}) },
-  }, function(e)
-    if type(e) == "table" and e.type == "CUSTOM" and e.name == "plurnk.action.result" then
-      local v = e.value
-      if type(v) == "table" and v.ok == true then result = v.result else errmsg = (type(v) == "table" and v.error) or "action failed" end
-      return
-    end
-    if on_event then on_event(e) end   -- everything else the dispatch emitted rides here
-  end, function(code, transport_error)
-    -- A stream that ended with NEITHER a result NOR an action error never reached
-    -- a daemon (curl 7 refused / 6 unresolvable / 28 timeout) — name it; a silent
-    -- nil here was the old behavior and it hid the first-run moment entirely.
-    if transport_error ~= nil then
-      errmsg = transport_error
-    elseif result == nil and errmsg == nil then
-      errmsg = "no daemon listening (curl exit " .. tostring(code) .. ")"
-    end
-    if cb then cb(result, errmsg) end
-  end)
+  }, cb, on_event)
+end
+
+function M.resume_action(target, r, cb, on_event)
+  local interrupt_id = "prop:" .. tostring(r.logEntryId)
+  local resume
+  if r.decision == "cancel" then
+    resume = { { interruptId = interrupt_id, status = "cancelled" } }
+  else
+    local payload = { decision = r.decision }
+    if r.body ~= nil then payload.body = r.body end
+    resume = { { interruptId = interrupt_id, status = "resolved", payload = payload } }
+  end
+  return M.action_segment(target, {
+    threadId = r.threadId,
+    resume = resume,
+  }, cb, on_event)
 end
 
 return M

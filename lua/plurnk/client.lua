@@ -51,7 +51,9 @@ M.send = function(method, params, _is_notification, callback)
   local bridge = require("plurnk.bridge")
   local thread = state.get_active_workspace_name() or "nvim"
   if method == "loop.resolve" then
-    bridge.resolve(thread, params or {}, function() if callback then callback({}) end end)
+    bridge.resolve(thread, params or {}, function(_, problem)
+      if callback then callback(problem == nil and {} or nil) end
+    end)
   else
     -- FAIL-HARD ACROSS LAYERS (the 2026-07-10 rule): a failed action delivers NIL —
     -- bridge.rpc has already surfaced the error. `result or {}` here converted every

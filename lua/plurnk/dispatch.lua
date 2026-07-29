@@ -126,8 +126,8 @@ M.handle_loop_terminated = function(params, workspace_name)
   state.set_loop_inflight(workspace_name, false)
   state.set_embedding(workspace_name, false)  -- the abacus never outlives the loop
   state.record_loop_usage(workspace_name, params.usage)  -- last loop only; NOT a workspace total (svc#254)
-  if type(params.finalStatus) == "number" then
-    state.set_final_status(workspace_name, params.finalStatus)
+  if type(params.result) == "table" and type(params.result.status) == "number" then
+    state.set_final_status(workspace_name, params.result.status)
   end
   vim.schedule(function()
     local ok, worker_tab = pcall(require, "plurnk.worker_tab")
@@ -136,6 +136,22 @@ M.handle_loop_terminated = function(params, workspace_name)
       worker_tab.refresh_winbar(workspace_name)
     end
     redraw_statusline()
+  end)
+end
+
+M.handle_problem_event = function(params, workspace_name)
+  if type(params) ~= "table" or type(params.problem) ~= "table" then return end
+  local problem = params.problem
+  local line = "  Problem: " .. tostring(problem.detail or problem.title or "operation failed")
+  if type(problem.recovery) == "string" then line = line .. "\n     " .. problem.recovery end
+  vim.schedule(function()
+    if workspace_name then
+      local ok, worker_tab = pcall(require, "plurnk.worker_tab")
+      if ok then worker_tab.append_line(workspace_name, line) end
+    end
+    local ok, hud = pcall(require, "plurnk.hud")
+    if ok then hud.show(line) end
+    safe_echo(line, "ErrorMsg")
   end)
 end
 
@@ -254,6 +270,7 @@ M.handle_notification = function(payload)
   if method == "log/entry" then M.handle_log_entry(params, workspace_name)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, workspace_name)
   elseif method == "loop/terminated" then M.handle_loop_terminated(params, workspace_name)
+  elseif method == "problem/event" then M.handle_problem_event(params, workspace_name)
   elseif method == "notice/event" then M.handle_notice_event(params, workspace_name)
   elseif method == "stream/event" then
     pcall(function() require("plurnk.stream").on_event(params, workspace_name) end)
@@ -279,7 +296,7 @@ M.handle_response = function(req_meta, result)
   elseif method == "workspace.list" or method == "workspace.workers" then
     -- Per-request callbacks consume the result (picker, etc.).
   elseif method == "loop.run" then
-    -- Per-request callback handles the loop result (finalStatus, turnIds).
+    -- Per-request callback handles the loop acknowledgement.
   elseif method == "loop.resolve" then
     -- Per-request callback acknowledges the resolution.
   elseif method == "log.read" then
@@ -289,23 +306,6 @@ M.handle_response = function(req_meta, result)
   elseif method == "ping" then
     log("PONG")
   end
-end
-
--- ── Error handler ───────────────────────────────────────────────────
-
-M.handle_error = function(payload)
-  if not payload or not payload.error then return end
-  local msg = tostring(payload.error.message or "(no message)")
-  log("ERROR: " .. msg)
-  vim.schedule(function()
-    if msg:match("[Cc]onnection") then
-    end
-    local prefix = "Plurnk Error: " .. msg
-    local ok, hud = pcall(require, "plurnk.hud")
-    if ok then hud.show("✗ " .. prefix) end
-    safe_echo(prefix, "ErrorMsg")
-    redraw_statusline()
-  end)
 end
 
 return M

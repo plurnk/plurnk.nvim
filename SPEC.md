@@ -31,18 +31,27 @@ what this client guarantees. Tests are organized by observable behavior under
 - **No fabricated success** — a stream that dies without terminal
   truth is 502; a missing action result is an error; resolve acks are nil on failed
   delivery. Errors cross every layer intact.
+- **Problem fidelity** - `application/problem+json`, `CUSTOM plurnk.problem`,
+  failed action results, and `plurnk.terminated.result.problem` preserve the
+  exact RFC 9457 object through the Lua bridge. `RUN_ERROR` is never used to
+  rebuild the richer Problem; receiving it without the exact Problem is a
+  client-owned `problem-missing` transport failure. The UI renders `detail`
+  and an optional `recovery`. `plurnk.terminated.result.status` is the
+  family-specific terminal status; there is no sibling `finalStatus` field.
 - **Standard run lifecycle** — every request carries a fresh `runId`; proposals end
   their run with an AG-UI interrupt outcome, and the decision arrives in a new run
   through `RunAgentInput.resume`. A proposal tool call without its matching declared
   interrupt is a protocol error, never an invitation to infer private lifecycle state.
+  A proposal-gated management action remains one logical action across its interrupt
+  and resume runs and retains the serialized management lane until its action result.
   `RUN_FINISHED` and `RUN_ERROR` alone settle the client run; `plurnk.terminated`
   supplies family-specific status and usage metadata but is not a competing lifecycle.
-- **The stale-daemon probe** — `discover` runs once per
 - **Cold no-daemon onboarding** — a management run against a dead
   port surfaces one WARN notify naming the condition with the quick-start (`npx
   @plurnk/plurnk-service start`) and install lines — one message with the CLI's
   `client:connection:refused` block; never a silent nil result.
-  instance; a manifest missing the AG-UI+ markers this client depends on (`op.exec`,
+- **The stale-daemon probe** - `discover` runs once per instance; a manifest
+  missing the AG-UI+ markers this client depends on (`op.exec`,
   `op.look`) warns bluntly that the daemon is older than the client.
 - **Control-plane liveness** — `ping` answers an empty-object
   result; `providers.list` returns the alias table the pickers and statusline consume.
