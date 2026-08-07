@@ -26,7 +26,7 @@ M.ORIGIN_GLYPHS = {
   plugin = "🔌",
 }
 
--- Model-SEND lane-1 (operator ruling 2026-07-10): the STATE is the identity.
+-- Model-SEND lane 1: the state is the identity.
 -- Converged with @plurnk/plurnk modelSendGlyph.
 M.model_send_glyph = function(status)
   if status == 102 then return "💭" end
