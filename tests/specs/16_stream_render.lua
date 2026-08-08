@@ -10,10 +10,11 @@ local ok, err = pcall(function()
   local stream = require("plurnk.stream")
 
   local content = { stdout = "", stderr = "" }
-  local reads, sends = 0, {}
+  local reads, read_params, sends = 0, {}, {}
   require("plurnk.client").send = function(method, params, _, cb)
     if method == "entry.read" then
       reads = reads + 1
+      read_params[reads] = params
       local channels = {}
       for name, c in pairs(content) do
         channels[name] = { content = c, mimetype = "text/plain", tokens = 0, state = "active" }
@@ -25,7 +26,7 @@ local ok, err = pcall(function()
   end
 
   local function tick(len)
-    stream.on_event({ entryId = 1, target = "sh:///demo", channel = "stdout",
+    stream.on_event({ entryId = 1, workerId = 17, target = "sh:///demo", channel = "stdout",
       state = "active", contentLength = len })
   end
 
@@ -41,6 +42,7 @@ local ok, err = pcall(function()
   tick(5); tick(7); tick(9)
   vim.wait(400, function() return reads >= 1 end, 10)
   H.assert_eq(reads, 1, "tick burst coalesced into one entry.read")
+  H.assert_eq(read_params[1].workerId, 17, "stream read uses the notified entry owner")
 
   local lines = buf_lines()
   H.assert_eq(lines[1], "1│ hello", "stdout line carries 1│ prefix")
@@ -56,8 +58,8 @@ local ok, err = pcall(function()
 
   -- ── Conclusion: footer + winbar + tracking dropped ─────────────────
   content.stdout = "hello\nworld\ntail-no-newline"
-  stream.on_concluded({ entryId = 1, target = "sh:///demo", subscriptionId = 1,
-    scheme = "exec", closeStatus = 200, summary = "demo done", wakeAction = "no-op-active-loop" })
+  stream.on_concluded({ entryId = 1, workerId = 17, target = "sh:///demo", subscriptionId = 1,
+    scheme = "exec", result = { status = 200 }, summary = "demo done", wakeAction = "no-op-active-loop" })
   vim.wait(400, function()
     local ls = buf_lines()
     return ls[#ls] and ls[#ls]:match("concluded") ~= nil
@@ -65,6 +67,7 @@ local ok, err = pcall(function()
   lines = buf_lines()
   H.assert_eq(lines[4], "1│ tail-no-newline", "held partial flushed at conclusion")
   H.assert_match(lines[#lines], "── concluded · 200 · demo done ──", "conclusion footer")
+  H.assert_eq(read_params[3].workerId, 17, "final stream read retains the entry owner")
 
   -- Wipe AFTER conclusion → no cancel goes out.
   vim.cmd("bwipeout! " .. vim.fn.bufnr("plurnk-nvim://stream/sh____demo"))
@@ -73,9 +76,10 @@ local ok, err = pcall(function()
   -- ── Wipeout of a LIVE stream cancels the subscription ──────────────
   content.stdout = "running\n"
   content.stderr = ""
-  stream.on_event({ entryId = 2, target = "sh:///live", channel = "stdout",
+  stream.on_event({ entryId = 2, workerId = 23, target = "sh:///live", channel = "stdout",
     state = "active", contentLength = 8 })
-  vim.wait(400, function() return vim.fn.bufnr("plurnk-nvim://stream/sh____live") ~= -1 and reads >= 3 end, 10)
+  vim.wait(400, function() return vim.fn.bufnr("plurnk-nvim://stream/sh____live") ~= -1 and reads >= 4 end, 10)
+  H.assert_eq(read_params[4].workerId, 23, "each stream reads from its own worker")
   vim.cmd("bwipeout! " .. vim.fn.bufnr("plurnk-nvim://stream/sh____live"))
   H.assert_eq(sends[1].method, "op.send", "wipeout of live stream cancels")
   H.assert_eq(sends[1].params.status, 499, "cancel is SEND[499]")

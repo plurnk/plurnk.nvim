@@ -15,6 +15,7 @@ local M = {}
 local project_path = nil
 local available_aliases = {}  -- providers.list result
 local selected_alias = nil    -- user-picked, consumed by next loop.run
+local selected_child_alias = nil
 local interacted = false
 local active_workspace_name = nil  -- most recently attached workspace on this connection
 
@@ -29,6 +30,7 @@ local function ensure_workspace(name)
       worker_id = nil,            -- attached worker id (per-connection)
       worker_name = nil,          -- attached worker name
       model_alias = nil,       -- alias passed on most recent loop.run
+      child_alias = nil,       -- alias or "inherit" passed on most recent loop.run
       model_display = nil,     -- "(no model)" or "alias=provider/model"
       current_loop_id = nil,
       current_turn = nil,
@@ -61,12 +63,19 @@ M.get_available_aliases = function() return available_aliases end
 M.set_available_aliases = function(aliases) available_aliases = aliases or {} end
 
 M.set_selected_alias = function(alias) selected_alias = alias end
+M.get_selected_child_alias = function() return selected_child_alias end
+M.set_selected_child_alias = function(alias) selected_child_alias = alias end
 
 M.get_active_workspace_name = function() return active_workspace_name end
 M.set_active_workspace_name = function(name) active_workspace_name = name end
 M.consume_selected_alias = function()
   local out = selected_alias
   selected_alias = nil
+  return out
+end
+M.consume_selected_child_alias = function()
+  local out = selected_child_alias
+  selected_child_alias = nil
   return out
 end
 
@@ -101,6 +110,8 @@ end
 
 M.get_model_alias = function(name) local s = ensure_workspace(name); return s and s.model_alias end
 M.set_model_alias = function(name, alias) local s = ensure_workspace(name); if s then s.model_alias = alias end end
+M.get_child_alias = function(name) local s = ensure_workspace(name); return s and s.child_alias end
+M.set_child_alias = function(name, alias) local s = ensure_workspace(name); if s then s.child_alias = alias end end
 
 -- The model alias in effect: the one last sent on this workspace's loop.run,
 -- else the daemon's active default (providers.list `active`), else nil. Shared

@@ -189,19 +189,14 @@ M.render_broadcast = function(entry)
   return lines
 end
 
--- The user's prompt is conversation, not an op record. The engine writes
--- it as a system-origin EDIT to prompt:///<loop>/<turn> (svc#527 gave the
--- frame its OWN self-only scheme, retiring plurnk://); render it as the user
--- speaking — 👤 💬 with the prompt body — instead of an EDIT trace.
+-- The user's prompt is conversation, not an op record. It arrives as an
+-- actionless lowercase prompt row with its body in rx.content.
 M.is_prompt_entry = function(entry)
-  -- The prompt scheme is self-identifying (verified on the wire: scheme "prompt",
-  -- pathname "/<loop>/<turn>" numeric — "loop/N" in the plan was the loop NUMBER,
-  -- not a literal). Key on the scheme, never a path-literal.
-  return entry.op == "EDIT" and entry.scheme == "prompt"
+  return entry.op == "prompt" and entry.scheme == "prompt"
 end
 
 M.render_prompt = function(entry)
-  local body = type(entry.tx) == "table" and type(entry.tx.body) == "string" and entry.tx.body or ""
+  local body = type(entry.rx) == "table" and type(entry.rx.content) == "string" and entry.rx.content or ""
   -- Two lanes: 🐹 + reserved blank (a prompt record carries no live status).
   local header = coord_prefix(entry) .. M.ORIGIN_GLYPHS.client .. "   "
   if body == "" then return { header } end

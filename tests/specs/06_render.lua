@@ -104,10 +104,10 @@ local ok, err = pcall(function()
   H.assert_eq(R2(202), "💤", "202 → 💤 parked")
   H.assert_eq(R2(499), "✋", "499 → ✋ abort")
 
-  -- Prompt entry (prompt:///<loop>/<turn>, svc#527) renders as USER SPEECH, not an EDIT trace.
+  -- The service's actionless prompt row renders as user speech, not an op trace.
   local prompt_block = R({
-    op = "EDIT", origin = "plurnk", scheme = "prompt", pathname = "/3/1",
-    status_rx = 201, tx = { body = "What is the capital of France?" },
+    op = "prompt", origin = "plurnk", scheme = "prompt", pathname = "/3/1",
+    status_rx = 200, rx = { content = "What is the capital of France?" },
   })
   H.assert_match(prompt_block[1], "🐹", "prompt speaks as the user (converged brand head)")
   H.assert_match(prompt_block[1], "🐹", "prompt is speech, not an op record")
@@ -115,8 +115,8 @@ local ok, err = pcall(function()
   H.assert_truthy(not prompt_block[1]:match("📝"), "no EDIT glyph on prompts")
 
   local long_prompt = R({
-    op = "EDIT", origin = "plurnk", scheme = "prompt", pathname = "/3/1",
-    status_rx = 201, tx = { body = "line one\nline two" },
+    op = "prompt", origin = "plurnk", scheme = "prompt", pathname = "/3/1",
+    status_rx = 200, rx = { content = "line one\nline two" },
   })
   H.assert_eq(#long_prompt, 3, "multi-line prompt = header + body lines")
   H.assert_match(long_prompt[2], "line one", "prompt body present")

@@ -31,14 +31,9 @@ function M.collect_execs_policy()
   return any and out or nil
 end
 
--- Settings every workspace.create carries: the client id (#249), an optional
--- AGENTS-auto-load override (#268, pure passthrough — the daemon does the
--- picking/reading; config.auto_read_agents nil ⇒ the daemon's env default), and
--- the exec-policy layer (#132).
+-- Settings every workspace.create carries: the client id and exec-policy layer.
 local function workspace_settings()
   local s = { client = CLIENT_ID }
-  local ar = require("plurnk.config").get("auto_read_agents")
-  if type(ar) == "boolean" then s.autoReadAgents = ar end
   local execs = M.collect_execs_policy()
   if execs then s.execs = execs end
   -- #346 — enable model→user SEND[300] questions (also gates the daemon's
@@ -114,7 +109,23 @@ end
 
 -- ── Workspace resolution ─────────────────────────────────────────────
 
--- Resolve this buffer's workspace and invoke callback(workspace_name, model_alias).
+local function configured_child_alias()
+  local alias = vim.env.PLURNK_MODEL_CHILD
+  return type(alias) == "string" and alias ~= "" and alias or nil
+end
+
+local function resolve_loop_policies(client, workspace)
+  local state = require("plurnk.state")
+  local model = client.consume_selected_alias() or client.get_workspace_model(workspace)
+  if model then state.set_model_alias(workspace, model) end
+  local child = client.consume_selected_child_alias()
+    or client.get_workspace_child(workspace)
+    or configured_child_alias()
+  if child then state.set_child_alias(workspace, child) end
+  return model, child
+end
+
+-- Resolve this buffer's workspace and invoke callback(workspace_name, model_alias, child_alias).
 -- If no workspace is attached, create one and bind it to the calling buffer.
 local function resolve_workspace_then(callback)
   local client = require("plurnk.client")
@@ -125,9 +136,8 @@ local function resolve_workspace_then(callback)
     -- model so every later loop keeps it (else it reverts to the daemon default
     -- after one loop). consume clears the one-shot pick; set_model_alias makes
     -- the choice durable (and lights it in the statusbar/winbar).
-    local model = client.consume_selected_alias() or client.get_workspace_model(workspace)
-    if model then require("plurnk.state").set_model_alias(workspace, model) end
-    callback(workspace, model)
+    local model, child = resolve_loop_policies(client, workspace)
+    callback(workspace, model, child)
     return
   end
   local origin_buf = vim.api.nvim_get_current_buf()
@@ -143,9 +153,8 @@ local function resolve_workspace_then(callback)
     -- MODEL worker. Don't set a conversation worker here — the
     -- first model-worker log/entry adopts it, and loop.run confirms modelWorkerId.
     client.check_daemon_once()
-    local model = client.consume_selected_alias()
-    if model then require("plurnk.state").set_model_alias(name, model) end
-    callback(name, model)
+    local model, child = resolve_loop_policies(client, name)
+    callback(name, model, child)
   end)
 end
 
@@ -217,7 +226,7 @@ end
 -- worker.fork (svc#248, now wired). Optional `name` names the branch at
 -- instantiation (immutable after; reserved/taken rejected; defaults
 -- `<parent>-fork`). Forks the workspace's current model worker, binds this
--- connection to the new run so the next loop.run lands there, then continues.
+-- connection to the new worker so the next loop.run lands there, then continues.
 local function fork_worker_then(workspace_name, callback, name)
   local client = require("plurnk.client")
   local params = {}
@@ -351,17 +360,18 @@ function M.resolve_model_spec(alias)
   local want = alias:lower()
   for key, val in pairs(vim.fn.environ()) do
     local suffix = key:match("^PLURNK_MODEL_(.+)$")
-    if suffix and suffix:lower() == want and type(val) == "string" and val:find("/", 2, true) then
+    if key ~= "PLURNK_MODEL_CHILD" and suffix and suffix:lower() == want
+      and type(val) == "string" and val:find("/", 2, true) then
       return val
     end
   end
   return nil
 end
 
-local function send_loop_run(workspace_name, prompt, model_alias, flags)
+local function send_loop_run(workspace_name, prompt, model_alias, child_alias, flags)
   -- Bridge mode: the run streams through the portal (agui.run → un-project →
-  -- dispatch, so the worker-tab renders identically to WS). Per-worker knobs (model/
-  -- alias/flags/openPaths) ride forwardedProps (agui 0.2.4+; openPaths pending a
+  -- dispatch, so the worker-tab renders identically to WS). Per-loop policy rides
+  -- forwardedProps (agui 0.2.4+; openPaths pending a
   -- bridge run-endpoint read). on_done clears inflight — the terminated event
   -- (dispatched) drives the rest.
   local bridge = require("plurnk.bridge")
@@ -370,6 +380,13 @@ local function send_loop_run(workspace_name, prompt, model_alias, flags)
     local spec = M.resolve_model_spec(model_alias)
     if spec then fwd.model = spec end
     fwd.alias = model_alias
+  end
+  if child_alias == "inherit" then
+    fwd.childAlias = vim.NIL
+  elseif child_alias then
+    local spec = M.resolve_model_spec(child_alias)
+    if spec then fwd.childModel = spec end
+    fwd.childAlias = child_alias
   end
   if flags then fwd.flags = flags end
   local open_paths = extract_open_paths(prompt)
@@ -392,9 +409,9 @@ M.prompt = function(opts)
     require("plurnk.client").notify("PlurnkPrompt: no prompt text", vim.log.levels.WARN)
     return
   end
-  resolve_workspace_then(function(workspace_name, model_alias)
+  resolve_workspace_then(function(workspace_name, model_alias, child_alias)
     require("plurnk.worker_tab").open(workspace_name)
-    send_loop_run(workspace_name, text, model_alias, opts.flags)
+    send_loop_run(workspace_name, text, model_alias, child_alias, opts.flags)
   end)
 end
 
@@ -539,6 +556,23 @@ M.set_model = function(args)
   pcall(vim.cmd, "redrawstatus!")
 end
 
+M.set_child = function(args)
+  local alias = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local state = require("plurnk.state")
+  local workspace = active_workspace()
+  if alias == "" then
+    local current = state.get_selected_child_alias()
+      or (workspace and state.get_child_alias(workspace))
+      or configured_child_alias()
+      or "inherit"
+    require("plurnk.client").notify("Child alias: " .. current, vim.log.levels.INFO)
+    return
+  end
+  state.set_selected_child_alias(alias)
+  if workspace then state.set_child_alias(workspace, alias) end
+  require("plurnk.client").notify("Child alias: " .. alias, vim.log.levels.INFO)
+end
+
 -- Membership overlay (svc#200) — service vocabulary, converged with the TUI:
 -- pick tracks file(s) in manifest, hide blocks them, view tracks
 -- read-only. Live via workspace.constrain (workspace-scoped, re-resolved now).
@@ -660,13 +694,6 @@ M.log = function(opts)
   end)
 end
 
--- :PlurnkAuth <target> — OAuth an auth-protected exec (e.g. notion) via the
--- device grant (#116): prints a URL + code, polls to authorized. No browser
--- open, no local callback — works over a remote daemon / jumpbox.
-M.auth = function(opts)
-  require("plurnk.auth").run(opts and opts.args)
-end
-
 -- :PlurnkYolo  — toggle client-side auto-accept.
 M.yolo = function()
   local diff = require("plurnk.diff")
@@ -751,9 +778,9 @@ local HELP = table.concat({
   ":AI? <text>        ASK — read-only loop; edits/exec 403 at dispatch",
   ":AI: <text>        act (the default)",
   ":AI! <cmd>         exec via the daemon; bare ! execs the visual selection",
-  ":AI?? / ::         new workspace    ??? headless    ???? new run (fork)",
+  ":AI?? / ::         new workspace    ??? headless    ???? new worker (fork)",
   ":AI... <text>      inject into the running model loop (loop.inject)",
-  ":AI/<verb>         models workspaces runs workspace run rename log yolo ping",
+  ":AI/<verb>         models model child workspaces workers workspace worker rename log yolo ping",
   "                   pick hide view drop members (membership overlay)",
   "                   script <path> (run a .plk file via op.parse)",
   "                   open accept reject next prev stop clear",
@@ -809,9 +836,10 @@ local SLASH = {
   -- `/model <alias>` sets it directly (converged with the TUI); bare `/model`
   -- opens the picker. Completion offers aliases (see ai_complete).
   model    = function(args) M.set_model(args) end,
+  child    = function(args) M.set_child(args) end,
   -- Singular CREATEs, plural LISTs (converged with the TUI): /workspace opens a
-  -- fresh workspace, /workspaces lists; /run forks a new run, /runs lists. The old
-  -- ambiguous /new (workspace or run?) is gone.
+  -- fresh workspace, /workspaces lists; /worker forks a new worker, /workers lists.
+  -- The old ambiguous /new (workspace or worker?) is gone.
   workspaces = function() M.workspaces() end,
   workers  = function() M.workspace_workers() end,
   workspace  = function(args) M.workspace_new({ args = args }) end,
@@ -833,13 +861,15 @@ local SLASH = {
   prev     = function() M.prev() end,
 }
 
--- Cmdline completion for :AI — alias names after `/model `, slash verbs after a
+-- Cmdline completion for :AI — alias names after `/model ` or `/child `, slash verbs after a
 -- bare `/`. customlist (we filter ourselves; vim doesn't). available_aliases is
 -- warmed by check_daemon_once / :PlurnkModels; fire a background fetch if cold.
 M.ai_complete = function(_arglead, cmdline, _)
   local state = require("plurnk.state")
   local model_partial = cmdline:match("/model%s+(%S*)$")
-  if model_partial then
+  local child_partial = cmdline:match("/child%s+(%S*)$")
+  local alias_partial = model_partial or child_partial
+  if alias_partial then
     local aliases = state.get_available_aliases()
     if #aliases == 0 then
       pcall(function()
@@ -849,8 +879,11 @@ M.ai_complete = function(_arglead, cmdline, _)
       end)
     end
     local out = {}
+    if child_partial and vim.startswith("inherit", alias_partial) then out[#out + 1] = "inherit" end
     for _, a in ipairs(aliases) do
-      if vim.startswith(a.alias, model_partial) then out[#out + 1] = a.alias end
+      if (not child_partial or a.alias ~= "inherit") and vim.startswith(a.alias, alias_partial) then
+        out[#out + 1] = a.alias
+      end
     end
     table.sort(out)
     return out
@@ -967,11 +1000,12 @@ M.ai = function(opts)
     local after = function(workspace_name)
       require("plurnk.worker_tab").open(workspace_name)
       if wrapped ~= "" then
-        send_loop_run(workspace_name, wrapped, require("plurnk.client").consume_selected_alias(), flags)
+        local model, child = resolve_loop_policies(require("plurnk.client"), workspace_name)
+        send_loop_run(workspace_name, wrapped, model, child, flags)
       end
     end
     if prefix_len >= 4 then
-      -- `????` — fork-lite: new run in the current workspace.
+      -- `????` — fork-lite: new worker in the current workspace.
       local workspace = active_workspace()
       if workspace then return fork_worker_then(workspace, after) end
       return create_workspace_then({}, after)
@@ -1006,7 +1040,6 @@ M.setup = function()
   cmd("PlurnkMembers",     M.members,      {})
   cmd("PlurnkScript",      M.script,       { nargs = 1, complete = "file" })
   cmd("PlurnkYolo",        M.yolo,         {})
-  cmd("PlurnkAuth",        M.auth,         { nargs = 1 })
   cmd("PlurnkPing",        M.ping,         {})
   cmd("PlurnkStop",        M.stop,         {})
   cmd("PlurnkClear",       M.clear,        {})

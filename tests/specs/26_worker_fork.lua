@@ -26,7 +26,7 @@ local ok, err = pcall(function()
 
   local cmds = require("plurnk.commands")
 
-  -- named fork → worker.fork {name}, then attach binds the new run
+  -- named fork → worker.fork {name}, then attach binds the new worker
   cmds.fork({ args = "branch-a" })
   local fork, attach
   for _, e in ipairs(sent) do
@@ -35,7 +35,7 @@ local ok, err = pcall(function()
   end
   H.assert_truthy(fork ~= nil, "worker.fork was sent")
   H.assert_eq(fork.params.name, "branch-a", "fork carries the name (named at instantiation)")
-  H.assert_truthy(attach ~= nil, "binds to the forked run")
+  H.assert_truthy(attach ~= nil, "binds to the forked worker")
   H.assert_eq(attach.params.workerId, 42, "attach targets the forked workerId")
 
   -- no-name fork → worker.fork with no name (daemon auto-names <parent>-fork)

@@ -135,7 +135,7 @@ function M.unproject(e, tool)
   if name == "plurnk.notice" then return { method = "notice/event", params = { notice = v } } end
   if name == "plurnk.branch_batch" then return { method = "workspace/branch-batch", params = v } end
   if name == "plurnk.stream" then
-    local concluded = type(v) == "table" and v.closeStatus ~= nil
+    local concluded = type(v) == "table" and type(v.result) == "table" and type(v.result.status) == "number"
     return { method = concluded and "stream/concluded" or "stream/event", params = v }
   end
   return nil

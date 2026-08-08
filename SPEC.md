@@ -77,8 +77,8 @@ what this client guarantees. Tests are organized by observable behavior under
 - **`<<LOOK` inspects off-worker** — a READ for the human, not the model:
   routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
   rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
-- **Completion** — `:AI` cmdline completion offers verbs and model
-  aliases.
+- **Completion** — `:AI` cmdline completion offers verbs, model aliases,
+  and child inheritance.
 
 ## §4 Workspaces and workers
 
@@ -103,7 +103,7 @@ what this client guarantees. Tests are organized by observable behavior under
 
 - **The run tab** — `:AI` opens a workspace tabpage with two windows:
   waterfall on top, input at the bottom; submitting populates the waterfall and leaves
-  focus on the input.
+  focus on the input; an actionless `prompt` row renders as 🐹 speech from `rx.content`.
 - **Two glyph lanes** — every waterfall row carries identity ·
   status (🐹 client; the model SEND lane is status-flavored: 💭 102, 💡 200, 💤 202,
   🤔 300), the status code in one column; width-stable glyphs only.
@@ -156,20 +156,20 @@ what this client guarantees. Tests are organized by observable behavior under
 ## §8 Config and policy
 
 - **Workspace-open settings ride creation** — the client id,
-  `autoReadAgents`, the execs policy, `questions`, and `filesItems` (the CLI's
+  execs policy, `questions`, and `filesItems` (the CLI's
   `--files-items`, converged: -1 full / 0 off / N first-N) travel on `workspace.create`;
   creation is atomic, nothing arrives later.
 - **Model selection sticks** — a picked alias persists past one
   loop.
+- §nvim-child-provider-selection **Child selection sticks per workspace** —
+  `/child` reports, `/child <alias>` selects, and `/child inherit` sends explicit inheritance; `PLURNK_MODEL_CHILD` supplies the initial alias.
 - **Client-side alias resolution** — `PLURNK_MODEL_<alias>`
   resolves to `<provider>/<model>` from nvim's fresh env and rides `model` on the run,
   so a stale long-lived daemon can't reject an unknown alias; case-folded suffix.
 - **Execs policy forwards; secrets never do** — `PLURNK_EXECS_*`
   enable/disable grammar rides verbatim for the daemon's subtractive intersection;
   `PLURNK_EXECS_MCP_*` server configs (URLs, bearer tokens) never touch the wire.
-- **Auth is the device grant** — `auth.authorize` → show
-  verificationUri + userCode → poll until authorized/denied/expired; no redirect, no
-  local server, works over a remote daemon.
+- **Interactive provider authentication belongs to third-party MCP tooling.**
 - **Membership verbs converge with the TUI** — pick/hide/view/
   drop/members speak the service vocabulary live via `workspace.constrain`/`unconstrain`/
   `constraints`.

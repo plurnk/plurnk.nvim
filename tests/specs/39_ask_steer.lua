@@ -7,7 +7,7 @@
 -- Deliberately NOT gated on status==200: measured 2/3 -> 200, 1/3 -> 500 across
 -- client-side runs (vs the service's 5/5 — model-dependent variance). The residual
 -- 500 is the model still occasionally failing this awkward prompt — model-quality
--- nondeterminism, not a client contract. Gating a hard 200 would flake CI; the
+-- nondeterminism, not a client contract. Gating a hard 200 would reject valid stochastic output; the
 -- regression this spec owns is the 508 cycle + the indefinite hang, and BOTH are gone.
 local NAME = "39_ask_steer"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

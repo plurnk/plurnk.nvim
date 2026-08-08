@@ -12,6 +12,9 @@ M.set_project_path = state.set_project_path
 M.get_available_aliases = state.get_available_aliases
 M.set_selected_alias = state.set_selected_alias
 M.consume_selected_alias = state.consume_selected_alias
+M.get_selected_child_alias = state.get_selected_child_alias
+M.set_selected_child_alias = state.set_selected_child_alias
+M.consume_selected_child_alias = state.consume_selected_child_alias
 
 M.has_interacted = state.has_interacted
 M.mark_interacted = state.mark_interacted
@@ -24,6 +27,8 @@ M.set_worker_id = state.set_worker_id
 
 M.get_workspace_model = state.get_model_alias
 M.set_workspace_model = state.set_model_alias
+M.get_workspace_child = state.get_child_alias
+M.set_workspace_child = state.set_child_alias
 M.get_model_display = state.get_model_display
 M.set_model_display = state.set_model_display
 

@@ -19,7 +19,7 @@ local ns = vim.api.nvim_create_namespace("plurnk_stream")
 local FLUSH_MS = 100
 
 -- entry_id → {
---   buf, win, target,
+--   buf, win, target, worker_id,
 --   read    = { [channel] = bytes already consumed },
 --   partial = { [channel] = trailing text awaiting its newline },
 --   dirty, timer_running, concluded,
@@ -29,9 +29,12 @@ local streams = {}
 local CHANNEL_PREFIX = { stdout = "1│ ", stderr = "2│ " }
 local CHANNEL_HL = { stderr = "DiagnosticError" }
 
-local function get_or_create(entry_id, target)
+local function get_or_create(entry_id, target, worker_id)
   local st = streams[entry_id]
-  if st and st.buf and vim.api.nvim_buf_is_valid(st.buf) then return st end
+  if st and st.buf and vim.api.nvim_buf_is_valid(st.buf) then
+    st.worker_id = worker_id
+    return st
+  end
 
   local buf = vim.api.nvim_create_buf(true, true)
   local safe = (target or ("entry-" .. entry_id)):gsub("[:/%%]", "_")
@@ -40,7 +43,7 @@ local function get_or_create(entry_id, target)
   vim.bo[buf].bufhidden = "hide"
   vim.bo[buf].swapfile = false
 
-  st = { buf = buf, target = target, read = {}, partial = {},
+  st = { buf = buf, target = target, worker_id = worker_id, read = {}, partial = {},
          dirty = false, timer_running = false, concluded = false }
   streams[entry_id] = st
 
@@ -159,7 +162,7 @@ local function flush(entry_id)
   st.timer_running = false
   if not st.dirty or st.concluded then return end
   st.dirty = false
-  require("plurnk.client").send("entry.read", { target = st.target }, false, function(result)
+  require("plurnk.client").send("entry.read", { target = st.target, workerId = st.worker_id }, false, function(result)
     if type(result) ~= "table" or type(result.entry) ~= "table" then return end
     local channels = result.entry.channels or {}
     vim.schedule(function()
@@ -176,7 +179,8 @@ end
 M.on_event = function(params, _workspace_name)
   if not params or type(params.entryId) ~= "number" then return end
   if type(params.target) ~= "string" or #params.target == 0 then return end
-  local st = get_or_create(params.entryId, params.target)
+  if type(params.workerId) ~= "number" then return end
+  local st = get_or_create(params.entryId, params.target, params.workerId)
   if st.concluded then return end
   if (tonumber(params.contentLength) or 0) == 0 then return end
   st.dirty = true
@@ -192,34 +196,26 @@ M.on_concluded = function(params, _workspace_name)
   if not params or type(params.entryId) ~= "number" then return end
   local st = streams[params.entryId]
 
-  local close = tostring(params.closeStatus or "?")
+  local status = type(params.result) == "table" and params.result.status or nil
+  local close = tostring(status or "?")
   local summary = tostring(params.summary or "")
-  local glyph = params.closeStatus == 200 and "✓"
-    or (params.closeStatus == 499 and "✋" or "✗")
+  local glyph = status == 200 and "✓"
+    or (status == 499 and "✋" or "✗")
   pcall(function()
     require("plurnk.hud").show(string.format("%s %s → %s%s", glyph,
       tostring(params.target or (st and st.target) or ("entry " .. params.entryId)),
       close, summary ~= "" and (" · " .. summary) or ""))
   end)
 
-  -- #116 — an auth-required close (401) offers the device-grant flow. Surface
-  -- the offer (not auto-run); target is the stream's scheme (e.g. notion).
-  -- Before the `st` guard: a never-announced stream still deserves the offer.
-  if params.closeStatus == 401 then
-    local tag = params.scheme or (type(params.target) == "string" and params.target:match("^(%w[%w._-]*)://")) or "the exec"
-    pcall(function()
-      require("plurnk.client").notify("🔒 " .. tag .. " needs authorization — run :PlurnkAuth " .. tag, vim.log.levels.WARN)
-    end)
-  end
-
   if not st then return end
+  if type(params.workerId) == "number" then st.worker_id = params.workerId end
   st.concluded = true
   if not vim.api.nvim_buf_is_valid(st.buf) then
     streams[params.entryId] = nil
     return
   end
 
-  require("plurnk.client").send("entry.read", { target = st.target }, false, function(result)
+  require("plurnk.client").send("entry.read", { target = st.target, workerId = st.worker_id }, false, function(result)
     vim.schedule(function()
       if not vim.api.nvim_buf_is_valid(st.buf) then streams[params.entryId] = nil; return end
       if type(result) == "table" and type(result.entry) == "table" then

@@ -35,6 +35,22 @@ local ok, err = pcall(function()
 
   local ai = require("plurnk.commands").ai
 
+  vim.env.PLURNK_MODEL_kid = "anthropic/claude-kid"
+  require("plurnk.commands").set_child("kid")
+  captured = {}
+  ai({ args = "delegating", range = 0 })
+  local child_run = find(captured, "loop.run")
+  H.assert_eq(child_run.params.childAlias, "kid", "selected child alias rides loop.run")
+  H.assert_eq(child_run.params.childModel, "anthropic/claude-kid", "selected child model resolves client-side")
+
+  require("plurnk.commands").set_child("inherit")
+  captured = {}
+  ai({ args = "inheriting", range = 0 })
+  local inherit_run = find(captured, "loop.run")
+  H.assert_eq(inherit_run.params.childAlias, vim.NIL, "inherit rides loop.run as explicit null")
+  H.assert_eq(inherit_run.params.childModel, nil, "inherit carries no child model")
+  vim.env.PLURNK_MODEL_kid = nil
+
   -- :AI: Hello, world.
   ai({ args = ": Hello, world.", range = 0 })
   H.assert_eq(captured[#captured].method, "loop.run", ":AI: routes to loop.run")
@@ -110,16 +126,6 @@ local ok, err = pcall(function()
   ai({ args = "/stop", range = 0 })
   H.assert_eq(#captured, 0, ":AI/stop without workspace sends nothing")
 
-  -- #268 — config.auto_read_agents flows to workspace.create as settings.autoReadAgents.
-  require("plurnk.config").setup({ auto_read_agents = false })
-  vim.cmd("enew")
-  require("plurnk.state").set_active_workspace_name(nil)
-  vim.b.plurnk_workspace = nil
-  captured = {}
-  ai({ args = "?? off-agents", range = 0 })
-  local sc = find(captured, "workspace.create")
-  H.assert_eq(sc.params.settings.autoReadAgents, false, "auto_read_agents=false → settings.autoReadAgents")
-  H.assert_eq(sc.params.settings.client, "plurnk.nvim", "client id still present alongside the override")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

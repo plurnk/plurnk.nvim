@@ -10,13 +10,16 @@ local ok, err = pcall(function()
   local commands = require("plurnk.commands")
   vim.env.PLURNK_MODEL_ccp = "anthropic/claude-x"
   vim.env.PLURNK_MODEL_OR = "openrouter/anthropic/claude-sonnet"  -- model id contains "/"
+  vim.env.PLURNK_MODEL_CHILD = "anthropic/child-default"
   H.assert_eq(commands.resolve_model_spec("ccp"), "anthropic/claude-x", "resolves to provider/model")
   H.assert_eq(commands.resolve_model_spec("CCP"), "anthropic/claude-x", "alias suffix is case-folded")
   H.assert_eq(commands.resolve_model_spec("or"), "openrouter/anthropic/claude-sonnet", "model id containing / stays verbatim")
   H.assert_eq(commands.resolve_model_spec("nope"), nil, "undeclared alias → nil (fall back to bare alias)")
+  H.assert_eq(commands.resolve_model_spec("child"), nil, "the child selector is not an alias declaration")
   H.assert_eq(commands.resolve_model_spec(""), nil, "empty alias → nil")
   vim.env.PLURNK_MODEL_ccp = nil
   vim.env.PLURNK_MODEL_OR = nil
+  vim.env.PLURNK_MODEL_CHILD = nil
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end
