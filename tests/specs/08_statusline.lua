@@ -42,6 +42,13 @@ local ok, err = pcall(function()
   state.record_loop_usage("s1", { costUsd = 0.05 })
   H.assert_match(worker_tab.winbar_text("s1", 7), "loop: %$0%.0500", "last loop's cost replaces, not accumulates")
 
+  -- Unknown settlement clears the prior loop's exact cost. The separately
+  -- named projection remains visibly an estimate rather than becoming money.
+  state.record_loop_usage("s1", { projectedCostUsd = 0.0042 })
+  local pending = worker_tab.winbar_text("s1", 7)
+  H.assert_match(pending, "loop: pending %(est %$0%.0042%)", "pending money labels its projection")
+  H.assert_truthy(not pending:match("%$0%.0500"), "a pending loop never inherits the prior loop's settled cost")
+
   -- Context-% gauge (svc#263): contextTokens / the active model's contextSize.
   state.set_available_aliases({ { alias = "opus", active = true, contextSize = 49152 } })
   state.record_loop_usage("s1", { contextTokens = 7360 })

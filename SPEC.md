@@ -130,7 +130,8 @@ what this client guarantees. Tests are organized by observable behavior under
 - **The statusline is lean** — 🐹 + one status glyph + 🔥 when
   YOLO is armed (+ compact 🧮, 🔎, or 🌿 work state); the rich detail lives in the winbar.
 - **The cockpit gauge is the daemon's number** — the winbar shows
-  the LAST loop's usage snapshot, never a client-side tally.
+  the LAST loop's usage snapshot, including settled cost or an explicitly
+  estimated pending projection, never a client-side tally.
 
 ## §6 Loops
 

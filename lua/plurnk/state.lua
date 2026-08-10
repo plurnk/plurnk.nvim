@@ -36,7 +36,6 @@ local function ensure_workspace(name)
       current_turn = nil,
       final_status = nil,
       status_text = nil,
-      cost_usd = 0,
       last_seen_log_id = 0,
       pending_proposals = {},  -- keyed by logEntryId
       search_progress = nil,   -- aggregate page acquisition percent; nil when idle
@@ -174,7 +173,10 @@ M.record_loop_usage = function(name, u)
   -- context occupancy (svc#263) — the gauge numerator, the daemon's figure
   -- (NOT the double-counting promptTokens sum).
   if type(u.contextTokens) == "number" then s.usage.context_tokens = u.contextTokens end
-  if type(u.costUsd) == "number" then s.cost_usd = u.costUsd end  -- last loop's cost, not a total
+  -- JSON null decodes to nil. Each terminated-loop usage object owns a complete
+  -- money snapshot, so absence here clears any prior loop instead of retaining it.
+  s.usage.cost_usd = type(u.costUsd) == "number" and u.costUsd or nil
+  s.usage.projected_cost_usd = type(u.projectedCostUsd) == "number" and u.projectedCostUsd or nil
 end
 
 -- True between loop.run dispatch and loop/terminated — drives the
@@ -203,8 +205,17 @@ M.set_status_text = function(name, text) local s = ensure_workspace(name); if s 
 
 -- The LAST loop's cost (snapshot), not a workspace total — the lifetime total is
 -- the daemon's (svc#254), surfaced in `workspace list`, never reconstructed here.
-M.get_cost_usd = function(name) local s = ensure_workspace(name); return s and s.cost_usd or 0 end
-M.set_cost_usd = function(name, cost) local s = ensure_workspace(name); if s then s.cost_usd = cost or 0 end end
+M.get_cost_usd = function(name)
+  local s = ensure_workspace(name)
+  return s and s.usage and s.usage.cost_usd
+end
+M.set_cost_usd = function(name, cost)
+  local s = ensure_workspace(name)
+  if s then
+    s.usage = s.usage or { prompt = 0, completion = 0 }
+    s.usage.cost_usd = type(cost) == "number" and cost or nil
+  end
+end
 
 M.get_last_seen_log_id = function(name) local s = ensure_workspace(name); return s and s.last_seen_log_id or 0 end
 M.set_last_seen_log_id = function(name, id)

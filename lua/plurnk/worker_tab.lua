@@ -90,7 +90,15 @@ local function build_winbar(workspace, key)
   end
 
   local loop_cost = state.get_cost_usd(workspace)
-  if type(loop_cost) == "number" and loop_cost > 0 then parts[#parts + 1] = "loop: " .. fmt_usd(loop_cost) end
+  if type(loop_cost) == "number" and loop_cost > 0 then
+    parts[#parts + 1] = "loop: " .. fmt_usd(loop_cost)
+  elseif usage and loop_cost == nil then
+    local pending = "loop: pending"
+    if type(usage.projected_cost_usd) == "number" then
+      pending = pending .. " (est " .. fmt_usd(usage.projected_cost_usd) .. ")"
+    end
+    parts[#parts + 1] = pending
+  end
 
   return " " .. table.concat(parts, " · ") .. " "
 end
