@@ -6,12 +6,40 @@ H.setup()
 local ok, err = pcall(function()
   local state = require("plurnk.state")
   local worker_tab = require("plurnk.worker_tab")
+  local function loop_usage(input_tokens, output_tokens, cost_usd, context_tokens, prompt_budget)
+    local aggregate = {
+      inputTokens = input_tokens,
+      outputTokens = output_tokens,
+      totalTokens = input_tokens + output_tokens,
+    }
+    local cost = cost_usd and {
+      kind = "estimated",
+      amount = { amount = cost_usd, currency = "USD" },
+      source = "fixture",
+    } or { kind = "unknown", reason = "provider supplied no monetary evidence" }
+    return {
+      accounting = {
+        requests = { {
+          provider = "provider:test",
+          model = "test",
+          outcome = "response",
+          usage = aggregate,
+          cost = cost,
+        } },
+        usage = aggregate,
+        costUsd = cost_usd,
+      },
+      contextTokens = context_tokens,
+      promptBudget = prompt_budget,
+      meta = {},
+    }
+  end
   local buf = vim.api.nvim_get_current_buf()
   vim.b[buf].plurnk_workspace = "s1"
   state.set_model_alias("s1", "claude")
   state.set_current_loop_id("s1", 7)
   state.set_current_turn("s1", 2)
-  state.set_cost_usd("s1", 0.07) -- the LAST loop's cost, not a total
+  state.record_loop_usage("s1", loop_usage(0, 0, "0.0700"))
   state.set_loop_inflight("s1", true)
 
   -- ── lean statusline: a glance, not a squat on shared real estate ──
@@ -39,23 +67,21 @@ local ok, err = pcall(function()
   H.assert_match(worker_tab.winbar_text("s1", 7), "❌", "error glyph")
 
   -- record_loop_usage is a SNAPSHOT, not a tally: a second loop's cost REPLACES.
-  state.record_loop_usage("s1", { costUsd = 0.05 })
-  H.assert_match(worker_tab.winbar_text("s1", 7), "loop: %$0%.0500", "last loop's cost replaces, not accumulates")
+  state.record_loop_usage("s1", loop_usage(0, 0, "0.05"))
+  H.assert_match(worker_tab.winbar_text("s1", 7), "loop: %$0%.05", "the next exact loop envelope replaces the prior one")
 
-  -- Unknown settlement clears the prior loop's exact cost. The separately
-  -- named projection remains visibly an estimate rather than becoming money.
-  state.record_loop_usage("s1", { projectedCostUsd = 0.0042 })
-  local pending = worker_tab.winbar_text("s1", 7)
-  H.assert_match(pending, "loop: pending %(est %$0%.0042%)", "pending money labels its projection")
-  H.assert_truthy(not pending:match("%$0%.0500"), "a pending loop never inherits the prior loop's settled cost")
+  -- Unknown monetary evidence stays unknown and cannot inherit a prior loop's cost.
+  state.record_loop_usage("s1", loop_usage(0, 0, nil))
+  local unknown = worker_tab.winbar_text("s1", 7)
+  H.assert_match(unknown, "loop: %$unknown", "unknown money remains unknown")
+  H.assert_truthy(not unknown:match("%$0%.05"), "an unknown loop never inherits prior evidence")
 
-  -- Context-% gauge (svc#263): contextTokens / the active model's contextSize.
-  state.set_available_aliases({ { alias = "opus", active = true, contextSize = 49152 } })
-  state.record_loop_usage("s1", { contextTokens = 7360 })
-  H.assert_match(worker_tab.winbar_text("s1", 7), "ctx 15%%/49k", "gauge = contextTokens/contextSize, rounded-k")
-  -- contextSize null (provider can't report a window) → gauge omitted, never guessed.
-  state.set_available_aliases({ { alias = "opus", active = true } })
-  H.assert_truthy(not worker_tab.winbar_text("s1", 7):match("ctx "), "no gauge when contextSize is null")
+  -- Context occupancy and budget both come from the same terminal envelope.
+  state.set_available_aliases({ { alias = "opus", active = true, contextSize = 128000 } })
+  state.record_loop_usage("s1", loop_usage(0, 0, "0", 7360, 49152))
+  H.assert_match(worker_tab.winbar_text("s1", 7), "ctx 15%%/49k", "the loop's budget wins over ambient alias metadata")
+  state.record_loop_usage("s1", loop_usage(0, 0, "0", 7360, nil))
+  H.assert_truthy(not worker_tab.winbar_text("s1", 7):match("ctx "), "no gauge when the terminal budget is unknown")
 
   -- Active-model resolution (converged with the TUI header): with no loop yet
   -- (no model_alias), the winbar still names the daemon's active default from
