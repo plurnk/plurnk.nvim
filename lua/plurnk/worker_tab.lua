@@ -35,14 +35,21 @@ local function buffer_title(workspace, key)
 end
 
 -- The winbar is plurnk's OWN window header — its real estate, so the rich
--- detail lives here (identity + model + live L·T/status + loop cost), NOT in
+-- detail lives here (identity + model + live L·T/status + loop accounting), NOT in
 -- the user's shared statusline. Reactive: refresh_winbar re-renders
 -- it on each notification so the live state stays current (operator, 2026-06-20).
-local function fmt_usd(cost) return string.format("$%.4f", cost) end
 local function fmt_count(n)
   if n >= 1e6 then return string.format("%.1fM", n / 1e6) end
   if n >= 1000 then return string.format("%.1fk", n / 1000) end
   return tostring(n)
+end
+
+local function fmt_token(n)
+  return type(n) == "number" and fmt_count(n) or "?"
+end
+
+local function is_zero_decimal(value)
+  return value == "0" or (type(value) == "string" and value:match("^0%.0+$") ~= nil)
 end
 
 local function build_winbar(workspace, key)
@@ -74,30 +81,29 @@ local function build_winbar(workspace, key)
     end
   end
 
-  -- The LAST loop's token counts — not a workspace total.
+  -- The daemon's conventional aggregate for the LAST loop, not a client tally.
   local usage = state.get_usage(workspace)
-  if usage and (usage.prompt > 0 or usage.completion > 0) then
-    parts[#parts + 1] = "↑" .. fmt_count(usage.prompt) .. " ↓" .. fmt_count(usage.completion)
+  local accounting = type(usage) == "table" and type(usage.accounting) == "table" and usage.accounting or nil
+  if accounting then
+    local aggregate = type(accounting.usage) == "table" and accounting.usage or nil
+    parts[#parts + 1] = "↑" .. fmt_token(aggregate and aggregate.inputTokens)
+      .. " ↓" .. fmt_token(aggregate and aggregate.outputTokens)
   end
 
-  -- Context-% gauge (svc#263): occupancy / the active model's window → "ctx 15%/49k".
-  -- Rounded-k denominator to converge with the TUI/CLI gauge. Omitted when the
-  -- provider can't report its window (contextSize null).
-  local cs = state.get_active_context_size()
-  if usage and type(usage.context_tokens) == "number" and type(cs) == "number" and cs > 0 then
-    local k = cs >= 1000 and string.format("%dk", math.floor(cs / 1000 + 0.5)) or tostring(cs)
-    parts[#parts + 1] = string.format("ctx %d%%/%s", math.floor(usage.context_tokens / cs * 100 + 0.5), k)
+  -- Both gauge quantities belong to this loop's terminal envelope. Never infer
+  -- the window from the current alias; the loop may have used another model.
+  local context_tokens = usage and usage.contextTokens
+  local prompt_budget = usage and usage.promptBudget
+  if type(context_tokens) == "number" and type(prompt_budget) == "number" and prompt_budget > 0 then
+    local k = prompt_budget >= 1000 and string.format("%dk", math.floor(prompt_budget / 1000 + 0.5)) or tostring(prompt_budget)
+    parts[#parts + 1] = string.format("ctx %d%%/%s", math.floor(context_tokens / prompt_budget * 100 + 0.5), k)
   end
 
-  local loop_cost = state.get_cost_usd(workspace)
-  if type(loop_cost) == "number" and loop_cost > 0 then
-    parts[#parts + 1] = "loop: " .. fmt_usd(loop_cost)
-  elseif usage and loop_cost == nil then
-    local pending = "loop: pending"
-    if type(usage.projected_cost_usd) == "number" then
-      pending = pending .. " (est " .. fmt_usd(usage.projected_cost_usd) .. ")"
-    end
-    parts[#parts + 1] = pending
+  local loop_cost = accounting and accounting.costUsd
+  if type(loop_cost) == "string" and not is_zero_decimal(loop_cost) then
+    parts[#parts + 1] = "loop: $" .. loop_cost
+  elseif accounting and loop_cost == nil and type(accounting.requests) == "table" and #accounting.requests > 0 then
+    parts[#parts + 1] = "loop: $unknown"
   end
 
   return " " .. table.concat(parts, " · ") .. " "
@@ -120,7 +126,7 @@ M.winbar_text = function(workspace, key)
 end
 
 -- Re-render the winbar for a workspace's open waterfall window(s) — called from
--- dispatch on each state-changing notification so the live L·T / status / cost
+-- dispatch on each state-changing notification so the live L·T / status / accounting
 -- stay current without a statusline round-trip.
 M.refresh_winbar = function(workspace)
   local recs = records[workspace]

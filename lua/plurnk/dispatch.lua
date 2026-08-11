@@ -125,7 +125,7 @@ M.handle_loop_terminated = function(params, workspace_name)
   if not params or not workspace_name then return end
   state.set_loop_inflight(workspace_name, false)
   state.set_embedding(workspace_name, false)  -- the abacus never outlives the loop
-  state.record_loop_usage(workspace_name, params.usage)  -- last loop only; NOT a workspace total (svc#254)
+  state.record_loop_usage(workspace_name, params.usage)  -- exact last-loop envelope; never a client tally
   if type(params.result) == "table" and type(params.result.status) == "number" then
     state.set_final_status(workspace_name, params.result.status)
   end

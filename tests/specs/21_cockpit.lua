@@ -7,22 +7,48 @@ H.setup()
 local ok, err = pcall(function()
   local state = require("plurnk.state")
   local dispatch = require("plurnk.dispatch")
+  local function loop_usage(input_tokens, output_tokens, cost_usd)
+    local aggregate = {
+      inputTokens = input_tokens,
+      outputTokens = output_tokens,
+      totalTokens = input_tokens + output_tokens,
+    }
+    return {
+      accounting = {
+        requests = { {
+          provider = "provider:test",
+          model = "test",
+          outcome = "response",
+          usage = aggregate,
+          cost = {
+            kind = "estimated",
+            amount = { amount = cost_usd, currency = "USD" },
+            source = "fixture",
+          },
+        } },
+        usage = aggregate,
+        costUsd = cost_usd,
+      },
+      contextTokens = input_tokens,
+      promptBudget = nil,
+      meta = {},
+    }
+  end
   state.set_workspace_id("gauge", 3)
   state.set_active_workspace_name("gauge")
   vim.b.plurnk_workspace = "gauge"
 
-  -- Real usage (loop/terminated, svc#197) — the LAST loop's usage, a SNAPSHOT,
-  -- NOT a workspace tally. The lifetime total is the daemon's (svc#254); a client
-  -- can't sum it (forks + multiple clients), and faking it lies about money.
+  -- The terminal accounting envelope is a LAST-loop snapshot, never a client tally.
   dispatch.handle_loop_terminated({ loopId = 1, result = { status = 200 }, hitMaxTurns = false,
-    usage = { promptTokens = 2000, completionTokens = 500, costUsd = 0.007 } }, "gauge")
+    usage = loop_usage(2000, 500, "0.007") }, "gauge")
   dispatch.handle_loop_terminated({ loopId = 2, result = { status = 200 }, hitMaxTurns = false,
-    usage = { promptTokens = 1000, completionTokens = 250, costUsd = 0.003 } }, "gauge")
+    usage = loop_usage(1000, 250, "0.003") }, "gauge")
   -- The rich gauge lives in the winbar now; the statusline is a lean glance.
   local wb = require("plurnk.worker_tab").winbar_text("gauge", nil)
   H.assert_match(wb, "🐹 gauge", "winbar names the workspace")
   H.assert_match(wb, "↑1%.0k ↓250", "shows the LAST loop's usage (snapshot), not the sum of both")
-  H.assert_eq(state.get_cost_usd("gauge"), 0.003, "cost is the last loop's, NOT accumulated (no client workspace total)")
+  H.assert_eq(state.get_usage("gauge").accounting.costUsd, "0.003", "the exact last-loop decimal is not accumulated or converted")
+  H.assert_eq(#state.get_usage("gauge").accounting.requests, 1, "physical request evidence remains cardinal")
   local sl = require("plurnk.statusline").text()
   H.assert_match(sl, "🐹", "statusline shows the brand")
   H.assert_truthy(not sl:match("↑"), "statusline does NOT squat tokens (winbar's job)")

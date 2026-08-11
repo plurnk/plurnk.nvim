@@ -87,9 +87,11 @@ subscription (SEND[499]).
 >lua
   vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 <
-Renders: `plurnk[workspace·worker] · 🤖 alias · L3·T2 · ✅ 200 · 12.3k tok ·
-$0.0042` — loop/turn track the bound worker only; tokens are workspace-total
-content tokens (real provider usage arrives with service#197).
+The statusline remains a lean `🐹` plus live state glyph. The worker winbar owns
+the rich snapshot, for example `🐹 workspace · worker · 🤖 alias · L3·T2 · ✅ 200
+· ↑12.3k ↓420 · ctx 15%/49k · loop: $0.0042`. Input/output, context, and the
+exact decimal or unknown cost all come from the last loop's terminal accounting
+envelope; they are never a client-computed workspace total.
 
 ==============================================================================
 7. Architecture                                           *plurnk-architecture*

@@ -129,9 +129,12 @@ what this client guarantees. Tests are organized by observable behavior under
   hidden 🚫 get a line-1 extmark; plain members and non-members get no sign.
 - **The statusline is lean** — 🐹 + one status glyph + 🔥 when
   YOLO is armed (+ compact 🧮, 🔎, or 🌿 work state); the rich detail lives in the winbar.
-- **The cockpit gauge is the daemon's number** — the winbar shows
-  the LAST loop's usage snapshot, including settled cost or an explicitly
-  estimated pending projection, never a client-side tally.
+- **The cockpit gauge preserves cardinal accounting** — the winbar reads the LAST
+  loop's `plurnk.terminated.usage` envelope without rewriting it: conventional
+  aggregate `inputTokens`/`outputTokens`, the loop-owned context occupancy and
+  prompt budget, and exact decimal `accounting.costUsd` or `$unknown`. Ordered
+  physical-request evidence remains in `accounting.requests`; the client has no
+  accounting setter, floating-point conversion, projection, or workspace tally.
 
 ## §6 Loops
 

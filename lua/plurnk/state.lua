@@ -4,11 +4,9 @@
 -- Concept mapping from rummy → plurnk:
 --   rummy "run alias" → plurnk "workspace name" (long-lived agent state).
 --   rummy "turn"      → plurnk loop turn (within current loop).
---   rummy "cost"      → plurnk `cost_usd` from workspace.list / workspace.workers.
 --
--- Dropped from rummy: context_max/effective, budget_*, tokens_in/out
--- (plurnk wire does not expose these per-loop; the model's packet.system
--- carries token budgets but they're not surfaced as a discrete RPC).
+-- Provider accounting has no rummy analogue. The terminal accounting envelope
+-- is cardinal daemon evidence and remains one opaque, read-only snapshot here.
 
 local M = {}
 
@@ -125,17 +123,6 @@ M.get_active_model = function(name)
   return nil
 end
 
--- The active model's context window (svc#263) — the context-gauge denominator.
--- Only the daemon's active default carries contextSize on providers.list (a
--- workspace-pinned non-active model reports null), so this is the active default's
--- window; approximate if a workspace pins a different model.
-M.get_active_context_size = function()
-  for _, a in ipairs(available_aliases) do
-    if a.active then return a.contextSize end
-  end
-  return nil
-end
-
 M.get_model_display = function(name)
   local s = name and workspace_states[name]
   if s and s.model_display then return s.model_display end
@@ -154,29 +141,16 @@ M.set_current_turn = function(name, t) local s = ensure_workspace(name); if s th
 M.get_final_status = function(name) local s = ensure_workspace(name); return s and s.final_status end
 M.set_final_status = function(name, st) local s = ensure_workspace(name); if s then s.final_status = st end end
 
--- Real provider usage (plurnk-service #197), accumulated per workspace
--- from loop/terminated — the ONE accumulation point (loop.run's result
--- carries the same numbers; adding both would double-count).
+-- The exact usage/accounting envelope from the last plurnk.terminated event.
 M.get_usage = function(name) local s = ensure_workspace(name); return s and s.usage end
--- Record the LAST loop's usage — a snapshot, NOT a running total. The workspace
--- lifetime cost is the daemon's to aggregate (svc#254): workers spawn/fork and
--- multiple clients drive one workspace, so no client sees every turn; a
--- client-side tally only sums the loops THIS client witnessed — a lie about
--- money. We show only what the last loop cost.
+-- Record one complete snapshot. Do not rename fields, sum requests, convert exact
+-- decimal strings, or retain pieces from a prior loop: those would establish a
+-- second accounting representation in the client.
 M.record_loop_usage = function(name, u)
   if type(u) ~= "table" then return end
   local s = ensure_workspace(name)
   if not s then return end
-  s.usage = s.usage or { prompt = 0, completion = 0 }
-  if type(u.promptTokens) == "number" then s.usage.prompt = u.promptTokens end
-  if type(u.completionTokens) == "number" then s.usage.completion = u.completionTokens end
-  -- context occupancy (svc#263) — the gauge numerator, the daemon's figure
-  -- (NOT the double-counting promptTokens sum).
-  if type(u.contextTokens) == "number" then s.usage.context_tokens = u.contextTokens end
-  -- JSON null decodes to nil. Each terminated-loop usage object owns a complete
-  -- money snapshot, so absence here clears any prior loop instead of retaining it.
-  s.usage.cost_usd = type(u.costUsd) == "number" and u.costUsd or nil
-  s.usage.projected_cost_usd = type(u.projectedCostUsd) == "number" and u.projectedCostUsd or nil
+  s.usage = u
 end
 
 -- True between loop.run dispatch and loop/terminated — drives the
@@ -202,20 +176,6 @@ end
 
 M.get_status_text = function(name) local s = ensure_workspace(name); return s and s.status_text end
 M.set_status_text = function(name, text) local s = ensure_workspace(name); if s then s.status_text = text end end
-
--- The LAST loop's cost (snapshot), not a workspace total — the lifetime total is
--- the daemon's (svc#254), surfaced in `workspace list`, never reconstructed here.
-M.get_cost_usd = function(name)
-  local s = ensure_workspace(name)
-  return s and s.usage and s.usage.cost_usd
-end
-M.set_cost_usd = function(name, cost)
-  local s = ensure_workspace(name)
-  if s then
-    s.usage = s.usage or { prompt = 0, completion = 0 }
-    s.usage.cost_usd = type(cost) == "number" and cost or nil
-  end
-end
 
 M.get_last_seen_log_id = function(name) local s = ensure_workspace(name); return s and s.last_seen_log_id or 0 end
 M.set_last_seen_log_id = function(name, id)
