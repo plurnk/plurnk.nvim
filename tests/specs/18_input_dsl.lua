@@ -21,10 +21,10 @@ local ok, err = pcall(function()
   local buf = vim.api.nvim_get_current_buf()
   H.assert_match(vim.api.nvim_buf_get_name(buf), "plurnk%-nvim://input/smoke", "input focused")
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "## SEND1 [200]", "hi" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "## SEND0 [200]", "hi" })
   vim.api.nvim_feedkeys("\r", "x", false)
   H.assert_eq(sent[1].method, "op.parse", "operation heading routes to op.parse")
-  H.assert_eq(sent[1].params.text, "## SEND1 [200]\nhi", "raw PLURNK passes verbatim")
+  H.assert_eq(sent[1].params.text, "## SEND0 [200]\nhi", "raw PLURNK passes verbatim")
   H.assert_eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1], "", "input cleared after submit")
 
   -- LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, routed
@@ -36,10 +36,10 @@ local ok, err = pcall(function()
     table.insert(sent, { method = method, params = params })
     if cb then cb({ status = 200, content = "line one\nline two" }) end
   end
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "## LOOK1 (worker:///notes.md)" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "## LOOK0 (worker:///notes.md)" })
   vim.api.nvim_feedkeys("\r", "x", false)
   H.assert_eq(sent[#sent].method, "op.look", "LOOK routes to op.look, not op.parse")
-  H.assert_eq(sent[#sent].params.text, "## LOOK1 (worker:///notes.md)", "the raw statement passes; the module rewrites LOOK->READ")
+  H.assert_eq(sent[#sent].params.text, "## LOOK0 (worker:///notes.md)", "the raw statement passes; the module rewrites LOOK->READ")
   H.assert_truthy(#appended >= 2, "the content rendered into the waterfall (" .. #appended .. " lines)")
   H.assert_match(table.concat(appended, "\n"), "line two", "content lines land verbatim")
 
@@ -57,11 +57,11 @@ local ok, err = pcall(function()
   H.assert_eq(last.method, "loop.run", "an unrelated Markdown heading stays a prompt")
   H.assert_eq(last.params.prompt, "## Results\nordinary Markdown", "Markdown prompt passes verbatim")
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { ": ## EDIT1 is prose" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { ": ## EDIT0 is prose" })
   vim.api.nvim_feedkeys("\r", "x", false)
   last = sent[#sent]
   H.assert_eq(last.method, "loop.run", ": forces a reserved heading prefix to remain a prompt")
-  H.assert_eq(last.params.prompt, "## EDIT1 is prose", ": is stripped from the forced prompt")
+  H.assert_eq(last.params.prompt, "## EDIT0 is prose", ": is stripped from the forced prompt")
 
   -- `? ` prefix is ASK — flags.mode=ask rides loop.run.
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "? what changed" })
