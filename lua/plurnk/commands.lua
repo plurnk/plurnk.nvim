@@ -785,7 +785,7 @@ local HELP = table.concat({
   "                   script <path> (run a .plk file via op.parse)",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
-  "input buffer       ? ask · : act · ! exec · << raw DSL · <CR> submits",
+  "input buffer       ? ask · : act · ! exec · <| raw DSL · <CR> submits",
 }, "\n")
 
 local function show_help()

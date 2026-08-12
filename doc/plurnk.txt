@@ -57,7 +57,7 @@ the daemon (and still completes) — you just stop seeing its live events, so
 the notify says to reopen the worker to catch up.
 
 The input split (bottom, 3 lines): `<CR>` in normal mode submits. Prefixes
-match :AI — `? ` ask, `: ` act, `! ` exec, `<<` raw DSL.
+match :AI — `? ` ask, `: ` act, `! ` exec, `<|` raw DSL.
 
 ==============================================================================
 4. Proposals                                                 *plurnk-proposals*
