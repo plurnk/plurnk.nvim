@@ -14,7 +14,7 @@ local ok, err = pcall(function()
   dispatch.handle_loop_terminated = function(p, sn) terminated = p; orig(p, sn) end
 
   -- Ask mode is read-only: a FACTUAL question elicits a direct prose answer
-  -- (SEND[200]) — the operator's real happy path. (A "do something" prompt like
+  -- (a SEND carrying signal 200) — the operator's real happy path. (A "do something" prompt like
   -- "Hello, world." instead provokes EXEC attempts that ask 403s; the model then
   -- cycles on the identical 403 and the StrikeRail fires 508 — a bad test input,
   -- not the happy path. Exec-blocking-in-ask has its own coverage.)
@@ -34,7 +34,7 @@ local ok, err = pcall(function()
   local content = table.concat(vim.api.nvim_buf_get_lines(workspace_buf, 0, -1, false), "\n")
   H.assert_match(content, "💡", "waterfall has the answer glyph")
   H.assert_match(content, "💡    200", "waterfall has terminal SEND status")
-  -- The leading line is the SEND[200] header itself, not a blank.
+  -- The leading line is the terminal SEND header itself, not a blank.
   H.assert_truthy(content:sub(1, 1) ~= "\n", "no leading blank line")
 end)
 

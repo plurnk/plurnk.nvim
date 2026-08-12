@@ -10,8 +10,8 @@
 -- trailing partial is held until its newline arrives or the stream
 -- concludes. Every window showing the buffer auto-scrolls unless it's the
 -- current window (don't yank the cursor from a reading user). Wiping the
--- buffer of a LIVE stream cancels the subscription the way the DSL does:
--- SEND[499] at the stream's URI (§7.7).
+-- buffer of a LIVE stream cancels the subscription through `op.send` with
+-- status 499 at the stream's URI (§7.7).
 
 local M = {}
 

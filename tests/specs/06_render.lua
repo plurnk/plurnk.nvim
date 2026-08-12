@@ -54,7 +54,7 @@ local ok, err = pcall(function()
   H.assert_match(plan_lines[1], "Acknowledge user prompt%.", "PLAN shows the reasoning text")
   H.assert_truthy(not plan_lines[1]:match("%?"), "PLAN is not the ? fallback")
 
-  -- Broadcast SEND[200] short body — inline.
+  -- Broadcast SEND carrying signal 200, short body — inline.
   local bc_short = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
@@ -73,7 +73,7 @@ local ok, err = pcall(function()
   H.assert_match(bc_arrow[1], "loading → running", "inline right arrow uses its editor glyph")
   H.assert_truthy(not bc_arrow[1]:match("\\rightarrow"), "inline right arrow source is not rendered literally")
 
-  -- Broadcast SEND[200] multi-line body — header + indented body lines.
+  -- Broadcast SEND carrying signal 200, multi-line body — header + indented body lines.
   local bc_multi = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,

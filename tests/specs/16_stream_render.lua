@@ -1,6 +1,6 @@
 -- -- Stream-window parity (#16 phase 2): channel prefixes + interleave,
 -- batched flush (one entry.read per tick burst), partial-line hold,
--- conclusion footer, and BufWipeout → SEND[499] cancel.
+-- conclusion footer, and BufWipeout → `op.send` cancellation with status 499.
 -- Pure module path; stubs transport.send.
 local NAME = "16_stream_render"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
@@ -82,7 +82,7 @@ local ok, err = pcall(function()
   H.assert_eq(read_params[4].workerId, 23, "each stream reads from its own worker")
   vim.cmd("bwipeout! " .. vim.fn.bufnr("plurnk-nvim://stream/sh____live"))
   H.assert_eq(sends[1].method, "op.send", "wipeout of live stream cancels")
-  H.assert_eq(sends[1].params.status, 499, "cancel is SEND[499]")
+  H.assert_eq(sends[1].params.status, 499, "cancel carries status 499")
   H.assert_eq(sends[1].params.recipient, "sh:///live", "cancel addressed to the stream URI")
 end)
 

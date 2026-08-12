@@ -7,6 +7,21 @@
 
 local M = {}
 local INPUT_HEIGHT = 3
+local H2_OPS = {
+  "FIND", "READ", "EDIT", "COPY", "MOVE", "OPEN", "FOLD",
+  "KILL", "EXEC", "WORK", "FORK", "SEND", "LOOK",
+}
+
+-- Coarse dispatch classification only. The daemon remains the grammar owner
+-- and returns exact diagnostics for malformed headings/modifiers/bodies.
+local function operation_heading(text)
+  if text:sub(1, 6) == "# PLAN" then return "PLAN" end
+  for _, op in ipairs(H2_OPS) do
+    local prefix = "## " .. op
+    if text:sub(1, #prefix) == prefix then return op end
+  end
+  return nil
+end
 
 local function buffer_name(workspace_name, worker_id)
   return "plurnk-nvim://input/" .. (workspace_name or "scratch") .. "/" .. (worker_id or "pending")
@@ -22,10 +37,12 @@ local function submit(buf, workspace_name)
   local text = vim.fn.trim(table.concat(lines, "\n"))
   if text == "" then return end
 
-  -- <|LOOK — the off-worker inspection (TUI parity): a READ for the HUMAN, not the
+  local op = operation_heading(text)
+
+  -- LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, not the
   -- model. Routed to op.look (the module rewrites LOOK→READ; Engine.look mints no
   -- log row); content renders into the waterfall locally. A failed look SURFACES.
-  if text:upper():sub(1, 6) == "<|LOOK" then
+  if op == "LOOK" then
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
     require("plurnk.client").send("op.look", { text = text }, false, function(result)
       if type(result) ~= "table" or type(result.content) ~= "string" then
@@ -39,10 +56,9 @@ local function submit(buf, workspace_name)
     return
   end
 
-  -- Raw DSL passthrough (TUI parity, plurnk SPEC §3.1): input starting
-  -- `<|` goes to op.parse — the daemon parses and dispatches each
-  -- statement as actions of one turn; results arrive as log/entry.
-  if text:sub(1, 2) == "<|" then
+  -- Raw PLURNK passthrough (TUI parity): a recognized operation heading goes
+  -- to op.parse. The daemon parses and dispatches; results arrive as log/entry.
+  if op ~= nil then
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
     require("plurnk.client").send("op.parse", { text = text }, false)
     return

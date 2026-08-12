@@ -72,9 +72,11 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Visual ranges wrap** — `:'<,'>AI: explain` folds the
   selection into the prompt; the `??` new-workspace form wraps the same way (the v0.3.0
   regression stays pinned).
-- **Raw DSL passes through** — `<|…` input-buffer lines go to
-  `op.parse` verbatim; plain text routes to a conversation worker.
-- **`<|LOOK` inspects off-worker** — a READ for the human, not the model:
+- **Raw PLURNK passes through** — input beginning with a recognized operation
+  heading (`# PLAN…` or `## OP…`) goes to `op.parse` verbatim; plain text routes
+  to a conversation worker. Prefix `: ` to force prompt treatment when prose
+  intentionally begins with a reserved operation heading.
+- **`## LOOK…` inspects off-worker** — a READ for the human, not the model:
   routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
   rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
 - **Completion** — `:AI` cmdline completion offers verbs, model aliases,
@@ -112,7 +114,7 @@ what this client guarantees. Tests are organized by observable behavior under
   or Markdown interpretation.
 - **Stream windows** — channel prefixes + interleave, batched
   flush (one `entry.read` per tick burst), partial-line hold, a conclusion footer, and
-  `BufWipeout` → SEND[499] cancel.
+  `BufWipeout` → an `op.send` cancellation carrying status 499.
 - **Notice severity is producer-set** — required `notice.level`
   maps error → ErrorMsg, warn → WarningMsg, info → Comment; no kind heuristic.
 - **The abacus** — `engine:derivation embed_progress` collapses to an

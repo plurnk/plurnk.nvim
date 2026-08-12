@@ -57,7 +57,8 @@ the daemon (and still completes) — you just stop seeing its live events, so
 the notify says to reopen the worker to catch up.
 
 The input split (bottom, 3 lines): `<CR>` in normal mode submits. Prefixes
-match :AI — `? ` ask, `: ` act, `! ` exec, `<|` raw DSL.
+match :AI — `? ` ask, `: ` act, `! ` exec; `# PLAN1` / `## OP1` enter raw
+PLURNK.
 
 ==============================================================================
 4. Proposals                                                 *plurnk-proposals*
@@ -80,7 +81,7 @@ cycle pending. `:PlurnkYolo` auto-accepts everything.
 Exec output streams into a split below the waterfall: `1|` stdout,
 `2|` stderr (highlighted). The winbar shows the stream URI; a footer and a
 HUD toast mark conclusion. Wiping a live stream buffer cancels the
-subscription (SEND[499]).
+subscription with status 499.
 
 ==============================================================================
 6. Statusline                                               *plurnk-statusline*

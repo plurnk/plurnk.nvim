@@ -264,8 +264,8 @@ M.render_log_entry = function(entry)
 end
 
 -- Per-loop summary line (still used by callers; the worker_tab waterfall no
--- longer emits "loop terminated" since SEND[200] already carries that
--- signal).
+-- longer emits "loop terminated" since the terminal SEND already carries
+-- signal 200).
 -- Terminal loop status → label (converge client #70). plurnk-service 0.42.0
 -- split the flat 499 into distinct verdicts: 499 is the model/actor give-up or
 -- external KILL/cancel; 413/429/500/508 are ENGINE verdicts. Labelled so a

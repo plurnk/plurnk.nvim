@@ -276,7 +276,7 @@ local function review_exec(workspace_name, proposal)
   index = #stack
 end
 
--- ── SEND[300] questions (#346) ───────────────────────────────────────
+-- ── SEND signal 300 questions (#346) ─────────────────────────────────
 -- A question rides the SAME proposal lifecycle (world-stopped; answer via
 -- loop.resolve body), but is a SEND carrying attrs {question, choices} (choices
 -- absent/empty = open question). Detection is pure so it's testable.
@@ -319,7 +319,7 @@ end
 M.process = function(workspace_name, proposal)
   if not proposal or not proposal.logEntryId then return end
 
-  -- A SEND[300] question is checked BEFORE yolo: even a yolo loop stops the world
+  -- A SEND signal 300 question is checked BEFORE yolo: even a yolo loop stops the world
   -- for a human — never auto-answered (#346).
   local q = M.question_from_proposal(proposal)
   if q then

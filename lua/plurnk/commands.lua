@@ -36,7 +36,7 @@ local function workspace_settings()
   local s = { client = CLIENT_ID }
   local execs = M.collect_execs_policy()
   if execs then s.execs = execs end
-  -- #346 — enable model→user SEND[300] questions (also gates the daemon's
+  -- #346 — enable model→user SEND signal 300 questions (also gates the daemon's
   -- questions.md teaching). config wins; else the shared PLURNK_QUESTIONS env.
   local cfg_q = require("plurnk.config").get("questions")
   local env_q = ({ ["1"] = true, ["true"] = true, ["yes"] = true, ["on"] = true })[(vim.env.PLURNK_QUESTIONS or ""):lower()]
@@ -785,7 +785,7 @@ local HELP = table.concat({
   "                   script <path> (run a .plk file via op.parse)",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
-  "input buffer       ? ask · : act · ! exec · <| raw DSL · <CR> submits",
+  "input buffer       ? ask · : act · ! exec · # PLAN1 / ## OP1 raw PLURNK · <CR> submits",
 }, "\n")
 
 local function show_help()
