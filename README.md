@@ -34,7 +34,7 @@ Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:A
 
 ## Layout
 
-One tab per **worker** (a conversation); a **workspace** is the world containing workers. One workspace is live per Neovim instance; switching notifies. Each worker tab: glyph waterfall on top (the worker's log, exactly what the model sees), 3-line input below — `<CR>` in normal mode submits; `? `/`: `/`! ` prefixes and raw `<<DSL` work there too. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.
+One tab per **worker** (a conversation); a **workspace** is the world containing workers. One workspace is live per Neovim instance; switching notifies. Each worker tab: glyph waterfall on top (the worker's log, exactly what the model sees), 3-line input below — `<CR>` in normal mode submits; `? `/`: `/`! ` prefixes and raw `<|DSL` work there too. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.
 
 ## Proposals
 

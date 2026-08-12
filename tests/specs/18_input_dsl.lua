@@ -1,4 +1,4 @@
--- -- Input-buffer raw DSL passthrough (TUI parity): `<<…` lines go to
+-- -- Input-buffer raw DSL passthrough (TUI parity): `<|…` lines go to
 -- op.parse verbatim; plain text still routes to loop.run.
 -- Pure module path; stubs client.send.
 local NAME = "18_input_dsl"
@@ -21,13 +21,13 @@ local ok, err = pcall(function()
   local buf = vim.api.nvim_get_current_buf()
   H.assert_match(vim.api.nvim_buf_get_name(buf), "plurnk%-nvim://input/smoke", "input focused")
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<<SEND[200]:hi:SEND" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<|SEND[200]>hi<SEND|>" })
   vim.api.nvim_feedkeys("\r", "x", false)
-  H.assert_eq(sent[1].method, "op.parse", "<< input routes to op.parse")
-  H.assert_eq(sent[1].params.text, "<<SEND[200]:hi:SEND", "raw DSL passes verbatim")
+  H.assert_eq(sent[1].method, "op.parse", "<| input routes to op.parse")
+  H.assert_eq(sent[1].params.text, "<|SEND[200]>hi<SEND|>", "raw DSL passes verbatim")
   H.assert_eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1], "", "input cleared after submit")
 
-  -- <<LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, routed
+  -- <|LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, routed
   -- to op.look (never op.parse — LOOK isn't a journaled op), content rendered
   -- into the waterfall locally. A failed look surfaces; never a silent nothing.
   local appended = {}
@@ -36,10 +36,10 @@ local ok, err = pcall(function()
     table.insert(sent, { method = method, params = params })
     if cb then cb({ status = 200, content = "line one\nline two" }) end
   end
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<<LOOK(worker:///notes.md)::LOOK" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "<|LOOK(worker:///notes.md)|>" })
   vim.api.nvim_feedkeys("\r", "x", false)
-  H.assert_eq(sent[#sent].method, "op.look", "<<LOOK routes to op.look, not op.parse")
-  H.assert_eq(sent[#sent].params.text, "<<LOOK(worker:///notes.md)::LOOK", "the raw statement passes; the module rewrites LOOK->READ")
+  H.assert_eq(sent[#sent].method, "op.look", "<|LOOK routes to op.look, not op.parse")
+  H.assert_eq(sent[#sent].params.text, "<|LOOK(worker:///notes.md)|>", "the raw statement passes; the module rewrites LOOK->READ")
   H.assert_truthy(#appended >= 2, "the content rendered into the waterfall (" .. #appended .. " lines)")
   H.assert_match(table.concat(appended, "\n"), "line two", "content lines land verbatim")
 
