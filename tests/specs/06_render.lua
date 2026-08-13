@@ -54,6 +54,14 @@ local ok, err = pcall(function()
   H.assert_match(plan_lines[1], "Acknowledge user prompt%.", "PLAN shows the reasoning text")
   H.assert_truthy(not plan_lines[1]:match("%?"), "PLAN is not the ? fallback")
 
+  local bare_lines = R({
+    op = "BARE", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 200,
+  })
+  H.assert_eq(vim.fn.strdisplaywidth("🔮"), 2, "BARE glyph occupies one stable terminal cell pair")
+  H.assert_match(bare_lines[1], "🔮", "BARE has an isolated-inference glyph")
+  H.assert_truthy(not bare_lines[1]:match("%?"), "BARE is not the unknown-op fallback")
+
   -- Broadcast SEND carrying signal 200, short body — inline.
   local bc_short = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,

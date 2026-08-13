@@ -9,7 +9,7 @@ local M = {}
 local INPUT_HEIGHT = 3
 local H2_OPS = {
   "FIND", "READ", "EDIT", "COPY", "MOVE", "OPEN", "FOLD",
-  "KILL", "EXEC", "WORK", "FORK", "SEND", "LOOK",
+  "KILL", "EXEC", "BARE", "WORK", "FORK", "SEND", "LOOK",
 }
 
 -- Coarse dispatch classification only. The daemon remains the grammar owner

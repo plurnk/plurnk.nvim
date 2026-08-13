@@ -16,6 +16,7 @@ M.OP_GLYPHS = {
   FOLD = "➖",
   SEND = "💬",
   EXEC = "🔧",
+  BARE = "🔮",
   PLAN = "🧠",  -- the model's per-turn reasoning (grammar 0.70 leads every turn with PLAN)
 }
 

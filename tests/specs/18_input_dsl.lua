@@ -27,6 +27,11 @@ local ok, err = pcall(function()
   H.assert_eq(sent[1].params.text, "## SEND0 [200]\nhi", "raw PLURNK passes verbatim")
   H.assert_eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1], "", "input cleared after submit")
 
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "## BARE0", "What is the capital of Germany?" })
+  vim.api.nvim_feedkeys("\r", "x", false)
+  H.assert_eq(sent[#sent].method, "op.parse", "BARE routes to op.parse")
+  H.assert_eq(sent[#sent].params.text, "## BARE0\nWhat is the capital of Germany?", "BARE passes verbatim")
+
   -- LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, routed
   -- to op.look (never op.parse — LOOK isn't a journaled op), content rendered
   -- into the waterfall locally. A failed look surfaces; never a silent nothing.

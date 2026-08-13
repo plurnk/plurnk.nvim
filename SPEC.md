@@ -168,7 +168,7 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Model selection sticks** — a picked alias persists past one
   loop.
 - §nvim-child-provider-selection **Child selection sticks per workspace** —
-  `/child` reports, `/child <alias>` selects, and `/child inherit` sends explicit inheritance; `PLURNK_MODEL_CHILD` supplies the initial alias.
+  `/child` reports, `/child <alias>` selects WORK/FORK/BARE calls, and `/child inherit` sends explicit inheritance; `PLURNK_MODEL_CHILD` supplies the initial alias.
 - **Client-side alias resolution** — `PLURNK_MODEL_<alias>`
   resolves to `<provider>/<model>` from nvim's fresh env and rides `model` on the run,
   so a stale long-lived daemon can't reject an unknown alias; case-folded suffix.
