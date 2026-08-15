@@ -29,8 +29,10 @@ local ok, err = pcall(function()
         usage = aggregate,
         costUsd = cost_usd,
       },
+      curationWeight = nil,
+      curationBudget = nil,
       contextTokens = input_tokens,
-      promptBudget = nil,
+      contextCapacity = nil,
       meta = {},
     }
   end

@@ -12,10 +12,10 @@
 # never touches a developer's live daemon on 3044.
 #
 # Model env: export PLURNK_MODEL=<alias> (forwarded into the private daemon —
-# the operator's active default may be broken, svc#501) plus the box's envelope
-# quartet (PLURNK_SERVICE_{CONTEXT_WINDOW,REASONING,COMPLETION,SAFETY}_<alias>)
-# matching the serving box's launch flags — floor-default tokenomics against a
-# mismatched box make model loops wander past every timeout.
+# the operator's active default may be broken, svc#501) plus any alias-scoped
+# PLURNK_PROVIDERS_{CONTEXT_WINDOW,OUTPUT_BUDGET,REASONING_BUDGET,REASONING}
+# controls needed to describe the serving box. A mismatched physical envelope
+# can make model loops wander past every timeout.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"

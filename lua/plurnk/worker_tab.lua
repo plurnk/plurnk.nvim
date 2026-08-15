@@ -52,6 +52,12 @@ local function is_zero_decimal(value)
   return value == "0" or (type(value) == "string" and value:match("^0%.0+$") ~= nil)
 end
 
+local function gauge(label, used, capacity)
+  if type(used) ~= "number" or type(capacity) ~= "number" or capacity <= 0 then return nil end
+  local compact = capacity >= 1000 and string.format("%dk", math.floor(capacity / 1000 + 0.5)) or tostring(capacity)
+  return string.format("%s %d%%/%s", label, math.floor(used / capacity * 100 + 0.5), compact)
+end
+
 local function build_winbar(workspace, key)
   local state = require("plurnk.state")
   local rid = type(key) == "number" and key or nil
@@ -90,14 +96,13 @@ local function build_winbar(workspace, key)
       .. " ↓" .. fmt_token(aggregate and aggregate.outputTokens)
   end
 
-  -- Both gauge quantities belong to this loop's terminal envelope. Never infer
-  -- the window from the current alias; the loop may have used another model.
-  local context_tokens = usage and usage.contextTokens
-  local prompt_budget = usage and usage.promptBudget
-  if type(context_tokens) == "number" and type(prompt_budget) == "number" and prompt_budget > 0 then
-    local k = prompt_budget >= 1000 and string.format("%dk", math.floor(prompt_budget / 1000 + 0.5)) or tostring(prompt_budget)
-    parts[#parts + 1] = string.format("ctx %d%%/%s", math.floor(context_tokens / prompt_budget * 100 + 0.5), k)
-  end
+  -- Curation pressure and physical context occupancy are independent gauges
+  -- from this loop's terminal envelope. Never compare weight with tokens or
+  -- infer capacity from the current alias; the loop may have used another model.
+  local curation = gauge("cur", usage and usage.curationWeight, usage and usage.curationBudget)
+  if curation then parts[#parts + 1] = curation end
+  local context = gauge("ctx", usage and usage.contextTokens, usage and usage.contextCapacity)
+  if context then parts[#parts + 1] = context end
 
   local loop_cost = accounting and accounting.costUsd
   if type(loop_cost) == "string" and not is_zero_decimal(loop_cost) then

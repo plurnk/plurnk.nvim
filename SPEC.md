@@ -133,10 +133,12 @@ what this client guarantees. Tests are organized by observable behavior under
   YOLO is armed (+ compact 🧮, 🔎, or 🌿 work state); the rich detail lives in the winbar.
 - **The cockpit gauge preserves cardinal accounting** — the winbar reads the LAST
   loop's `plurnk.terminated.usage` envelope without rewriting it: conventional
-  aggregate `inputTokens`/`outputTokens`, the loop-owned context occupancy and
-  prompt budget, and exact decimal `accounting.costUsd` or `$unknown`. Ordered
-  physical-request evidence remains in `accounting.requests`; the client has no
-  accounting setter, floating-point conversion, projection, or workspace tally.
+  aggregate `inputTokens`/`outputTokens`, independent curation
+  `curationWeight`/`curationBudget` and physical-context
+  `contextTokens`/`contextCapacity` gauges, and exact decimal
+  `accounting.costUsd` or `$unknown`. Weight is never compared with tokens.
+  Ordered physical-request evidence remains in `accounting.requests`; the client
+  has no accounting setter, floating-point conversion, projection, or workspace tally.
 
 ## §6 Loops
 

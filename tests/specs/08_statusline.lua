@@ -6,7 +6,7 @@ H.setup()
 local ok, err = pcall(function()
   local state = require("plurnk.state")
   local worker_tab = require("plurnk.worker_tab")
-  local function loop_usage(input_tokens, output_tokens, cost_usd, context_tokens, prompt_budget)
+  local function loop_usage(input_tokens, output_tokens, cost_usd, curation_weight, curation_budget, context_tokens, context_capacity)
     local aggregate = {
       inputTokens = input_tokens,
       outputTokens = output_tokens,
@@ -29,8 +29,10 @@ local ok, err = pcall(function()
         usage = aggregate,
         costUsd = cost_usd,
       },
+      curationWeight = curation_weight,
+      curationBudget = curation_budget,
       contextTokens = context_tokens,
-      promptBudget = prompt_budget,
+      contextCapacity = context_capacity,
       meta = {},
     }
   end
@@ -76,12 +78,17 @@ local ok, err = pcall(function()
   H.assert_match(unknown, "loop: %$unknown", "unknown money remains unknown")
   H.assert_truthy(not unknown:match("%$0%.05"), "an unknown loop never inherits prior evidence")
 
-  -- Context occupancy and budget both come from the same terminal envelope.
+  -- Curation pressure and context occupancy are independent gauges from the
+  -- same terminal envelope; model-independent weight is never compared to tokens.
   state.set_available_aliases({ { alias = "opus", active = true, contextSize = 128000 } })
-  state.record_loop_usage("s1", loop_usage(0, 0, "0", 7360, 49152))
-  H.assert_match(worker_tab.winbar_text("s1", 7), "ctx 15%%/49k", "the loop's budget wins over ambient alias metadata")
-  state.record_loop_usage("s1", loop_usage(0, 0, "0", 7360, nil))
-  H.assert_truthy(not worker_tab.winbar_text("s1", 7):match("ctx "), "no gauge when the terminal budget is unknown")
+  state.record_loop_usage("s1", loop_usage(0, 0, "0", 12000, 48000, 7360, 49152))
+  local gauges = worker_tab.winbar_text("s1", 7)
+  H.assert_match(gauges, "cur 25%%/48k", "curation pressure uses only weight and its budget")
+  H.assert_match(gauges, "ctx 15%%/49k", "context occupancy uses only provider tokens and capacity")
+  state.record_loop_usage("s1", loop_usage(0, 0, "0", 12000, 48000, 7360, nil))
+  local partial = worker_tab.winbar_text("s1", 7)
+  H.assert_match(partial, "cur 25%%/48k", "a known curation gauge survives unknown context capacity")
+  H.assert_truthy(not partial:match("ctx "), "no context gauge when terminal capacity is unknown")
 
   -- Active-model resolution (converged with the TUI header): with no loop yet
   -- (no model_alias), the winbar still names the daemon's active default from
