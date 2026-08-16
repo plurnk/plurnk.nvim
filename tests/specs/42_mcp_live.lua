@@ -17,17 +17,11 @@ local ok, err = pcall(function()
   local legacy_definition = vim.fn.tempname() .. " legacy.json"
   local node = vim.fn.exepath("node")
   vim.fn.writefile({ vim.json.encode({
-    name = "current",
-    transport = "stdio",
-    command = node,
     args = { current_fixture },
     tools = { "echo" },
     read = { "echo" },
   }) }, current_definition)
   vim.fn.writefile({ vim.json.encode({
-    name = "legacy",
-    transport = "stdio",
-    command = node,
     args = { legacy_fixture },
   }) }, legacy_definition)
 
@@ -53,24 +47,24 @@ local ok, err = pcall(function()
   state.set_workspace_id(workspace.name, workspace.id)
 
   local ai = require("plurnk.commands").ai
-  ai({ args = "/mcp " .. current_definition, range = 0 })
-  wait_note("attached: current %(connected%)", "current attach")
+  ai({ args = "/mcp add current " .. node .. " \"" .. current_definition .. "\"", range = 0 })
+  wait_note("added: current %(connected%)", "current add")
 
   ai({ args = "/mcp", range = 0 })
-  wait_note("current%s+connected%s+stdio%s+1/2 tools", "current list")
+  wait_note("current%s+connected%s+stdio.*1/2 tools", "current list")
 
-  ai({ args = "/mcp reconnect current", range = 0 })
-  wait_note("reconnected: current %(connected%)", "current reconnect")
+  ai({ args = "/mcp disable current", range = 0 })
+  wait_note("disabled: current %(disabled%)", "current disable")
 
-  ai({ args = "/mcp replace " .. current_definition, range = 0 })
-  wait_note("replaced: current %(connected%)", "current replace")
+  ai({ args = "/mcp enable current", range = 0 })
+  wait_note("enabled: current %(connected%)", "current enable")
 
-  ai({ args = "/mcp " .. legacy_definition, range = 0 })
+  ai({ args = "/mcp add legacy " .. node .. " \"" .. legacy_definition .. "\"", range = 0 })
   wait_note("MCP server 'legacy' did not offer required revision 2026%-07%-28 through server/discover", "legacy revision attribution")
   wait_note("upgrade or replace the legacy endpoint", "legacy recovery")
 
-  ai({ args = "/mcp detach current", range = 0 })
-  wait_note("detached: current", "current detach")
+  ai({ args = "/mcp remove current", range = 0 })
+  wait_note("removed: current", "current remove")
 
   vim.notify = original_notify
   vim.fn.delete(current_definition)

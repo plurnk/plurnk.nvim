@@ -82,19 +82,19 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Completion** — `:AI` cmdline completion offers verbs, model aliases,
   child inheritance, and local files where a verb consumes one.
 - §nvim-workspace-mcp-controls **Workspace MCP controls are daemon actions** —
-  the client reads and JSON-decodes a selected local definition file, then
-  forwards the value without reproducing `McpServerDefinition` validation.
-  The daemon owns connection behavior, persistence, protocol compatibility,
-  and exact Problem Details; symbolic credential references remain unchanged.
+  the client tokenizes quoted alias/target arguments and JSON-decodes an
+  optional local options file. The daemon owns normalization, schema
+  validation, connection behavior, persistence, protocol compatibility, and
+  exact Problem Details; symbolic credential references remain unchanged.
 
   | Input | AG-UI+ action |
   |---|---|
   | `:AI/mcp` | `workspace.mcp.list` |
-  | `:AI/mcp <definition.json>` | `workspace.mcp.attach {server}` |
-  | `:AI/mcp replace <definition.json>` | `workspace.mcp.replace {server}` |
-  | `:AI/mcp detach <name>` | `workspace.mcp.detach {name}` |
-  | `:AI/mcp reconnect <name>` | `workspace.mcp.reconnect {name}` |
-  | `:AI/mcp oauth <name> <callback-url>` | `workspace.mcp.oauth.complete {name, callbackUrl}` |
+  | `:AI/mcp add <alias> <target> [options.json]` | `workspace.mcp.add {alias, target, options?}` |
+  | `:AI/mcp enable <alias>` | `workspace.mcp.enable {alias}` |
+  | `:AI/mcp disable <alias>` | `workspace.mcp.disable {alias}` |
+  | `:AI/mcp remove <alias>` | `workspace.mcp.remove {alias}` |
+  | `:AI/mcp oauth <alias> <callback-url>` | `workspace.mcp.oauth.complete {alias, callbackUrl}` |
 
   Interactive authorization prints the URL and exact completion command.
   Unreadable or invalid local JSON stops before dispatch. Daemon Problems,

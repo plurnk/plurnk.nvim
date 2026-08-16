@@ -2,48 +2,74 @@
 
 local M = {}
 
-local function read_definition(path)
+local function read_options(path)
   local client = require("plurnk.client")
   local abs = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
   if vim.fn.filereadable(abs) == 0 then
-    client.notify(":AI/mcp — definition not readable: " .. abs, vim.log.levels.WARN)
+    client.notify(":AI/mcp — options not readable: " .. abs, vim.log.levels.WARN)
     return nil
   end
   local read_ok, lines = pcall(vim.fn.readfile, abs)
   if not read_ok then
-    client.notify(":AI/mcp — definition not readable: " .. abs, vim.log.levels.WARN)
+    client.notify(":AI/mcp — options not readable: " .. abs, vim.log.levels.WARN)
     return nil
   end
-  local decode_ok, definition = pcall(vim.json.decode, table.concat(lines, "\n"))
+  local decode_ok, options = pcall(vim.json.decode, table.concat(lines, "\n"))
   if not decode_ok then
-    client.notify(":AI/mcp — definition is not valid JSON: " .. abs, vim.log.levels.WARN)
+    client.notify(":AI/mcp — options are not valid JSON: " .. abs, vim.log.levels.WARN)
     return nil
   end
-  return definition
+  return options
 end
 
-local function definition_name(definition)
-  return type(definition) == "table" and type(definition.name) == "string"
-      and definition.name or "<name>"
+local function arguments_of(source)
+  local values, value = {}, ""
+  local quote = nil
+  local escaped, started = false, false
+  for index = 1, #source do
+    local character = source:sub(index, index)
+    if escaped then
+      value = value .. character
+      escaped, started = false, true
+    elseif character == "\\" then
+      escaped, started = true, true
+    elseif quote ~= nil then
+      if character == quote then quote = nil else value = value .. character end
+      started = true
+    elseif character == '"' or character == "'" then
+      quote, started = character, true
+    elseif character:match("%s") then
+      if started then
+        values[#values + 1] = value
+        value, started = "", false
+      end
+    else
+      value, started = value .. character, true
+    end
+  end
+  if escaped or quote ~= nil then return nil end
+  if started then values[#values + 1] = value end
+  return values
 end
 
 local function server_line(server)
-  local name = type(server) == "table" and type(server.name) == "string" and server.name or "(unnamed)"
+  local alias = type(server) == "table" and type(server.alias) == "string" and server.alias or "(unnamed)"
   local state = type(server) == "table" and type(server.state) == "string" and server.state or "unknown"
   local transport = type(server) == "table" and type(server.transport) == "string" and server.transport or "unknown"
+  local target = type(server) == "table" and type(server.target) == "string" and ("  " .. server.target) or ""
   local available = type(server) == "table" and type(server.tools) == "table" and #server.tools or nil
   local enabled = type(server) == "table" and type(server.enabledTools) == "table" and #server.enabledTools or nil
   local count = nil
   if enabled ~= nil then
     count = available == nil and tostring(enabled) or string.format("%d/%d", enabled, available)
   elseif available ~= nil then
-    count = available
+    count = tostring(available)
   end
-  local tools = count ~= nil and string.format("  %s tool%s", tostring(count), count == 1 and "" or "s") or ""
-  return string.format("%s  %s  %s%s", name, state, transport, tools)
+  local tools = count ~= nil and ("  " .. count .. " tools") or ""
+  return string.format("%s  %s  %s%s%s", alias, state, transport, target, tools)
 end
 
-local function notify_mutation(result, verb, name_hint)
+local function notify_mutation(result, verb, alias_hint)
   if type(result) ~= "table" then return end
   local client = require("plurnk.client")
   if result.status == 202 then
@@ -54,17 +80,24 @@ local function notify_mutation(result, verb, name_hint)
     end
     client.notify(table.concat({
       "authorization required: " .. url,
-      "complete: :AI/mcp oauth " .. name_hint .. " <callback-url>",
+      "complete: :AI/mcp oauth " .. alias_hint .. " <callback-url>",
     }, "\n"), vim.log.levels.INFO)
     return
   end
   local server = type(result.server) == "table" and result.server or nil
-  local name = server and type(server.name) == "string" and server.name or name_hint
+  local alias = server and type(server.alias) == "string" and server.alias or alias_hint
   local state = server and type(server.state) == "string" and (" (" .. server.state .. ")") or ""
-  client.notify(verb .. ": " .. name .. state, vim.log.levels.INFO)
+  client.notify(verb .. ": " .. alias .. state, vim.log.levels.INFO)
 end
 
--- JSON decoding is local; definition semantics, MCP behavior, persistence, and
+local function usage()
+  require("plurnk.client").notify(
+    "usage: :AI/mcp [add <alias> <target> [options.json] | enable|disable|remove <alias> | oauth <alias> <callback-url>]",
+    vim.log.levels.WARN
+  )
+end
+
+-- JSON decoding is local; normalization, MCP behavior, persistence, and
 -- protocol compatibility stay at the daemon boundary.
 M.run = function(args, with_workspace)
   local raw = vim.fn.trim(args or "")
@@ -85,71 +118,73 @@ M.run = function(args, with_workspace)
     end)
   end
 
-  if raw == "replace" or vim.startswith(raw, "replace ") then
-    local path = vim.fn.trim(raw:sub(#"replace" + 1))
-    if path == "" then
-      client.notify("usage: :AI/mcp replace <definition.json>", vim.log.levels.WARN)
+  local argv = arguments_of(raw)
+  if argv == nil or #argv == 0 then usage(); return end
+  local command, alias = argv[1], argv[2]
+
+  if command == "add" then
+    if #argv < 3 or #argv > 4 or alias == "" or argv[3] == "" then
+      client.notify("usage: :AI/mcp add <alias> <target> [options.json]", vim.log.levels.WARN)
       return
     end
-    local server = read_definition(path)
-    if server == nil then return end
+    local options = argv[4] ~= nil and read_options(argv[4]) or nil
+    if argv[4] ~= nil and options == nil then return end
+    local params = { alias = alias, target = argv[3] }
+    if options ~= nil then params.options = options end
     return with_workspace(function()
-      client.send("workspace.mcp.replace", { server = server }, false, function(result)
-        notify_mutation(result, "replaced", definition_name(server))
+      client.send("workspace.mcp.add", params, false, function(result)
+        notify_mutation(result, "added", alias)
       end)
     end)
   end
 
-  for _, action in ipairs({ "detach", "reconnect" }) do
-    local operation = action
-    if raw == operation or vim.startswith(raw, operation .. " ") then
-      local name = vim.fn.trim(raw:sub(#operation + 1))
-      if name == "" or name:find("%s") then
-        client.notify("usage: :AI/mcp " .. operation .. " <name>", vim.log.levels.WARN)
-        return
-      end
-      return with_workspace(function()
-        client.send("workspace.mcp." .. operation, { name = name }, false, function(result)
-          if operation == "detach" then
-            if type(result) == "table" then client.notify("detached: " .. name, vim.log.levels.INFO) end
-          else
-            notify_mutation(result, "reconnected", name)
-          end
-        end)
-      end)
-    end
-  end
-
-  if raw == "oauth" or vim.startswith(raw, "oauth ") then
-    local name, callback_url = raw:match("^oauth%s+(%S+)%s+(%S+)$")
-    if not name then
-      client.notify("usage: :AI/mcp oauth <name> <callback-url>", vim.log.levels.WARN)
+  if command == "enable" or command == "disable" then
+    if #argv ~= 2 or alias == "" then
+      client.notify("usage: :AI/mcp " .. command .. " <alias>", vim.log.levels.WARN)
       return
     end
     return with_workspace(function()
-      client.send("workspace.mcp.oauth.complete", { name = name, callbackUrl = callback_url }, false, function(result)
-        notify_mutation(result, "authorized", name)
+      client.send("workspace.mcp." .. command, { alias = alias }, false, function(result)
+        notify_mutation(result, command == "enable" and "enabled" or "disabled", alias)
       end)
     end)
   end
 
-  local server = read_definition(raw)
-  if server == nil then return end
-  return with_workspace(function()
-    client.send("workspace.mcp.attach", { server = server }, false, function(result)
-      notify_mutation(result, "attached", definition_name(server))
+  if command == "remove" then
+    if #argv ~= 2 or alias == "" then
+      client.notify("usage: :AI/mcp remove <alias>", vim.log.levels.WARN)
+      return
+    end
+    return with_workspace(function()
+      client.send("workspace.mcp.remove", { alias = alias }, false, function(result)
+        if type(result) == "table" then client.notify("removed: " .. alias, vim.log.levels.INFO) end
+      end)
     end)
-  end)
+  end
+
+  if command == "oauth" then
+    if #argv ~= 3 or alias == "" or argv[3] == "" then
+      client.notify("usage: :AI/mcp oauth <alias> <callback-url>", vim.log.levels.WARN)
+      return
+    end
+    return with_workspace(function()
+      client.send("workspace.mcp.oauth.complete", { alias = alias, callbackUrl = argv[3] }, false, function(result)
+        notify_mutation(result, "authorized", alias)
+      end)
+    end)
+  end
+
+  usage()
 end
 
 M.complete = function(cmdline)
-  local replace_partial = cmdline:match("/mcp%s+replace%s+(%S*)$")
-  if replace_partial then return vim.fn.getcompletion(replace_partial, "file") end
+  local options_partial = cmdline:match("/mcp%s+add%s+%S+%s+%S+%s+(%S*)$")
+  if options_partial then return vim.fn.getcompletion(options_partial, "file") end
 
   local partial = cmdline:match("/mcp%s+(%S*)$")
   if not partial then return nil end
-  local out = vim.fn.getcompletion(partial, "file")
-  for _, subcommand in ipairs({ "replace", "detach", "reconnect", "oauth" }) do
+  local out = {}
+  for _, subcommand in ipairs({ "add", "enable", "disable", "remove", "oauth" }) do
     if vim.startswith(subcommand, partial) then out[#out + 1] = subcommand end
   end
   table.sort(out)
