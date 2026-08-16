@@ -8,7 +8,7 @@ local ok, err = pcall(function()
   local results = {
     ["workspace.mcp.list"] = {
       servers = {
-        { name = "gitea", state = "connected", transport = "http", tools = { "issue_read", "issue_search" } },
+        { name = "gitea", state = "connected", transport = "http", enabledTools = { "issue_read" }, tools = { "issue_read", "issue_search" } },
         { name = "local", state = "connected", transport = "stdio", tools = {} },
       },
     },
@@ -34,7 +34,7 @@ local ok, err = pcall(function()
 
   ai({ args = "/mcp", range = 0 })
   H.assert_eq(sent[1].method, "workspace.mcp.list", ":AI/mcp lists workspace servers")
-  H.assert_match(notices[#notices], "gitea%s+connected%s+http%s+2 tools", "list renders server state")
+  H.assert_match(notices[#notices], "gitea%s+connected%s+http%s+1/2 tools", "list renders enabled/catalog tool counts")
   H.assert_match(notices[#notices], "local%s+connected%s+stdio%s+0 tools", "list renders empty catalog")
 
   local definition = { name = "echo", transport = "stdio", command = "/opt/echo", args = { "--stdio" } }

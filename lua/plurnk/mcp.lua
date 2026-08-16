@@ -31,8 +31,15 @@ local function server_line(server)
   local name = type(server) == "table" and type(server.name) == "string" and server.name or "(unnamed)"
   local state = type(server) == "table" and type(server.state) == "string" and server.state or "unknown"
   local transport = type(server) == "table" and type(server.transport) == "string" and server.transport or "unknown"
-  local tools = type(server) == "table" and type(server.tools) == "table"
-      and string.format("  %d tool%s", #server.tools, #server.tools == 1 and "" or "s") or ""
+  local available = type(server) == "table" and type(server.tools) == "table" and #server.tools or nil
+  local enabled = type(server) == "table" and type(server.enabledTools) == "table" and #server.enabledTools or nil
+  local count = nil
+  if enabled ~= nil then
+    count = available == nil and tostring(enabled) or string.format("%d/%d", enabled, available)
+  elseif available ~= nil then
+    count = available
+  end
+  local tools = count ~= nil and string.format("  %s tool%s", tostring(count), count == 1 and "" or "s") or ""
   return string.format("%s  %s  %s%s", name, state, transport, tools)
 end
 
