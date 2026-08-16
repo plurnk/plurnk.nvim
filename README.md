@@ -27,7 +27,7 @@ require("plurnk").apply_default_keymaps()  -- optional; only fills unmapped keys
 | `:AI???` | new headless workspace (no project root) |
 | `:AI????` | new worker in the current workspace (fork) |
 | `:AI... {text}` | inject into the running loop (a mid-loop prompt steers too) |
-| `:AI/{verb}` | `models model child workspaces workers workspace worker rename log yolo ping`, membership `pick hide view drop members`, `open accept reject next prev stop clear` |
+| `:AI/{verb}` | `models model child workspaces workers workspace worker rename log yolo ping`, membership `pick hide view drop members`, workspace MCP `mcp [definition.json]`, `open accept reject next prev stop clear` |
 
 Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:AI?? hi`) work via cmdline abbreviations.
 `/model <alias>` selects the parent; `/child <alias>` selects WORK/FORK/BARE calls, and `/child inherit` follows the spawning loop. `PLURNK_MODEL_CHILD` supplies the default child alias.

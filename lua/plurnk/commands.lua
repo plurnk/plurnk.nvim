@@ -783,6 +783,8 @@ local HELP = table.concat({
   ":AI/<verb>         models model child workspaces workers workspace worker rename log yolo ping",
   "                   pick hide view drop members (membership overlay)",
   "                   script <path> (run a .plk file via op.parse)",
+  "                   mcp [definition.json] (workspace MCP lifecycle)",
+  "                       replace <file> · detach/reconnect <name> · oauth <name> <callback-url>",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
   "input buffer       ? ask · : act · ! exec · # PLAN0 / ## OP0 raw PLURNK · <CR> submits",
@@ -826,6 +828,10 @@ M.script = function(opts)
   end)
 end
 
+M.mcp = function(args)
+  return require("plurnk.mcp").run(args, resolve_workspace_then)
+end
+
 -- `/` subcommand routing — rummy's full surface, plurnk verbs. Wrapped
 -- as functions so the M.* lookups resolve at call time.
 local SLASH = {
@@ -852,6 +858,7 @@ local SLASH = {
   drop     = function(args) M.drop({ args = args }) end,
   members  = function() M.members() end,
   script   = function(args) M.script({ args = args }) end,
+  mcp      = function(args) M.mcp(args) end,
   yolo     = function() M.yolo() end,
   ping     = function() M.ping() end,
   open     = function() M.toggle() end,
@@ -893,6 +900,8 @@ M.ai_complete = function(_arglead, cmdline, _)
   if script_partial then
     return vim.fn.getcompletion(script_partial, "file")
   end
+  local mcp_completion = require("plurnk.mcp").complete(cmdline)
+  if mcp_completion then return mcp_completion end
   local verb_partial = cmdline:match("/(%S*)$")
   if verb_partial and not cmdline:match("/%S+%s") then
     local out = {}

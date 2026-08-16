@@ -80,7 +80,26 @@ what this client guarantees. Tests are organized by observable behavior under
   routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
   rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
 - **Completion** — `:AI` cmdline completion offers verbs, model aliases,
-  and child inheritance.
+  child inheritance, and local files where a verb consumes one.
+- §nvim-workspace-mcp-controls **Workspace MCP controls are daemon actions** —
+  the client reads and JSON-decodes a selected local definition file, then
+  forwards the value without reproducing `McpServerDefinition` validation.
+  The daemon owns connection behavior, persistence, protocol compatibility,
+  and exact Problem Details; symbolic credential references remain unchanged.
+
+  | Input | AG-UI+ action |
+  |---|---|
+  | `:AI/mcp` | `workspace.mcp.list` |
+  | `:AI/mcp <definition.json>` | `workspace.mcp.attach {server}` |
+  | `:AI/mcp replace <definition.json>` | `workspace.mcp.replace {server}` |
+  | `:AI/mcp detach <name>` | `workspace.mcp.detach {name}` |
+  | `:AI/mcp reconnect <name>` | `workspace.mcp.reconnect {name}` |
+  | `:AI/mcp oauth <name> <callback-url>` | `workspace.mcp.oauth.complete {name, callbackUrl}` |
+
+  Interactive authorization prints the URL and exact completion command.
+  Unreadable or invalid local JSON stops before dispatch. Daemon Problems,
+  including unsupported protocol revisions, use the existing lossless Problem
+  path and are neither rewritten nor retried.
 
 ## §4 Workspaces and workers
 

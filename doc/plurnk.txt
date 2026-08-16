@@ -38,6 +38,7 @@ cmdline abbreviations.
   :AI????           new worker in the current workspace (fork)
   :AI... {text}     inject into the running loop (pending service#193)
   :AI/{verb}        models workspaces workers workspace worker rename log yolo ping
+                    mcp [definition.json] (workspace MCP lifecycle)
                     open accept reject next prev stop clear
 
 Visual mode prepends the selection: `'<,'>AI? explain this`.
