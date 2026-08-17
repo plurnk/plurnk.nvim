@@ -35,19 +35,24 @@ local ok, err = pcall(function()
 
   local ai = require("plurnk.commands").ai
 
-  vim.env.PLURNK_MODEL_kid = "anthropic/claude-kid"
+  -- {§worker-model-selection} — /child is a server-backed durable selection:
+  -- worker.child.set persists the override; nothing child-related rides the run.
   require("plurnk.commands").set_child("kid")
+  H.assert_eq(captured[#captured].method, "worker.child.set", "set_child persists server-side")
+  H.assert_eq(captured[#captured].params.alias, "kid", "the override is the server parameter")
   captured = {}
   ai({ args = "delegating", range = 0 })
   local child_run = find(captured, "loop.run")
-  H.assert_eq(child_run.params.childAlias, "kid", "selected child alias rides loop.run")
-  H.assert_eq(child_run.params.childModel, "anthropic/claude-kid", "selected child model resolves client-side")
+  H.assert_eq(child_run.params.childAlias, nil, "no child selector rides loop.run")
+  H.assert_eq(child_run.params.childModel, nil, "no client-side child resolution exists")
 
   require("plurnk.commands").set_child("inherit")
+  H.assert_eq(captured[#captured].method, "worker.child.set", "inherit persists server-side")
+  H.assert_eq(captured[#captured].params.alias, vim.NIL, "inherit clears the override (alias null)")
   captured = {}
   ai({ args = "inheriting", range = 0 })
   local inherit_run = find(captured, "loop.run")
-  H.assert_eq(inherit_run.params.childAlias, vim.NIL, "inherit rides loop.run as explicit null")
+  H.assert_eq(inherit_run.params.childAlias, nil, "inherit never rides loop.run")
   H.assert_eq(inherit_run.params.childModel, nil, "inherit carries no child model")
   vim.env.PLURNK_MODEL_kid = nil
 

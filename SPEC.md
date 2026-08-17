@@ -188,13 +188,16 @@ what this client guarantees. Tests are organized by observable behavior under
   execs policy, `questions`, and `filesItems` (the CLI's
   `--files-items`, converged: -1 full / 0 off / N first-N) travel on `workspace.create`;
   creation is atomic, nothing arrives later.
-- **Model selection sticks** — a picked alias persists past one
-  loop.
+- **Model selection is server-backed** — the worker owns the model
+  ({§worker-model-selection}): a picked alias persists via `worker.model.set` onto
+  the conversation worker and lights in the statusbar/winbar from the resolved spec;
+  the one-shot pick applies only before a workspace exists, seeded once at creation.
+  Nothing model-related rides the loop.
 - §nvim-child-provider-selection **Child selection sticks per workspace** —
-  `/child` reports, `/child <alias>` selects WORK/FORK/BARE calls, and `/child inherit` sends explicit inheritance; `PLURNK_MODEL_CHILD` supplies the initial alias.
-- **Client-side alias resolution** — `PLURNK_MODEL_<alias>`
-  resolves to `<provider>/<model>` from nvim's fresh env and rides `model` on the run,
-  so a stale long-lived daemon can't reject an unknown alias; case-folded suffix.
+  `/child` reports the worker's persisted override (hydrated via `worker.model.get`),
+  `/child <alias>` persists it via `worker.child.set`, and `/child inherit` sends
+  `alias: null` (clearing the override); `PLURNK_MODEL_CHILD` seeds the worker
+  server-side from the daemon's own env.
 - **Execs policy forwards; secrets never do** — `PLURNK_EXECS_*`
   enable/disable grammar rides verbatim for the daemon's subtractive intersection;
   `PLURNK_EXECS_MCP_*` server configs (URLs, bearer tokens) never touch the wire.
