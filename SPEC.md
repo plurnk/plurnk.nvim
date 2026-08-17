@@ -128,6 +128,8 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Two glyph lanes** — every waterfall row carries identity ·
   status (🐹 client; the model SEND lane is status-flavored: 💭 102, 💡 200, 💤 202,
   🤔 300), the status code in one column; width-stable glyphs only.
+- **Operation annotations stay labels** — a present durable annotation follows the
+  canonical row as sanitized literal text; Markdown and HTML are not interpreted.
 - **Broadcast prose remains source-faithful except for exact terminal typography** —
   the common inline token `$\rightarrow$` renders as `→`; this is not general LaTeX
   or Markdown interpretation.
