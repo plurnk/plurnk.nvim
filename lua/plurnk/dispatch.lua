@@ -269,6 +269,7 @@ M.handle_notification = function(payload)
 
   if method == "log/entry" then M.handle_log_entry(params, workspace_name)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, workspace_name)
+  elseif method == "loop/interaction" then M.handle_loop_interaction(params, workspace_name)
   elseif method == "loop/terminated" then M.handle_loop_terminated(params, workspace_name)
   elseif method == "problem/event" then M.handle_problem_event(params, workspace_name)
   elseif method == "notice/event" then M.handle_notice_event(params, workspace_name)
@@ -279,6 +280,19 @@ M.handle_notification = function(payload)
   elseif method == "workspace/branch-batch" then M.handle_branch_batch(params, workspace_name)
   elseif method == "workspace/created" then M.handle_workspace_created(params)
   end
+end
+
+-- {§question-tool} — a client interaction pauses its owning loop: present the
+-- standard message + response schema and answer through the interaction resume.
+local seen_interactions = {}
+M.handle_loop_interaction = function(params, workspace_name)
+  if not params or type(params.interactionId) ~= "number" then return end
+  if seen_interactions[params.interactionId] then return end
+  seen_interactions[params.interactionId] = true
+  vim.schedule(function()
+    local ok, question = pcall(require, "plurnk.question")
+    if ok then question.review(workspace_name, params) end
+  end)
 end
 
 -- ── Response handler ────────────────────────────────────────────────

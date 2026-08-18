@@ -321,6 +321,21 @@ function M.run(target, run, on_event, on_done)
   return handle
 end
 
+-- Answer a stopped-world client interaction: the standard AG-UI resume on a NEW
+-- run, addressed by the opaque `int:<interactionId>` tool-call id. The payload is
+-- the standard answer ({ action = "accept", content = ... }); "cancel" sends the
+-- standard cancellation.
+function M.resolve_interaction(target, thread_id, interaction_id, payload, on_event, on_done)
+  local interrupt_id = "int:" .. tostring(interaction_id)
+  local resume
+  if payload == "cancel" then
+    resume = { { interruptId = interrupt_id, status = "cancelled" } }
+  else
+    resume = { { interruptId = interrupt_id, status = "resolved", payload = payload } }
+  end
+  return M.run(target, { threadId = thread_id, resume = resume }, on_event, on_done)
+end
+
 -- Answer a stopped-world proposal: the standard AG-UI resume on a NEW run. The
 -- continued loop streams there — feed its
 -- events through the same on_event/on_done as the original run.

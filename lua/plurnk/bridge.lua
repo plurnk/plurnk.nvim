@@ -37,6 +37,7 @@ function M.run(thread_id, prompt, opts, on_done)
   local tool = {}   -- the TOOL_CALL triple assembler (interrupt/resume proposals)
   local paused = false
   local proposed_interrupt = nil
+  local interaction_interrupt = nil
   local on_event
   on_event = function(e)
     if type(e) == "table" and e.type == "RUN_ERROR" then
@@ -46,7 +47,21 @@ function M.run(thread_id, prompt, opts, on_done)
     end
     if type(e) == "table" and e.type == "RUN_FINISHED" then
       local outcome = e.outcome
-      if proposed_interrupt ~= nil then
+      if interaction_interrupt ~= nil then
+        if not agui.has_interrupt(outcome, interaction_interrupt) then
+          paused = false
+          run_problem = agui.transport_problem(
+            "interrupt-mismatch",
+            "Interrupt mismatch",
+            502,
+            "The interaction ended without its matching AG-UI interrupt outcome.",
+            false,
+            "interaction-resolution",
+            { interactionId = tonumber(interaction_interrupt:sub(5)) }
+          )
+          final = run_problem.status
+        end
+      elseif proposed_interrupt ~= nil then
         if not agui.has_interrupt(outcome, proposed_interrupt) then
           paused = false
           run_problem = agui.transport_problem(
@@ -72,6 +87,9 @@ function M.run(thread_id, prompt, opts, on_done)
     if n.method == "loop/proposal" then
       paused = true
       proposed_interrupt = "prop:" .. tostring(n.params.logEntryId)
+    elseif n.method == "loop/interaction" then
+      paused = true
+      interaction_interrupt = "int:" .. tostring(n.params.interactionId)
     elseif n.method == "problem/event" and type(n.params) == "table" then
       run_problem = n.params.problem
       problem_dispatched = true
@@ -282,6 +300,28 @@ function M.rpc(thread_id, method, params, cb)
     end, function(e)
       action_event(action, e)
     end)
+  end)
+end
+
+-- Answer a stopped-world client interaction: the tool-result resume run.
+-- The payload is the standard answer; "cancel" cancels the paused run.
+function M.resolve_interaction(thread_id, interaction_id, payload, cb)
+  local t = M.target()
+  if t == nil then
+    if cb then cb(nil, bridge_problem("target-unavailable", "Target unavailable", "No bridge target is configured.")) end
+    return
+  end
+  local a = M._active
+  local dispatch = require("plurnk.dispatch")
+  local tool = {}
+  local on_event = (a ~= nil and a.thread_id == thread_id) and a.on_event or function(e)
+    local n = agui.unproject(e, tool)
+    if n ~= nil then pcall(dispatch.handle_notification, n) end
+  end
+  local on_done = (a ~= nil and a.thread_id == thread_id) and a.on_done or function(_) end
+  agui.resolve_interaction(t, thread_id, interaction_id, payload, on_event, function(code, transport_error)
+    on_done(code, transport_error)
+    if cb then cb(transport_error == nil and code or nil, transport_error) end
   end)
 end
 
