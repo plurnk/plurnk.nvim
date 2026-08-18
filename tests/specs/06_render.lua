@@ -120,9 +120,7 @@ local ok, err = pcall(function()
   H.assert_match(client_line[1], "📝", "op glyph is lane 1")
   H.assert_match(client_line[1], "💤", "202 → 💤 parked status lane (aligned with @plurnk/plurnk)")
 
-  -- Status glyph alignment (converged map): 300 needs-decision, 499 abort.
   local R2 = require("plurnk.render").status_glyph
-  H.assert_eq(R2(300), "🤔", "300 → 🤔 needs-decision")
   H.assert_eq(R2(202), "💤", "202 → 💤 parked")
   H.assert_eq(R2(499), "✋", "499 → ✋ abort")
 

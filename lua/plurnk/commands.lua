@@ -36,11 +36,6 @@ local function workspace_settings()
   local s = { client = CLIENT_ID }
   local execs = M.collect_execs_policy()
   if execs then s.execs = execs end
-  -- #346 — enable model→user SEND signal 300 questions (also gates the daemon's
-  -- questions.md teaching). config wins; else the shared PLURNK_QUESTIONS env.
-  local cfg_q = require("plurnk.config").get("questions")
-  local env_q = ({ ["1"] = true, ["true"] = true, ["yes"] = true, ["on"] = true })[(vim.env.PLURNK_QUESTIONS or ""):lower()]
-  if cfg_q == true or (cfg_q == nil and env_q) then s.questions = true end
   -- svc#231/#286 — workspace-open files preview: -1 full / 0 off / N first-N items
   -- of the workspace manifest at turn 0 (the CLI's --files-items, converged).
   local fi = require("plurnk.config").get("files_items")
@@ -394,6 +389,13 @@ local function send_loop_run(workspace_name, prompt, flags)
   -- (dispatched) drives the rest.
   local bridge = require("plurnk.bridge")
   local fwd = {}
+  -- {§worker-settings} — nvim is an interactive client: the conversation worker
+  -- may ask through the question tool unless the config/env says otherwise.
+  local cfg = require("plurnk.config").get("request_user_input")
+  local env = ({ ["1"] = true, ["true"] = true, ["yes"] = true, ["on"] = true })[(vim.env.PLURNK_REQUEST_USER_INPUT or ""):lower()]
+  local enabled = true
+  if cfg == false or env == false then enabled = false end
+  fwd.requestUserInput = enabled
   if flags then fwd.flags = flags end
   local open_paths = extract_open_paths(prompt)
   if #open_paths > 0 then fwd.openPaths = open_paths end

@@ -32,14 +32,13 @@ M.ORIGIN_GLYPHS = {
 M.model_send_glyph = function(status)
   if status == 102 then return "💭" end
   if status == 202 then return "💤" end
-  if status == 300 then return "🤔" end
   if status == 499 then return "✋" end
   if type(status) == "number" and status >= 200 and status < 300 then return "💡" end
   if type(status) == "number" and status >= 400 and status < 600 then return "❌" end
   return "💡"
 end
 
--- Aligned to the grammar's terminal SEND set [102, 200, 202, 300, 499]
+-- Aligned to the grammar's terminal SEND set [102, 200, 202, 499]
 -- (plurnk-grammar plurnk.md) + directed-SEND/error families. The glyph carries
 -- the state, the color carries the class. Converged with @plurnk/plurnk
 -- sendSubGlyph. All EAW width-2, VS16-free (column-stable).
@@ -49,7 +48,6 @@ local STATUS_GLYPHS = {
   [200] = "  ",   -- routine success badges NOTHING — reserved blank keeps the column
   [201] = "  ",
   [202] = "💤",   -- parked/waiting on an external event (NOT generic 2xx)
-  [300] = "🤔",   -- needs a decision (multiple choices)
   [410] = "💥",   -- directed SEND to a gone resource
   [499] = "✋",   -- failed / aborted / cancelled
 }

@@ -59,9 +59,10 @@ local ok, err = pcall(function()
   ai({ args = "/mcp enable current", range = 0 })
   wait_note("enabled: current %(connected%)", "current enable")
 
+  -- {§mcp-authority} — negotiate-and-degrade: a pre-discover legacy peer connects
+  -- at its negotiated revision instead of being rejected.
   ai({ args = "/mcp add legacy " .. node .. " \"" .. legacy_definition .. "\"", range = 0 })
-  wait_note("MCP server 'legacy' did not offer required revision 2026%-07%-28 through server/discover", "legacy revision attribution")
-  wait_note("upgrade or replace the legacy endpoint", "legacy recovery")
+  wait_note("added: legacy %(connected%)", "legacy connects at its negotiated revision")
 
   ai({ args = "/mcp remove current", range = 0 })
   wait_note("removed: current", "current remove")
