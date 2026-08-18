@@ -76,6 +76,13 @@ local function ellipsize(s, n)
   return s:sub(1, n - 1) .. "…"
 end
 
+local function annotation(entry)
+  local tx = type(entry.tx) == "table" and entry.tx or nil
+  local raw = tx and type(tx.annotation) == "string" and tx.annotation or ""
+  local plain = raw:gsub("\27%[[%d;?]*[ -/]*[@-~]", ""):gsub("%c+", " "):gsub("%s+", " ")
+  return plain:gsub("^%s+", ""):gsub("%s+$", "")
+end
+
 -- Extract the trailing context for an entry, op-specific.
 local function build_extra(entry)
   local tx = type(entry.tx) == "table" and entry.tx or nil
@@ -165,7 +172,9 @@ M.render_broadcast = function(entry)
     lane2 = M.status_glyph(entry.status_rx, entry.signal)
   end
   local status = tostring(entry.status_rx or "?")
+  local note = annotation(entry)
   local header = coord_prefix(entry) .. lane1 .. " " .. lane2 .. " " .. status
+  if note ~= "" then header = header .. "  — " .. note end
 
   local body_text = ""
   local tx = entry.tx
@@ -252,6 +261,8 @@ M.render_log_entry = function(entry)
   local parts = { coord_prefix(entry), op_glyph, " ", sub_glyph, " ", status }
   if path ~= "" then table.insert(parts, " " .. path) end
   if extra ~= "" then table.insert(parts, "  " .. extra) end
+  local note = annotation(entry)
+  if note ~= "" then table.insert(parts, "  — " .. note) end
 
   -- PLAN carries the model's reasoning as a plain string in tx.body (NOT the
   -- SEND {raw,json} shape) — surface it, newlines collapsed, so the waterfall

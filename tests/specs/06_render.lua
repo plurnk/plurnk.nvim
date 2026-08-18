@@ -37,6 +37,13 @@ local ok, err = pcall(function()
   H.assert_match(exec_lines[1], "%[search%]", "EXEC shows executor in brackets")
   H.assert_match(exec_lines[1], "capital of France", "EXEC shows command body")
 
+  local annotated = R({
+    op = "EXEC", origin = "model", status_rx = 200,
+    tx = { annotation = "Lists **issues**\27[31m", body = "{}" },
+  })
+  H.assert_match(annotated[1], "— Lists %*%*issues%*%*", "annotation renders as literal plain text")
+  H.assert_truthy(not annotated[1]:match("%[31m"), "annotation strips terminal control sequences")
+
   -- FIND with count
   local find_lines = R({
     op = "FIND", origin = "model", scheme = "known", pathname = "/**",
@@ -72,6 +79,13 @@ local ok, err = pcall(function()
   H.assert_match(bc_short[1], "💡", "model SEND 200: the answer state IS the identity")
   H.assert_match(bc_short[1], "200", "SEND ✅ sub-glyph")
   H.assert_match(bc_short[1], "200  Paris", "200 then 2sp then body")
+
+  local bc_annotated = R({
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 200, signal = 200,
+    tx = { annotation = "Answer ready", body = { raw = "Paris" } },
+  })
+  H.assert_match(bc_annotated[1], "200  — Answer ready  Paris", "broadcast annotation stays on its header")
 
   local bc_arrow = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,

@@ -109,35 +109,54 @@ end
 
 -- ── Workspace resolution ─────────────────────────────────────────────
 
-local function configured_child_alias()
-  local alias = vim.env.PLURNK_MODEL_CHILD
-  return type(alias) == "string" and alias ~= "" and alias or nil
-end
-
-local function resolve_loop_policies(client, workspace)
+-- {§worker-model-selection} — the worker owns the model. A picked alias or child
+-- is a durable selection: persist it once onto the workspace's model worker
+-- (worker.model.set / worker.child.set), then clear the pick. Nothing
+-- model-related rides the loop; the daemon's own PLURNK_MODEL/PLURNK_MODEL_CHILD
+-- seed an unpicked worker.
+local function persist_picked_policies(client, workspace, on_done)
   local state = require("plurnk.state")
-  local model = client.consume_selected_alias() or client.get_workspace_model(workspace)
-  if model then state.set_model_alias(workspace, model) end
+  local picked = client.consume_selected_alias()
   local child = client.consume_selected_child_alias()
-    or client.get_workspace_child(workspace)
-    or configured_child_alias()
-  if child then state.set_child_alias(workspace, child) end
-  return model, child
+  local function finish()
+    if on_done then on_done() end
+  end
+  if picked == nil and child == nil then finish() return end
+  local pending = 0
+  local function done()
+    pending = pending - 1
+    if pending <= 0 then finish() end
+  end
+  if picked ~= nil then
+    pending = pending + 1
+    client.send("worker.model.set", { alias = picked }, false, function(result)
+      if type(result) == "table" and result.alias then
+        state.set_model_alias(workspace, result.alias)
+      end
+      done()
+    end)
+  end
+  if child ~= nil then
+    pending = pending + 1
+    client.send("worker.child.set", { alias = child == "inherit" and vim.NIL or child }, false, function(result)
+      if type(result) == "table" then
+        state.set_child_alias(workspace, result.alias)
+      elseif child == "inherit" then
+        state.set_child_alias(workspace, "inherit")
+      end
+      done()
+    end)
+  end
 end
 
--- Resolve this buffer's workspace and invoke callback(workspace_name, model_alias, child_alias).
--- If no workspace is attached, create one and bind it to the calling buffer.
+-- Resolve this buffer's workspace and invoke callback(workspace_name). If no
+-- workspace is attached, create one and bind it to the calling buffer.
 local function resolve_workspace_then(callback)
   local client = require("plurnk.client")
   local workspace = active_workspace()
   if workspace then
     client.check_daemon_once()
-    -- A picked alias wins once; then it STICKS — persist it as the workspace's
-    -- model so every later loop keeps it (else it reverts to the daemon default
-    -- after one loop). consume clears the one-shot pick; set_model_alias makes
-    -- the choice durable (and lights it in the statusbar/winbar).
-    local model, child = resolve_loop_policies(client, workspace)
-    callback(workspace, model, child)
+    persist_picked_policies(client, workspace, function() callback(workspace) end)
     return
   end
   local origin_buf = vim.api.nvim_get_current_buf()
@@ -153,8 +172,26 @@ local function resolve_workspace_then(callback)
     -- MODEL worker. Don't set a conversation worker here — the
     -- first model-worker log/entry adopts it, and loop.run confirms modelWorkerId.
     client.check_daemon_once()
-    local model, child = resolve_loop_policies(client, name)
-    callback(name, model, child)
+    persist_picked_policies(client, name, function() callback(name) end)
+  end)
+end
+
+-- {§worker-model-selection} — hydrate the workspace's model labels from the
+-- server truth (the worker's durable model + spawn override), so the
+-- statusline/winbar display the same selection the daemon will use.
+local function hydrate_model_selection(workspace_name)
+  require("plurnk.client").send("worker.model.get", {}, false, function(result)
+    if type(result) ~= "table" then return end
+    local state = require("plurnk.state")
+    if type(result.model) == "table" and result.model.alias then
+      state.set_model_alias(workspace_name, result.model.alias)
+    end
+    if type(result.spawnModel) == "table" and result.spawnModel.alias then
+      state.set_child_alias(workspace_name, result.spawnModel.alias)
+    elseif result.spawnModel == nil then
+      state.set_child_alias(workspace_name, "inherit")
+    end
+    pcall(vim.cmd, "redrawstatus!")
   end)
 end
 
@@ -218,7 +255,7 @@ local function create_workspace_then(copts, callback)
       client.notify("live workspace: " .. result.name .. " — tabs for " .. prev .. " are now static", vim.log.levels.INFO)
     end
     client.check_daemon_once()
-    callback(result.name)
+    persist_picked_policies(client, result.name, function() callback(result.name) end)
   end)
 end
 
@@ -337,7 +374,7 @@ end
 local function send_exec(command)
   -- Workspace-scoped like every op: resolve (or create) the workspace FIRST so the
   -- stream/entry events the exec emits have an active workspace to render under.
-  resolve_workspace_then(function(_workspace_name, _model)
+  resolve_workspace_then(function(_workspace_name)
   local client = require("plurnk.client")
   client.send("op.exec", { command = command }, false, function(result)
     if type(result) == "table" and type(result.status) == "number" and result.status >= 400 then
@@ -349,45 +386,14 @@ end
 
 -- ── loop.run helper ────────────────────────────────────────────────
 
--- #90 — resolve a model alias to "<provider>/<model>" from nvim's OWN (always
--- fresh) env, so a long-lived daemon launched before PLURNK_MODEL_<alias> was
--- exported doesn't reject loop.run with "unknown alias" (the daemon's launch env
--- is frozen; ours isn't). The env value is already "<provider>/<model>" — return
--- it verbatim; the daemon does the first-slash split. Alias suffix is case-folded
--- (PLURNK_MODEL_opus == _OPUS, per the JS parser). nil → send bare {alias}.
-function M.resolve_model_spec(alias)
-  if not alias or alias == "" then return nil end
-  local want = alias:lower()
-  for key, val in pairs(vim.fn.environ()) do
-    local suffix = key:match("^PLURNK_MODEL_(.+)$")
-    if key ~= "PLURNK_MODEL_CHILD" and suffix and suffix:lower() == want
-      and type(val) == "string" and val:find("/", 2, true) then
-      return val
-    end
-  end
-  return nil
-end
-
-local function send_loop_run(workspace_name, prompt, model_alias, child_alias, flags)
+local function send_loop_run(workspace_name, prompt, flags)
   -- Bridge mode: the run streams through the portal (agui.run → un-project →
-  -- dispatch, so the worker-tab renders identically to WS). Per-loop policy rides
-  -- forwardedProps (agui 0.2.4+; openPaths pending a
-  -- bridge run-endpoint read). on_done clears inflight — the terminated event
+  -- dispatch, so the worker-tab renders identically to WS). {§worker-model-selection} —
+  -- no model selector rides the run: the worker owns the model, /model and /child
+  -- persisted it server-side. on_done clears inflight — the terminated event
   -- (dispatched) drives the rest.
   local bridge = require("plurnk.bridge")
   local fwd = {}
-  if model_alias then
-    local spec = M.resolve_model_spec(model_alias)
-    if spec then fwd.model = spec end
-    fwd.alias = model_alias
-  end
-  if child_alias == "inherit" then
-    fwd.childAlias = vim.NIL
-  elseif child_alias then
-    local spec = M.resolve_model_spec(child_alias)
-    if spec then fwd.childModel = spec end
-    fwd.childAlias = child_alias
-  end
   if flags then fwd.flags = flags end
   local open_paths = extract_open_paths(prompt)
   if #open_paths > 0 then fwd.openPaths = open_paths end
@@ -409,9 +415,9 @@ M.prompt = function(opts)
     require("plurnk.client").notify("PlurnkPrompt: no prompt text", vim.log.levels.WARN)
     return
   end
-  resolve_workspace_then(function(workspace_name, model_alias, child_alias)
+  resolve_workspace_then(function(workspace_name)
     require("plurnk.worker_tab").open(workspace_name)
-    send_loop_run(workspace_name, text, model_alias, child_alias, opts.flags)
+    send_loop_run(workspace_name, text, opts.flags)
   end)
 end
 
@@ -446,6 +452,7 @@ M.workspaces = function()
         adopt_model_worker(choice.name, function()
           require("plurnk.worker_tab").open(choice.name)
           hydrate_current_worker(choice.name)
+          hydrate_model_selection(choice.name)
         end)
       end)
     end)
@@ -543,34 +550,56 @@ M.models = function()
 end
 
 -- :AI/model <alias> — set the model directly (sticky); bare opens the picker.
--- Sets the one-shot pick AND the durable workspace model so it survives past the
--- next loop, and lights immediately in the statusbar/winbar.
+-- {§worker-model-selection} — server-backed: worker.model.set persists onto the
+-- conversation worker; the resolved spec is the display truth. No workspace yet →
+-- keep the one-shot pick, seeded once the workspace is created.
 M.set_model = function(args)
   local alias = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
   if alias == "" then M.models() return end
   local state = require("plurnk.state")
-  state.set_selected_alias(alias)
+  local client = require("plurnk.client")
   local workspace = active_workspace()
-  if workspace then state.set_model_alias(workspace, alias) end
-  require("plurnk.client").notify("Model alias: " .. alias, vim.log.levels.INFO)
-  pcall(vim.cmd, "redrawstatus!")
+  if not workspace then
+    state.set_selected_alias(alias)
+    client.notify("Model alias: " .. alias .. " (applies on workspace create)", vim.log.levels.INFO)
+    return
+  end
+  client.send("worker.model.set", { alias = alias }, false, function(result)
+    if type(result) ~= "table" or not result.alias then
+      client.notify("Model set failed: " .. alias, vim.log.levels.ERROR)
+      return
+    end
+    state.set_model_alias(workspace, result.alias)
+    client.notify("Model alias: " .. result.alias, vim.log.levels.INFO)
+    pcall(vim.cmd, "redrawstatus!")
+  end)
 end
 
+-- :AI/child [alias|inherit] — server-backed spawn override. Bare reports the
+-- worker's persisted override; inherit clears it (worker.child.set alias null).
 M.set_child = function(args)
   local alias = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
   local state = require("plurnk.state")
+  local client = require("plurnk.client")
   local workspace = active_workspace()
   if alias == "" then
-    local current = state.get_selected_child_alias()
-      or (workspace and state.get_child_alias(workspace))
-      or configured_child_alias()
-      or "inherit"
-    require("plurnk.client").notify("Child alias: " .. current, vim.log.levels.INFO)
+    local current = (workspace and state.get_child_alias(workspace)) or "inherit"
+    client.notify("Child alias: " .. current, vim.log.levels.INFO)
     return
   end
-  state.set_selected_child_alias(alias)
-  if workspace then state.set_child_alias(workspace, alias) end
-  require("plurnk.client").notify("Child alias: " .. alias, vim.log.levels.INFO)
+  if not workspace then
+    state.set_selected_child_alias(alias)
+    client.notify("Child alias: " .. alias .. " (applies on workspace create)", vim.log.levels.INFO)
+    return
+  end
+  client.send("worker.child.set", { alias = alias == "inherit" and vim.NIL or alias }, false, function(result)
+    if type(result) == "table" and result.alias then
+      state.set_child_alias(workspace, result.alias)
+    elseif alias == "inherit" then
+      state.set_child_alias(workspace, "inherit")
+    end
+    client.notify("Child alias: " .. alias, vim.log.levels.INFO)
+  end)
 end
 
 -- Membership overlay (svc#200) — service vocabulary, converged with the TUI:
@@ -1010,8 +1039,7 @@ M.ai = function(opts)
     local after = function(workspace_name)
       require("plurnk.worker_tab").open(workspace_name)
       if wrapped ~= "" then
-        local model, child = resolve_loop_policies(require("plurnk.client"), workspace_name)
-        send_loop_run(workspace_name, wrapped, model, child, flags)
+        send_loop_run(workspace_name, wrapped, flags)
       end
     end
     if prefix_len >= 4 then
