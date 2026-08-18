@@ -80,6 +80,59 @@ local function add(dir, name, path)
   notify("added: " .. name, vim.log.levels.INFO)
 end
 
+local function install(dir, source, requested)
+  if source == "" then
+    notify("usage: :AI/skills install <owner/repo|git-url|local-path> [--skill <name>]", vim.log.levels.WARN)
+    return
+  end
+  local work = nil
+  if source:match("^[%w%.%-]+/[%w%.%-]+$") then
+    work = vim.fn.tempname()
+    vim.fn.delete(work, "rf")
+    local clone_ok, clone_err = pcall(vim.fn.system, { "git", "clone", "--depth", "1", "https://github.com/" .. source .. ".git", work })
+    if not clone_ok or vim.v.shell_error ~= 0 then
+      notify("skills source not readable: " .. source .. (clone_ok and "" or " (" .. tostring(clone_err) .. ")"), vim.log.levels.WARN)
+      return
+    end
+  elseif source:match("^https?://") or source:match("^git@") or source:match("%.git$") then
+    work = vim.fn.tempname()
+    vim.fn.delete(work, "rf")
+    local clone_ok = pcall(vim.fn.system, { "git", "clone", "--depth", "1", source, work })
+    if not clone_ok or vim.v.shell_error ~= 0 then
+      notify("skills source not readable: " .. source, vim.log.levels.WARN)
+      return
+    end
+  else
+    work = vim.fn.fnamemodify(vim.fn.expand(source), ":p"):gsub("/+$", "")
+  end
+  if vim.fn.isdirectory(work .. "/skills") == 1 then work = work .. "/skills" end
+  local installed = {}
+  local folders = vim.fn.glob(work .. "/*", false, true)
+  for _, folder in ipairs(folders) do
+    if vim.fn.isdirectory(folder) == 1 and vim.fn.filereadable(folder .. "/SKILL.md") == 1 then
+      local name = vim.fn.fnamemodify(folder, ":t")
+      if requested == nil or name == requested then
+        if not valid_name(name) then
+          notify("skill name '" .. name .. "' must match [A-Za-z0-9][A-Za-z0-9._-]*", vim.log.levels.WARN)
+          return
+        end
+        vim.fn.mkdir(dir .. "/" .. name, "p")
+        local copy_ok, copy_err = pcall(vim.fn.system, { "cp", "-R", folder .. "/.", dir .. "/" .. name .. "/" })
+        if not copy_ok then
+          notify("skills copy failed: " .. tostring(copy_err), vim.log.levels.WARN)
+          return
+        end
+        installed[#installed + 1] = name
+      end
+    end
+  end
+  if #installed == 0 then
+    notify("skills: no skill" .. (requested == nil and "s" or (" named " .. requested)) .. " in " .. source, vim.log.levels.INFO)
+  else
+    notify("installed: " .. table.concat(installed, ", "), vim.log.levels.INFO)
+  end
+end
+
 local function remove(dir, name)
   if name == "" then
     notify("usage: :AI/skills remove <name>", vim.log.levels.WARN)
@@ -103,7 +156,7 @@ M.complete = function(cmdline)
   local partial = cmdline:match("/skills%s+(%S*)$")
   if not partial then return nil end
   local out = {}
-  for _, subcommand in ipairs({ "add", "remove" }) do
+  for _, subcommand in ipairs({ "add", "install", "remove" }) do
     if vim.startswith(subcommand, partial) then out[#out + 1] = subcommand end
   end
   table.sort(out)
@@ -120,12 +173,18 @@ M.run = function(args)
     return
   end
   local command = parts[1]
+  local skill_flag = nil
+  for index, part in ipairs(parts) do
+    if part == "--skill" then skill_flag = index end
+  end
   if command == "add" then
     add(dir, parts[2] or "", parts[3] or "")
+  elseif command == "install" then
+    install(dir, parts[2] or "", skill_flag ~= nil and parts[skill_flag + 1] or nil)
   elseif command == "remove" then
     remove(dir, parts[2] or "")
   else
-    notify("usage: :AI/skills [add <name> <path-to-SKILL.md> | remove <name>]", vim.log.levels.WARN)
+    notify("usage: :AI/skills [add <name> <path-to-SKILL.md> | install <owner/repo|git-url|local-path> [--skill <name>] | remove <name>]", vim.log.levels.WARN)
   end
 end
 

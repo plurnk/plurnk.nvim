@@ -44,6 +44,20 @@ local ok, err = pcall(function()
   ai({ args = "/skills", range = 0 })
   wait_note("skills: none", "empty list")
 
+  -- Local-path install (the git source forms share the same copy path).
+  local source = vim.fn.tempname()
+  vim.fn.delete(source, "rf")
+  vim.fn.mkdir(source .. "/skills/review", "p")
+  vim.fn.writefile({
+    "---",
+    "name: review",
+    "description: Check diffs before committing",
+    "---",
+    "Review diffs before committing.",
+  }, source .. "/skills/review/SKILL.md")
+  ai({ args = "/skills install " .. source, range = 0 })
+  wait_note("installed: review", "local install")
+
   ai({ args = "/skills add review " .. skill_file, range = 0 })
   wait_note("added: review", "skill add")
 
