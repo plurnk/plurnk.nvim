@@ -1,162 +1,113 @@
--- Thin operator projection of workspace Agent Skills management. The client
--- reads and writes the workspace's skills/ directory directly; the daemon
--- republishes the worker://plurnk/skills/ surface on its next refresh, so
--- changes are discoverable by the model from the following turn.
+-- Neovim projection of the universal Agent Skills package manager. This
+-- client invokes the standard CLI directly; it does not route through the
+-- terminal client or maintain a second registry/install implementation.
 
 local M = {}
+local arguments_of = require("plurnk.arguments").parse
 
 local function notify(message, level)
   require("plurnk.client").notify(message, level)
 end
 
-local function skills_dir()
-  local client = require("plurnk.client")
-  local project = client.get_project_path()
+local function project_root()
+  local project = require("plurnk.client").get_project_path()
   if project == nil or project == "" then
     notify("skills require a workspace project root", vim.log.levels.WARN)
     return nil
   end
-  local base = vim.fn.fnamemodify(vim.fn.expand(project), ":p"):gsub("/+$", "")
-  return base .. "/skills"
+  return vim.fn.fnamemodify(vim.fn.expand(project), ":p"):gsub("/+$", "")
 end
 
-local function valid_name(name)
-  return name ~= nil and name:match("^[A-Za-z0-9][A-Za-z0-9._-]*$") ~= nil
-end
-
-local function frontmatter(raw)
-  local name, description = nil, nil
-  if raw[1] == "---" then
-    for index = 2, #raw do
-      local line = raw[index]:gsub("%s+$", "")
-      if line == "---" then break end
-      local key, value = line:match("^(%a+):%s*(.*)$")
-      if key == "name" and value ~= "" then name = value end
-      if key == "description" and value ~= "" then description = value end
+local function includes_any(values, choices)
+  for _, value in ipairs(values) do
+    for _, choice in ipairs(choices) do
+      if value == choice then return true end
     end
   end
-  return name, description
+  return false
 end
 
-local function list(dir)
-  local folders = vim.fn.glob(dir .. "/*", false, true)
-  if #folders == 0 then
-    notify("skills: none", vim.log.levels.INFO)
-    return
-  end
-  local lines = {}
-  for _, folder in ipairs(folders) do
-    if vim.fn.isdirectory(folder) == 1 then
-      local read_ok, raw = pcall(vim.fn.readfile, folder .. "/SKILL.md")
-      local name, description = nil, nil
-      if read_ok then name, description = frontmatter(raw) end
-      local label = name or vim.fn.fnamemodify(folder, ":t")
-      lines[#lines + 1] = description == nil and label or (label .. " — " .. description)
-    end
-  end
-  notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+local function usage()
+  notify(table.concat({
+    "usage: :AI/skills [list [--global]]",
+    "       :AI/skills add <source> [--skill <name> ...] [--global]",
+    "       :AI/skills remove <name> ... [--global]",
+    "       :AI/skills find <query>",
+    "       :AI/skills update [name ...] [--global]",
+  }, "\n"), vim.log.levels.WARN)
 end
 
-local function add(dir, name, path)
-  if name == "" or path == "" then
-    notify("usage: :AI/skills add <name> <path-to-SKILL.md>", vim.log.levels.WARN)
-    return
-  end
-  if not valid_name(name) then
-    notify("skill name '" .. name .. "' must match [A-Za-z0-9][A-Za-z0-9._-]*", vim.log.levels.WARN)
-    return
-  end
-  local source = vim.fn.fnamemodify(vim.fn.expand(path), ":p")
-  if vim.fn.filereadable(source) == 0 then
-    notify("skills file not readable: " .. source, vim.log.levels.WARN)
-    return
-  end
-  vim.fn.mkdir(dir .. "/" .. name, "p")
-  local write_ok, write_err = pcall(vim.fn.writefile, vim.fn.readfile(source, "b"), dir .. "/" .. name .. "/SKILL.md", "b")
-  if not write_ok then
-    notify("skills write failed: " .. tostring(write_err), vim.log.levels.WARN)
-    return
-  end
-  notify("added: " .. name, vim.log.levels.INFO)
+local function append(target, values)
+  for _, value in ipairs(values) do target[#target + 1] = value end
 end
 
-local function install(dir, source, requested)
-  if source == "" then
-    notify("usage: :AI/skills install <owner/repo|git-url|local-path> [--skill <name>]", vim.log.levels.WARN)
-    return
+local function plain(value)
+  return (value:gsub("\27%[[0-?]*[ -/]*[@-~]", ""))
+end
+
+local function command_arguments(parts)
+  if #parts == 0 then return { "list", "--agent", "universal" } end
+  for _, part in ipairs(parts) do
+    if part == "--agent" or part == "-a" or vim.startswith(part, "--agent=") then return nil end
   end
-  local work = nil
-  if source:match("^[%w%.%-]+/[%w%.%-]+$") then
-    work = vim.fn.tempname()
-    vim.fn.delete(work, "rf")
-    local clone_ok, clone_err = pcall(vim.fn.system, { "git", "clone", "--depth", "1", "https://github.com/" .. source .. ".git", work })
-    if not clone_ok or vim.v.shell_error ~= 0 then
-      notify("skills source not readable: " .. source .. (clone_ok and "" or " (" .. tostring(clone_err) .. ")"), vim.log.levels.WARN)
-      return
+
+  local command = parts[1]
+  local rest = {}
+  for index = 2, #parts do rest[#rest + 1] = parts[index] end
+  local out = {}
+  if command == "list" or command == "ls" then
+    out = { "list" }
+    append(out, rest)
+    append(out, { "--agent", "universal" })
+  elseif command == "add" or command == "install" then
+    if #rest == 0 or includes_any(rest, { "--all" }) then return nil end
+    out = { "add" }
+    append(out, rest)
+    append(out, { "--agent", "universal", "--yes" })
+  elseif command == "remove" or command == "rm" then
+    if #rest == 0 then return nil end
+    out = { "remove" }
+    append(out, rest)
+    append(out, { "--agent", "universal", "--yes" })
+  elseif command == "find" or command == "search" then
+    if #rest == 0 then return nil end
+    out = { "find" }
+    append(out, rest)
+  elseif command == "update" or command == "upgrade" then
+    out = { "update" }
+    append(out, rest)
+    if not includes_any(rest, { "--global", "-g", "--project", "-p" }) then
+      out[#out + 1] = "--project"
     end
-  elseif source:match("^https?://") or source:match("^git@") or source:match("%.git$") then
-    work = vim.fn.tempname()
-    vim.fn.delete(work, "rf")
-    local clone_ok = pcall(vim.fn.system, { "git", "clone", "--depth", "1", source, work })
-    if not clone_ok or vim.v.shell_error ~= 0 then
-      notify("skills source not readable: " .. source, vim.log.levels.WARN)
-      return
-    end
+    out[#out + 1] = "--yes"
   else
-    work = vim.fn.fnamemodify(vim.fn.expand(source), ":p"):gsub("/+$", "")
+    return nil
   end
-  if vim.fn.isdirectory(work .. "/skills") == 1 then work = work .. "/skills" end
-  local installed = {}
-  local folders = vim.fn.glob(work .. "/*", false, true)
-  for _, folder in ipairs(folders) do
-    if vim.fn.isdirectory(folder) == 1 and vim.fn.filereadable(folder .. "/SKILL.md") == 1 then
-      local name = vim.fn.fnamemodify(folder, ":t")
-      if requested == nil or name == requested then
-        if not valid_name(name) then
-          notify("skill name '" .. name .. "' must match [A-Za-z0-9][A-Za-z0-9._-]*", vim.log.levels.WARN)
-          return
-        end
-        vim.fn.mkdir(dir .. "/" .. name, "p")
-        local copy_ok, copy_err = pcall(vim.fn.system, { "cp", "-R", folder .. "/.", dir .. "/" .. name .. "/" })
-        if not copy_ok then
-          notify("skills copy failed: " .. tostring(copy_err), vim.log.levels.WARN)
-          return
-        end
-        installed[#installed + 1] = name
-      end
-    end
-  end
-  if #installed == 0 then
-    notify("skills: no skill" .. (requested == nil and "s" or (" named " .. requested)) .. " in " .. source, vim.log.levels.INFO)
-  else
-    notify("installed: " .. table.concat(installed, ", "), vim.log.levels.INFO)
-  end
+  return out
 end
 
-local function remove(dir, name)
-  if name == "" then
-    notify("usage: :AI/skills remove <name>", vim.log.levels.WARN)
-    return
+local function report(result)
+  local sections = {}
+  if type(result.stdout) == "string" and vim.trim(result.stdout) ~= "" then
+    sections[#sections + 1] = vim.trim(plain(result.stdout))
   end
-  if not valid_name(name) then
-    notify("skill name '" .. name .. "' must match [A-Za-z0-9][A-Za-z0-9._-]*", vim.log.levels.WARN)
-    return
+  if type(result.stderr) == "string" and vim.trim(result.stderr) ~= "" then
+    sections[#sections + 1] = vim.trim(plain(result.stderr))
   end
-  if vim.fn.isdirectory(dir .. "/" .. name) == 0 then
-    notify("skills: no skill named " .. name, vim.log.levels.INFO)
-    return
+  local output = table.concat(sections, "\n")
+  if result.code == 0 then
+    notify(output ~= "" and output or "skills: done", vim.log.levels.INFO)
+  else
+    local message = "Agent Skills command failed (exit " .. tostring(result.code) .. ")"
+    notify(output == "" and message or (message .. "\n" .. output), vim.log.levels.WARN)
   end
-  vim.fn.delete(dir .. "/" .. name, "rf")
-  notify("removed: " .. name, vim.log.levels.INFO)
 end
 
 M.complete = function(cmdline)
-  local file_partial = cmdline:match("/skills%s+add%s+%S+%s+(%S*)$")
-  if file_partial then return vim.fn.getcompletion(file_partial, "file") end
   local partial = cmdline:match("/skills%s+(%S*)$")
   if not partial then return nil end
   local out = {}
-  for _, subcommand in ipairs({ "add", "install", "remove" }) do
+  for _, subcommand in ipairs({ "add", "find", "list", "remove", "update" }) do
     if vim.startswith(subcommand, partial) then out[#out + 1] = subcommand end
   end
   table.sort(out)
@@ -164,28 +115,20 @@ M.complete = function(cmdline)
 end
 
 M.run = function(args)
-  local dir = skills_dir()
-  if dir == nil then return end
-  local raw = vim.fn.trim(args or "")
-  local parts = vim.fn.split(raw, "\\s\\+")
-  if #parts == 0 then
-    list(dir)
-    return
+  local root = project_root()
+  if root == nil then return nil end
+  local parts = arguments_of(vim.fn.trim(args or ""))
+  local command = parts ~= nil and command_arguments(parts) or nil
+  if command == nil then
+    usage()
+    return nil
   end
-  local command = parts[1]
-  local skill_flag = nil
-  for index, part in ipairs(parts) do
-    if part == "--skill" then skill_flag = index end
-  end
-  if command == "add" then
-    add(dir, parts[2] or "", parts[3] or "")
-  elseif command == "install" then
-    install(dir, parts[2] or "", skill_flag ~= nil and parts[skill_flag + 1] or nil)
-  elseif command == "remove" then
-    remove(dir, parts[2] or "")
-  else
-    notify("usage: :AI/skills [add <name> <path-to-SKILL.md> | install <owner/repo|git-url|local-path> [--skill <name>] | remove <name>]", vim.log.levels.WARN)
-  end
+
+  local argv = { "npx", "--yes", "skills" }
+  append(argv, command)
+  return vim.system(argv, { cwd = root, text = true, env = { NO_COLOR = "1" } }, function(result)
+    vim.schedule(function() report(result) end)
+  end)
 end
 
 return M

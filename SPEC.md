@@ -101,6 +101,21 @@ what this client guarantees. Tests are organized by observable behavior under
   including unsupported protocol revisions, use the existing lossless Problem
   path and are neither rewritten nor retried.
 
+- §nvim-universal-agent-skills **Agent Skills use the universal standard** —
+  `:AI/skills` invokes `npx skills` directly in the workspace project root,
+  fixing add/remove/list operations to its `universal` target. Project skills
+  therefore live in `.agents/skills`; global skills live in
+  `~/.agents/skills`. The client owns no registry,
+  source resolver, frontmatter parser, copy routine, or package metadata.
+
+  | Input | Standard CLI invocation |
+  |---|---|
+  | `:AI/skills` or `:AI/skills list [--global]` | `skills list … --agent universal` |
+  | `:AI/skills add <source> …` | `skills add <source> … --agent universal --yes` |
+  | `:AI/skills remove <name> …` | `skills remove <name> … --agent universal --yes` |
+  | `:AI/skills find <query>` | `skills find <query>` |
+  | `:AI/skills update [name …] [--global]` | `skills update … --project\|--global --yes` |
+
 ## §4 Workspaces and workers
 
 - **The name is the identity** — `workspace.create` returns

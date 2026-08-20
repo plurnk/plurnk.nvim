@@ -22,6 +22,11 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 export PLURNK_NVIM_ROOT="$REPO_DIR"
 export PLURNK_HOST="${PLURNK_HOST:-127.0.0.1}"
 
+OPERATOR_HOME="${HOME:?HOME is required}"
+OPERATOR_CONFIG_HOME="${XDG_CONFIG_HOME:-$OPERATOR_HOME/.config}"
+case "$OPERATOR_CONFIG_HOME" in /*) ;; *) OPERATOR_CONFIG_HOME="$OPERATOR_HOME/.config";; esac
+OPERATOR_ENV="$OPERATOR_CONFIG_HOME/plurnk/.env"
+
 DAEMON_PID=""
 DAEMON_DIR=""
 cleanup() {
@@ -55,8 +60,8 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   (
     cd "$SERVICE_DIR"
     printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" > "$DAEMON_DIR/test.env"
-    # The model-driven specs need an ACTIVE model. The operator's ~/.plurnk/.env may
-    # name none (svc#501); a caller-exported PLURNK_MODEL outranks it in the daemon's
+    # The model-driven specs need an ACTIVE model. The operator's XDG config may
+    # name none; a caller-exported PLURNK_MODEL outranks it in the daemon's
     # cascade via this file. Alias declarations still come from the operator env.
     [ -n "${PLURNK_MODEL:-}" ] && printf 'PLURNK_MODEL=%s\n' "$PLURNK_MODEL" >> "$DAEMON_DIR/test.env"
     # the service loads env IN-SCRIPT (process.loadEnvFile overrides process env), so
@@ -67,7 +72,13 @@ if [ -z "${PLURNK_PORT:-}" ]; then
     # the control plane answers fine.
     NODE_CONDITIONS=""
     case "$SERVICE_BIN" in *.ts) NODE_CONDITIONS="--conditions=plurnk-dev" ;; esac
-    node $NODE_CONDITIONS "$SERVICE_BIN" --env-file-if-exists=.env --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
+    HOME="$DAEMON_DIR/home" \
+    XDG_CONFIG_HOME="$DAEMON_DIR/config" \
+    XDG_DATA_HOME="$DAEMON_DIR/data" \
+    node $NODE_CONDITIONS "$SERVICE_BIN" \
+      --env-file-if-exists="$OPERATOR_ENV" \
+      --env-file-if-exists=.env \
+      --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
@@ -104,8 +115,8 @@ reboot_daemon() {
   (
     cd "$SERVICE_DIR"
     printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" > "$DAEMON_DIR/test.env"
-    # The model-driven specs need an ACTIVE model. The operator's ~/.plurnk/.env may
-    # name none (svc#501); a caller-exported PLURNK_MODEL outranks it in the daemon's
+    # The model-driven specs need an ACTIVE model. The operator's XDG config may
+    # name none; a caller-exported PLURNK_MODEL outranks it in the daemon's
     # cascade via this file. Alias declarations still come from the operator env.
     [ -n "${PLURNK_MODEL:-}" ] && printf 'PLURNK_MODEL=%s\n' "$PLURNK_MODEL" >> "$DAEMON_DIR/test.env"
     # the service loads env IN-SCRIPT (process.loadEnvFile overrides process env), so
@@ -116,7 +127,13 @@ reboot_daemon() {
     # the control plane answers fine.
     NODE_CONDITIONS=""
     case "$SERVICE_BIN" in *.ts) NODE_CONDITIONS="--conditions=plurnk-dev" ;; esac
-    node $NODE_CONDITIONS "$SERVICE_BIN" --env-file-if-exists=.env --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
+    HOME="$DAEMON_DIR/home" \
+    XDG_CONFIG_HOME="$DAEMON_DIR/config" \
+    XDG_DATA_HOME="$DAEMON_DIR/data" \
+    node $NODE_CONDITIONS "$SERVICE_BIN" \
+      --env-file-if-exists="$OPERATOR_ENV" \
+      --env-file-if-exists=.env \
+      --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"

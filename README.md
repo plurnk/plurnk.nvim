@@ -1,9 +1,9 @@
 # plurnk.nvim
 
 Neovim client for [plurnk-service](https://github.com/plurnk/plurnk-service).
-It consumes the daemon's AG-UI+ HTTP/SSE interface directly; no Node or CLI
-subprocess. The pitch: **use LLMs the vim way** — your buffers, your motions,
-your `:` line.
+It consumes the daemon's AG-UI+ HTTP/SSE interface directly; it never shells
+through the terminal client. The pitch: **use LLMs the vim way** — your
+buffers, your motions, your `:` line.
 
 Requires: Neovim ≥ 0.10, a running plurnk-service daemon (default `127.0.0.1:3044`).
 
@@ -27,10 +27,12 @@ require("plurnk").apply_default_keymaps()  -- optional; only fills unmapped keys
 | `:AI???` | new headless workspace (no project root) |
 | `:AI????` | new worker in the current workspace (fork) |
 | `:AI... {text}` | inject into the running loop (a mid-loop prompt steers too) |
-| `:AI/{verb}` | `models model child workspaces workers workspace worker rename log yolo ping`, membership `pick hide view drop members`, workspace MCP `mcp` and `mcp add|enable|disable|remove`, `open accept reject next prev stop clear` |
+| `:AI/{verb}` | `models model child workspaces workers workspace worker rename log yolo ping`, membership `pick hide view drop members`, workspace MCP `mcp`, universal Agent Skills `skills`, `open accept reject next prev stop clear` |
 
 Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:AI?? hi`) work via cmdline abbreviations.
 `/model <alias>` selects the parent; `/child <alias>` selects WORK/FORK/BARE calls, and `/child inherit` follows the spawning loop. `PLURNK_MODEL_CHILD` supplies the default child alias.
+
+`:AI/skills` lists project skills; `add`, `remove`, `find`, and `update` invoke the standard `npx skills` CLI directly with its `universal` target. Project skills live in `.agents/skills`; global skills use `~/.agents/skills`.
 
 ## Layout
 
