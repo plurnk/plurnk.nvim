@@ -38,7 +38,7 @@ local ok, err = pcall(function()
   end
   local buf = vim.api.nvim_get_current_buf()
   vim.b[buf].plurnk_workspace = "s1"
-  state.set_model_alias("s1", "claude")
+  state.set_model_selector("s1", "claude")
   state.set_current_loop_id("s1", 7)
   state.set_current_turn("s1", 2)
   state.record_loop_usage("s1", loop_usage(0, 0, "0.0700"))
@@ -91,13 +91,13 @@ local ok, err = pcall(function()
   H.assert_truthy(not partial:match("ctx "), "no context gauge when terminal capacity is unknown")
 
   -- Active-model resolution (converged with the TUI header): with no loop yet
-  -- (no model_alias), the winbar still names the daemon's active default from
+  -- (no durable model selector), the winbar still names the daemon's active default from
   -- the warmed providers.list cache.
   state.set_available_aliases({ { alias = "haiku", active = false }, { alias = "opus", active = true } })
   H.assert_eq(state.get_active_model("s2"), "opus", "active default resolved when no loop has set a model")
   H.assert_match(worker_tab.winbar_text("s2", nil), "🤖 opus", "winbar names the active default from cold")
   -- An explicit per-workspace model still wins over the daemon default.
-  state.set_model_alias("s2", "sonnet")
-  H.assert_eq(state.get_active_model("s2"), "sonnet", "workspace's last-used model wins over the active default")
+  state.set_model_selector("s2", "anthropic/claude-sonnet-4")
+  H.assert_eq(state.get_active_model("s2"), "anthropic/claude-sonnet-4", "workspace's exact route wins over the active default")
 end)
 if ok then H.finish(NAME) else H.fail(NAME, err) end

@@ -30,7 +30,7 @@ require("plurnk").apply_default_keymaps()  -- optional; only fills unmapped keys
 | `:AI/{verb}` | `models model child reasoning workspaces workers workspace worker rename log yolo ping`, membership `pick hide view drop members`, workspace MCP `mcp`, universal Agent Skills `skills`, `open accept reject next prev stop clear` |
 
 Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:AI?? hi`) work via cmdline abbreviations.
-`/model <alias>` selects the parent; `/child <alias>` selects WORK/FORK/BARE calls, and `/child inherit` follows the spawning loop. `PLURNK_MODEL_CHILD` supplies the default child alias.
+`/model <selector>` selects the parent; `/child <selector>` selects WORK/FORK/BARE calls, and `/child inherit` follows the spawning loop. A selector is a declared alias or exact `provider/model`. `/models [search]` lazily searches the daemon's bounded model catalog; it is never loaded at startup.
 `/reasoning` reports the worker's durable policy and supported choices;
 `/reasoning <policy>` persists a daemon-validated selection.
 
@@ -48,7 +48,7 @@ Side-effecting ops pause for review. EDIT opens a diffsplit (left disk, right pr
 
 ```lua
 vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
--- plurnk[workspace·worker] · 🤖 alias · 🧠 adaptive · L3·T2 · ✅ 200 · $0.0042
+-- plurnk[workspace·worker] · 🤖 provider/model · 🧠 adaptive · L3·T2 · ✅ 200 · $0.0042
 ```
 
 ## Internals (for agents)

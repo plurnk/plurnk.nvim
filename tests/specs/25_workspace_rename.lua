@@ -11,7 +11,7 @@ local ok, err = pcall(function()
     if method == "workspace.rename" and cb then cb({ id = 9, name = params.name }) end
   end
   require("plurnk.client").check_daemon_once = function() end
-  require("plurnk.client").consume_selected_alias = function() return nil end
+  require("plurnk.client").consume_selected_model_selector = function() return nil end
   require("plurnk.client").get_workspace_model = function() return nil end
 
   local state = require("plurnk.state")

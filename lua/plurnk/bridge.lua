@@ -166,7 +166,7 @@ function M.run(thread_id, prompt, opts, on_done)
     on_event, M._active.on_done)
 end
 
--- A verb is a §3 action run. cb(result); an action error surfaces as a notify —
+-- A verb is a §3 action run. cb(result, problem); an action error surfaces as a notify —
 -- honest, never silent. The action stream ALSO carries any events the dispatch
 -- emits (log/entry from a client op, a proposal from a gated EXEC, stream chunks)
 -- — feed them through the same unproject→dispatch path as a run, or client ops
@@ -217,7 +217,7 @@ local function finish_action(action, result, problem)
   if problem ~= nil and not action.problem_dispatched then
     notify_action_failure(action.method, problem)
   end
-  if action.cb then action.cb(result) end
+  if action.cb then action.cb(result, problem) end
   vim.schedule(lane_next)
 end
 

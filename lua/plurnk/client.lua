@@ -10,11 +10,11 @@ M.get_project_path = state.get_project_path
 M.set_project_path = state.set_project_path
 
 M.get_available_aliases = state.get_available_aliases
-M.set_selected_alias = state.set_selected_alias
-M.consume_selected_alias = state.consume_selected_alias
-M.get_selected_child_alias = state.get_selected_child_alias
-M.set_selected_child_alias = state.set_selected_child_alias
-M.consume_selected_child_alias = state.consume_selected_child_alias
+M.set_selected_model_selector = state.set_selected_model_selector
+M.consume_selected_model_selector = state.consume_selected_model_selector
+M.get_selected_child_selector = state.get_selected_child_selector
+M.set_selected_child_selector = state.set_selected_child_selector
+M.consume_selected_child_selector = state.consume_selected_child_selector
 M.consume_selected_reasoning_policy = state.consume_selected_reasoning_policy
 
 M.has_interacted = state.has_interacted
@@ -26,10 +26,10 @@ M.set_workspace_id = state.set_workspace_id
 M.get_worker_id = state.get_worker_id
 M.set_worker_id = state.set_worker_id
 
-M.get_workspace_model = state.get_model_alias
-M.set_workspace_model = state.set_model_alias
-M.get_workspace_child = state.get_child_alias
-M.set_workspace_child = state.set_child_alias
+M.get_workspace_model = state.get_model_selector
+M.set_workspace_model = state.set_model_selector
+M.get_workspace_child = state.get_child_selector
+M.set_workspace_child = state.set_child_selector
 M.get_model_display = state.get_model_display
 M.set_model_display = state.set_model_display
 
@@ -56,14 +56,16 @@ M.send = function(method, params, _is_notification, callback)
   local thread = state.get_active_workspace_name() or "nvim"
   if method == "loop.resolve" then
     bridge.resolve(thread, params or {}, function(_, problem)
-      if callback then callback(problem == nil and {} or nil) end
+      if callback then callback(problem == nil and {} or nil, problem) end
     end)
   else
     -- FAIL-HARD ACROSS LAYERS (the 2026-07-10 rule): a failed action delivers NIL —
     -- bridge.rpc has already surfaced the error. `result or {}` here converted every
     -- contract violation into silent half-behavior; that fallback shipped the
     -- workspace-door disaster and is permanently banned.
-    bridge.rpc(thread, method, params, function(result) if callback then callback(result) end end)
+    bridge.rpc(thread, method, params, function(result, problem)
+      if callback then callback(result, problem) end
+    end)
   end
 end
 

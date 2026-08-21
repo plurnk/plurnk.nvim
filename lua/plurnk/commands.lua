@@ -3,7 +3,7 @@
 -- prompt and sysprompt. So instead of three commands we have one:
 -- :PlurnkPrompt {text}. Visual selection is prepended automatically.
 --
--- Picker commands wrap providers.list / workspace.list / workspace.workers
+-- Picker commands wrap models.list / providers.list / workspace.list / workspace.workers
 -- via vim.ui.select; the buffer/tab association from rummy is kept
 -- (`vim.b.plurnk_workspace` instead of `vim.b.plurnk_run`).
 
@@ -109,44 +109,62 @@ end
 -- selections before the first loop, then clear them; nothing rides loop.run.
 local function persist_picked_policies(client, workspace, on_done)
   local state = require("plurnk.state")
-  local picked = client.consume_selected_alias()
-  local child = client.consume_selected_child_alias()
+  local picked = client.consume_selected_model_selector()
+  local child = client.consume_selected_child_selector()
   local reasoning = client.consume_selected_reasoning_policy()
-  local function finish()
-    if on_done then on_done() end
+  local function restore()
+    if picked ~= nil then state.set_selected_model_selector(picked) end
+    if child ~= nil then state.set_selected_child_selector(child) end
+    if reasoning ~= nil then state.set_selected_reasoning_policy(reasoning) end
   end
-  if picked == nil and child == nil and reasoning == nil then finish() return end
-  local pending = (picked ~= nil and 1 or 0) + (child ~= nil and 1 or 0)
-  local function persist_reasoning()
-    if reasoning == nil then finish() return end
-    client.send("worker.reasoning.set", { policy = reasoning }, false, function(result)
-      if type(result) == "table" then state.set_reasoning(workspace, result) end
-      finish()
-    end)
+  local function refuse(label)
+    restore()
+    client.notify(label .. " was not persisted; the prompt was not submitted", vim.log.levels.ERROR)
   end
-  local function done()
-    pending = pending - 1
-    if pending == 0 then persist_reasoning() end
-  end
-  if pending == 0 then persist_reasoning() return end
+  local steps = {}
   if picked ~= nil then
-    client.send("worker.model.set", { alias = picked }, false, function(result)
-      if type(result) == "table" and result.alias then
-        state.set_model_alias(workspace, result.alias)
-      end
-      done()
-    end)
+    steps[#steps + 1] = function(next_step)
+      client.send("worker.model.set", { selector = picked }, false, function(result, problem)
+        if problem ~= nil then refuse("Model selection"); return end
+        local resolved = state.model_route_selector(result)
+        if resolved == nil then refuse("Model selection"); return end
+        state.set_model_selector(workspace, resolved)
+        next_step()
+      end)
+    end
   end
   if child ~= nil then
-    client.send("worker.child.set", { alias = child == "inherit" and vim.NIL or child }, false, function(result)
-      if type(result) == "table" then
-        state.set_child_alias(workspace, result.alias)
-      elseif child == "inherit" then
-        state.set_child_alias(workspace, "inherit")
-      end
-      done()
-    end)
+    steps[#steps + 1] = function(next_step)
+      client.send("worker.child.set", { selector = child == "inherit" and vim.NIL or child }, false, function(result, problem)
+        if problem ~= nil then refuse("Child model selection"); return end
+        if child == "inherit" then
+          state.set_child_selector(workspace, "inherit")
+        else
+          local resolved = state.model_route_selector(result)
+          if resolved == nil then refuse("Child model selection"); return end
+          state.set_child_selector(workspace, resolved)
+        end
+        next_step()
+      end)
+    end
   end
+  if reasoning ~= nil then
+    steps[#steps + 1] = function(next_step)
+      client.send("worker.reasoning.set", { policy = reasoning }, false, function(result, problem)
+        if problem ~= nil or type(result) ~= "table" then refuse("Reasoning policy"); return end
+        state.set_reasoning(workspace, result)
+        next_step()
+      end)
+    end
+  end
+  local index = 0
+  local function advance()
+    index = index + 1
+    local step = steps[index]
+    if step ~= nil then step(advance)
+    elseif on_done then on_done() end
+  end
+  advance()
 end
 
 -- Resolve this buffer's workspace and invoke callback(workspace_name). If no
@@ -184,13 +202,11 @@ hydrate_generation_policy = function(workspace_name)
   require("plurnk.client").send("worker.model.get", {}, false, function(result)
     if type(result) ~= "table" then return end
     local state = require("plurnk.state")
-    if type(result.model) == "table" and result.model.alias then
-      state.set_model_alias(workspace_name, result.model.alias)
-    end
-    if type(result.spawnModel) == "table" and result.spawnModel.alias then
-      state.set_child_alias(workspace_name, result.spawnModel.alias)
+    state.set_model_route(workspace_name, result.model)
+    if type(result.spawnModel) == "table" then
+      state.set_child_route(workspace_name, result.spawnModel)
     elseif result.spawnModel == nil then
-      state.set_child_alias(workspace_name, "inherit")
+      state.set_child_selector(workspace_name, "inherit")
     end
     pcall(vim.cmd, "redrawstatus!")
   end)
@@ -551,46 +567,100 @@ M.workspace_workers = function()
   end)
 end
 
--- :PlurnkModels  → providers.list picker; selection feeds the next loop.run.
-M.models = function()
+local function normalized_search(args)
+  local raw = type(args) == "table" and args.args or args
+  return tostring(raw or ""):gsub("^%s+", ""):gsub("%s+$", "")
+end
+
+local function alias_matches(alias, search)
+  if search == "" then return true end
+  local haystack = table.concat({ alias.alias or "", alias.provider or "", alias.model or "" }, " "):lower()
+  return haystack:find(search:lower(), 1, true) ~= nil
+end
+
+-- :PlurnkModels [search] lazily combines the small declared-alias directory with
+-- one bounded models.dev catalog page. A sentinel pages forward; startup never
+-- downloads the catalog, and selecting an entry persists its exact selector.
+M.models = function(args)
   local client = require("plurnk.client")
-  client.send("providers.list", {}, false, function(result)
-    if type(result) ~= "table" or type(result.aliases) ~= "table" then return end
-    require("plurnk.state").set_available_aliases(result.aliases)
-    vim.ui.select(result.aliases, {
-      prompt = "Plurnk model alias",
-      format_item = function(a)
-        return string.format("%s%s  %s/%s", a.alias, a.active and " *" or "", a.provider, a.model)
-      end,
-    }, function(choice)
-      if not choice then return end
-      M.set_model(choice.alias)
+  local state = require("plurnk.state")
+  local search = normalized_search(args)
+
+  local function select_page(offset, aliases)
+    local query = { offset = offset, limit = 50 }
+    if search ~= "" then query.search = search end
+    client.send("models.list", query, false, function(page)
+      if type(page) ~= "table" or type(page.items) ~= "table" then return end
+      local choices = {}
+      if offset == 0 then
+        for _, alias in ipairs(aliases) do
+          if alias_matches(alias, search) then
+            choices[#choices + 1] = {
+              selector = alias.alias,
+              label = string.format("alias  %s%s  %s/%s", alias.alias,
+                alias.active and " *" or "", alias.provider, alias.model),
+            }
+          end
+        end
+      end
+      for _, model in ipairs(page.items) do
+        choices[#choices + 1] = {
+          selector = model.selector,
+          label = string.format("model  %s  %s", model.selector, model.modelName or model.model),
+        }
+      end
+      if type(page.nextOffset) == "number" then
+        choices[#choices + 1] = {
+          next_offset = page.nextOffset,
+          label = string.format("more…  %d of %d", offset + #page.items, tonumber(page.total) or 0),
+        }
+      end
+      if #choices == 0 then
+        client.notify(search == "" and "No configured models" or ("No configured models match: " .. search), vim.log.levels.INFO)
+        return
+      end
+      vim.ui.select(choices, {
+        prompt = search == "" and "Plurnk model" or ("Plurnk model: " .. search),
+        format_item = function(choice) return choice.label end,
+      }, function(choice)
+        if not choice then return end
+        if choice.next_offset then select_page(choice.next_offset, aliases) return end
+        M.set_model(choice.selector)
+      end)
     end)
+  end
+
+  client.send("providers.list", {}, false, function(result)
+    local aliases = type(result) == "table" and type(result.aliases) == "table" and result.aliases or {}
+    state.set_available_aliases(aliases)
+    select_page(0, aliases)
   end)
 end
 
--- :AI/model <alias> — set the model directly (sticky); bare opens the picker.
+-- :AI/model <selector> — set the model directly (sticky); bare opens the picker.
 -- {§worker-model-selection} — server-backed: worker.model.set persists onto the
 -- conversation worker; the resolved spec is the display truth. No workspace yet →
 -- keep the one-shot pick, seeded once the workspace is created.
 M.set_model = function(args)
-  local alias = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
-  if alias == "" then M.models() return end
+  local selector = normalized_search(args)
+  if selector == "" then M.models() return end
   local state = require("plurnk.state")
   local client = require("plurnk.client")
   local workspace = active_workspace()
   if not workspace then
-    state.set_selected_alias(alias)
-    client.notify("Model alias: " .. alias .. " (applies on workspace create)", vim.log.levels.INFO)
+    state.set_selected_model_selector(selector)
+    client.notify("Model: " .. selector .. " (applies on workspace create)", vim.log.levels.INFO)
     return
   end
-  client.send("worker.model.set", { alias = alias }, false, function(result)
-    if type(result) ~= "table" or not result.alias then
-      client.notify("Model set failed: " .. alias, vim.log.levels.ERROR)
+  client.send("worker.model.set", { selector = selector }, false, function(result, problem)
+    if problem ~= nil then return end
+    local resolved = state.model_route_selector(result)
+    if resolved == nil then
+      client.notify("Model set failed: " .. selector, vim.log.levels.ERROR)
       return
     end
-    state.set_model_alias(workspace, result.alias)
-    client.notify("Model alias: " .. result.alias, vim.log.levels.INFO)
+    state.set_model_selector(workspace, resolved)
+    client.notify("Model: " .. resolved, vim.log.levels.INFO)
     client.send("worker.reasoning.get", {}, false, function(reasoning)
       if type(reasoning) == "table" then state.set_reasoning(workspace, reasoning) end
       require("plurnk.worker_tab").refresh_winbar(workspace)
@@ -617,7 +687,8 @@ M.set_reasoning = function(args)
   end
   local method = policy == "" and "worker.reasoning.get" or "worker.reasoning.set"
   local params = policy == "" and {} or { policy = policy }
-  client.send(method, params, false, function(result)
+  client.send(method, params, false, function(result, problem)
+    if problem ~= nil then return end
     if type(result) ~= "table" then return end
     state.set_reasoning(workspace, result)
     local supported = type(result.supportedPolicies) == "table"
@@ -628,30 +699,32 @@ M.set_reasoning = function(args)
   end)
 end
 
--- :AI/child [alias|inherit] — server-backed spawn override. Bare reports the
--- worker's persisted override; inherit clears it (worker.child.set alias null).
+-- :AI/child [selector|inherit] — server-backed spawn override. Bare reports the
+-- worker's persisted override; inherit clears it (worker.child.set selector null).
 M.set_child = function(args)
-  local alias = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local selector = normalized_search(args)
   local state = require("plurnk.state")
   local client = require("plurnk.client")
   local workspace = active_workspace()
-  if alias == "" then
-    local current = (workspace and state.get_child_alias(workspace)) or "inherit"
-    client.notify("Child alias: " .. current, vim.log.levels.INFO)
+  if selector == "" then
+    local current = (workspace and state.get_child_selector(workspace)) or "inherit"
+    client.notify("Child model: " .. current, vim.log.levels.INFO)
     return
   end
   if not workspace then
-    state.set_selected_child_alias(alias)
-    client.notify("Child alias: " .. alias .. " (applies on workspace create)", vim.log.levels.INFO)
+    state.set_selected_child_selector(selector)
+    client.notify("Child model: " .. selector .. " (applies on workspace create)", vim.log.levels.INFO)
     return
   end
-  client.send("worker.child.set", { alias = alias == "inherit" and vim.NIL or alias }, false, function(result)
-    if type(result) == "table" and result.alias then
-      state.set_child_alias(workspace, result.alias)
-    elseif alias == "inherit" then
-      state.set_child_alias(workspace, "inherit")
+  client.send("worker.child.set", { selector = selector == "inherit" and vim.NIL or selector }, false, function(result, problem)
+    if problem ~= nil then return end
+    local resolved = state.model_route_selector(result)
+    if resolved ~= nil then
+      state.set_child_selector(workspace, resolved)
+    elseif selector == "inherit" then
+      state.set_child_selector(workspace, "inherit")
     end
-    client.notify("Child alias: " .. alias, vim.log.levels.INFO)
+    client.notify("Child model: " .. (resolved or selector), vim.log.levels.INFO)
   end)
 end
 
@@ -862,7 +935,8 @@ local HELP = table.concat({
   ":AI! <cmd>         exec via the daemon; bare ! execs the visual selection",
   ":AI?? / ::         new workspace    ??? headless    ???? new worker (fork)",
   ":AI... <text>      inject into the running model loop (loop.inject)",
-  ":AI/<verb>         models model child reasoning workspaces workers workspace worker rename log yolo ping",
+  ":AI/<verb>         models [search] · model <selector> · child <selector|inherit> · reasoning [policy]",
+  "                   workspaces workers workspace worker rename log yolo ping",
   "                   pick hide view drop members (membership overlay)",
   "                   script <path> (run a .plk file via op.parse)",
   "                   mcp (list available workspace MCP servers)",
@@ -927,9 +1001,10 @@ local SLASH = {
   stop     = function() M.stop() end,
   clear    = function() M.clear() end,
   abort    = function() M.stop() end,
-  models   = function() M.models() end,
-  -- `/model <alias>` sets it directly (converged with the TUI); bare `/model`
-  -- opens the picker. Completion offers aliases (see ai_complete).
+  models   = function(args) M.models(args) end,
+  -- `/model <selector>` sets it directly (converged with the TUI); bare `/model`
+  -- opens the lazy catalog picker. Completion offers the small alias directory;
+  -- exact routes are discovered through `/models [search]`.
   model    = function(args) M.set_model(args) end,
   child    = function(args) M.set_child(args) end,
   reasoning = function(args) M.set_reasoning(args) end,
@@ -1140,7 +1215,7 @@ M.setup = function()
   cmd("PlurnkWorkspaceRename", M.workspace_rename, { nargs = "?" })
   cmd("PlurnkFork",        M.fork,         { nargs = "?" })
   cmd("PlurnkWorkspaceWorkers", M.workspace_workers, {})
-  cmd("PlurnkModels",      M.models,       {})
+  cmd("PlurnkModels",      M.models,       { nargs = "*" })
   cmd("PlurnkReasoning",   function(opts) M.set_reasoning(opts.args) end, { nargs = "?" })
   cmd("PlurnkLog",         M.log,          { nargs = "?" })
   cmd("PlurnkPick",        M.pick,         { nargs = "?", complete = "file" })

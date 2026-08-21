@@ -12,7 +12,7 @@ local ok, err = pcall(function()
     if method == "workspace.attach" and cb then cb({ workerId = 42, workerName = "main-fork" }) end
   end
   require("plurnk.client").check_daemon_once = function() end
-  require("plurnk.client").consume_selected_alias = function() return nil end
+  require("plurnk.client").consume_selected_model_selector = function() return nil end
   require("plurnk.client").get_workspace_model = function() return nil end
   local rt = require("plurnk.worker_tab")
   rt.open = function() end

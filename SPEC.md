@@ -53,8 +53,10 @@ what this client guarantees. Tests are organized by observable behavior under
 - **The stale-daemon probe** - `discover` runs once per instance; a manifest
   missing the AG-UI+ markers this client depends on (`op.exec`,
   `op.look`) warns bluntly that the daemon is older than the client.
-- **Control-plane liveness** — `ping` answers an empty-object
-  result; `providers.list` returns the alias table the pickers and statusline consume.
+- **Control-plane liveness** — `ping` answers an empty-object result;
+  `providers.list` returns the small declared-alias directory used by completion
+  and the statusline. `models.list` returns bounded pages from the daemon's
+  release-pinned catalog without contacting a provider.
 - **The push pipeline** — a dispatched op (e.g. `op.parse`)
   produces a `log/entry` notification that advances client state; rendering is
   push-driven, never polled.
@@ -79,9 +81,10 @@ what this client guarantees. Tests are organized by observable behavior under
 - **`## LOOK…` inspects off-worker** — a READ for the human, not the model:
   routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
   rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
-- **Completion** — `:AI` cmdline completion offers verbs, model aliases,
+- **Completion** — `:AI` cmdline completion offers verbs, declared model aliases,
   child inheritance, daemon-supported reasoning policies, and local files
-  where a verb consumes one.
+  where a verb consumes one. It never caches the full model catalog; exact-route
+  discovery is explicit through `/models [search]`.
 - §nvim-workspace-mcp-controls **Workspace MCP controls are daemon actions** —
   the client tokenizes quoted alias/target arguments and JSON-decodes an
   optional local options file. The daemon owns normalization, schema
@@ -209,15 +212,23 @@ what this client guarantees. Tests are organized by observable behavior under
   execs policy, `questions`, and `filesItems` (the CLI's
   `--files-items`, converged: -1 full / 0 off / N first-N) travel on `workspace.create`;
   creation is atomic, nothing arrives later.
-- **Model selection is server-backed** — the worker owns the model
-  ({§worker-model-selection}): a picked alias persists via `worker.model.set` onto
-  the conversation worker and lights in the statusbar/winbar from the resolved spec;
-  the one-shot pick applies only before a workspace exists, seeded once at creation.
-  Nothing model-related rides the loop.
+- §nvim-model-discovery **Model selection is server-backed and discovery is lazy** —
+  the worker owns the model ({§worker-model-selection}). `/model <selector>` accepts
+  either a declared alias or exact `provider/model`; `worker.model.set {selector}`
+  resolves and persists it, and the statusbar/winbar uses the returned route as truth.
+  `/models [search]` opens a picker combining the small alias directory with one
+  bounded `models.list` page; a continuation item fetches the next page. No catalog
+  is fetched at startup, injected into a packet, or used to probe a provider. A pick
+  made before workspace creation is persisted once after creation. Nothing
+  model-related rides an individual loop.
+- §nvim-generation-policy-admission **Deliberate generation policy is admitted before inference** —
+  pending model, child-model, and reasoning selections persist in that order before
+  a prompt is submitted. A rejected or malformed result retains the requested
+  selections and prevents the prompt from running under stale policy.
 - §nvim-child-provider-selection **Child selection sticks per workspace** —
   `/child` reports the worker's persisted override (hydrated via `worker.model.get`),
-  `/child <alias>` persists it via `worker.child.set`, and `/child inherit` sends
-  `alias: null` (clearing the override); `PLURNK_MODEL_CHILD` seeds the worker
+  `/child <selector>` persists it via `worker.child.set`, and `/child inherit` sends
+  `selector: null` (clearing the override); `PLURNK_MODEL_CHILD` seeds the worker
   server-side from the daemon's own env.
 - §nvim-reasoning-policy **Reasoning is a separate durable worker policy** —
   `/reasoning` reads the effective policy and daemon-supported choices;
@@ -225,7 +236,7 @@ what this client guarantees. Tests are organized by observable behavior under
   made before workspace creation is consumed once after model and child
   selection, never forwarded on `loop.run`. Attach and worker switches hydrate
   the daemon value, model changes refresh its supported choices, and the worker
-  winbar renders the effective policy independently of the model alias. The
+  winbar renders the effective policy independently of the model selector. The
   client owns no provider-effort catalog and preserves daemon Problems.
 - **Execs policy forwards; secrets never do** — `PLURNK_EXECS_*`
   enable/disable grammar rides verbatim for the daemon's subtractive intersection;
