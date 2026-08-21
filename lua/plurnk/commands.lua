@@ -87,6 +87,7 @@ end
 -- Forward declaration — defined with the connection helpers below,
 -- referenced from resolve_workspace_then's create path above it.
 local note_model_worker
+local hydrate_generation_policy
 
 local function wrap_with_selection(prompt, opts)
   local mode = vim.fn.mode()
@@ -104,26 +105,31 @@ end
 
 -- ── Workspace resolution ─────────────────────────────────────────────
 
--- {§worker-model-selection} — the worker owns the model. A picked alias or child
--- is a durable selection: persist it once onto the workspace's model worker
--- (worker.model.set / worker.child.set), then clear the pick. Nothing
--- model-related rides the loop; the daemon's own PLURNK_MODEL/PLURNK_MODEL_CHILD
--- seed an unpicked worker.
+-- The worker owns generation policy. Persist one-shot model, child, and reasoning
+-- selections before the first loop, then clear them; nothing rides loop.run.
 local function persist_picked_policies(client, workspace, on_done)
   local state = require("plurnk.state")
   local picked = client.consume_selected_alias()
   local child = client.consume_selected_child_alias()
+  local reasoning = client.consume_selected_reasoning_policy()
   local function finish()
     if on_done then on_done() end
   end
-  if picked == nil and child == nil then finish() return end
-  local pending = 0
+  if picked == nil and child == nil and reasoning == nil then finish() return end
+  local pending = (picked ~= nil and 1 or 0) + (child ~= nil and 1 or 0)
+  local function persist_reasoning()
+    if reasoning == nil then finish() return end
+    client.send("worker.reasoning.set", { policy = reasoning }, false, function(result)
+      if type(result) == "table" then state.set_reasoning(workspace, result) end
+      finish()
+    end)
+  end
   local function done()
     pending = pending - 1
-    if pending <= 0 then finish() end
+    if pending == 0 then persist_reasoning() end
   end
+  if pending == 0 then persist_reasoning() return end
   if picked ~= nil then
-    pending = pending + 1
     client.send("worker.model.set", { alias = picked }, false, function(result)
       if type(result) == "table" and result.alias then
         state.set_model_alias(workspace, result.alias)
@@ -132,7 +138,6 @@ local function persist_picked_policies(client, workspace, on_done)
     end)
   end
   if child ~= nil then
-    pending = pending + 1
     client.send("worker.child.set", { alias = child == "inherit" and vim.NIL or child }, false, function(result)
       if type(result) == "table" then
         state.set_child_alias(workspace, result.alias)
@@ -167,14 +172,15 @@ local function resolve_workspace_then(callback)
     -- MODEL worker. Don't set a conversation worker here — the
     -- first model-worker log/entry adopts it, and loop.run confirms modelWorkerId.
     client.check_daemon_once()
-    persist_picked_policies(client, name, function() callback(name) end)
+    persist_picked_policies(client, name, function()
+      hydrate_generation_policy(name)
+      callback(name)
+    end)
   end)
 end
 
--- {§worker-model-selection} — hydrate the workspace's model labels from the
--- server truth (the worker's durable model + spawn override), so the
--- statusline/winbar display the same selection the daemon will use.
-local function hydrate_model_selection(workspace_name)
+-- Hydrate the complete daemon-owned generation policy for the attached worker.
+hydrate_generation_policy = function(workspace_name)
   require("plurnk.client").send("worker.model.get", {}, false, function(result)
     if type(result) ~= "table" then return end
     local state = require("plurnk.state")
@@ -187,6 +193,11 @@ local function hydrate_model_selection(workspace_name)
       state.set_child_alias(workspace_name, "inherit")
     end
     pcall(vim.cmd, "redrawstatus!")
+  end)
+  require("plurnk.client").send("worker.reasoning.get", {}, false, function(result)
+    if type(result) ~= "table" then return end
+    require("plurnk.state").set_reasoning(workspace_name, result)
+    require("plurnk.worker_tab").refresh_winbar(workspace_name)
   end)
 end
 
@@ -250,7 +261,10 @@ local function create_workspace_then(copts, callback)
       client.notify("live workspace: " .. result.name .. " — tabs for " .. prev .. " are now static", vim.log.levels.INFO)
     end
     client.check_daemon_once()
-    persist_picked_policies(client, result.name, function() callback(result.name) end)
+    persist_picked_policies(client, result.name, function()
+      hydrate_generation_policy(result.name)
+      callback(result.name)
+    end)
   end)
 end
 
@@ -293,6 +307,7 @@ M.switch_worker = function(workspace_name, worker_id, callback)
   require("plurnk.client").send("workspace.attach", { id = id, workerId = worker_id }, false, function(att)
     if type(att) ~= "table" then return end
     note_model_worker(workspace_name, att.workerId, att.workerName)
+    hydrate_generation_policy(workspace_name)
     callback()
   end)
 end
@@ -454,7 +469,7 @@ M.workspaces = function()
         adopt_model_worker(choice.name, function()
           require("plurnk.worker_tab").open(choice.name)
           hydrate_current_worker(choice.name)
-          hydrate_model_selection(choice.name)
+          hydrate_generation_policy(choice.name)
         end)
       end)
     end)
@@ -573,7 +588,40 @@ M.set_model = function(args)
     end
     state.set_model_alias(workspace, result.alias)
     client.notify("Model alias: " .. result.alias, vim.log.levels.INFO)
+    client.send("worker.reasoning.get", {}, false, function(reasoning)
+      if type(reasoning) == "table" then state.set_reasoning(workspace, reasoning) end
+      require("plurnk.worker_tab").refresh_winbar(workspace)
+    end)
     pcall(vim.cmd, "redrawstatus!")
+  end)
+end
+
+-- :AI/reasoning [policy] — inspect or persist the worker's independent
+-- reasoning policy. The daemon supplies both the effective value and choices.
+M.set_reasoning = function(args)
+  local policy = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local state = require("plurnk.state")
+  local client = require("plurnk.client")
+  local workspace = active_workspace()
+  if not workspace then
+    if policy == "" then
+      client.notify("No active workspace", vim.log.levels.WARN)
+      return
+    end
+    state.set_selected_reasoning_policy(policy)
+    client.notify("Reasoning: " .. policy .. " (applies on workspace create)", vim.log.levels.INFO)
+    return
+  end
+  local method = policy == "" and "worker.reasoning.get" or "worker.reasoning.set"
+  local params = policy == "" and {} or { policy = policy }
+  client.send(method, params, false, function(result)
+    if type(result) ~= "table" then return end
+    state.set_reasoning(workspace, result)
+    local supported = type(result.supportedPolicies) == "table"
+      and table.concat(result.supportedPolicies, ", ") or "none"
+    client.notify("Reasoning: " .. tostring(result.policy or "unavailable")
+      .. " (supported: " .. supported .. ")", vim.log.levels.INFO)
+    require("plurnk.worker_tab").refresh_winbar(workspace)
   end)
 end
 
@@ -811,7 +859,7 @@ local HELP = table.concat({
   ":AI! <cmd>         exec via the daemon; bare ! execs the visual selection",
   ":AI?? / ::         new workspace    ??? headless    ???? new worker (fork)",
   ":AI... <text>      inject into the running model loop (loop.inject)",
-  ":AI/<verb>         models model child workspaces workers workspace worker rename log yolo ping",
+  ":AI/<verb>         models model child reasoning workspaces workers workspace worker rename log yolo ping",
   "                   pick hide view drop members (membership overlay)",
   "                   script <path> (run a .plk file via op.parse)",
   "                   mcp (list available workspace MCP servers)",
@@ -881,6 +929,7 @@ local SLASH = {
   -- opens the picker. Completion offers aliases (see ai_complete).
   model    = function(args) M.set_model(args) end,
   child    = function(args) M.set_child(args) end,
+  reasoning = function(args) M.set_reasoning(args) end,
   -- Singular CREATEs, plural LISTs (converged with the TUI): /workspace opens a
   -- fresh workspace, /workspaces lists; /worker forks a new worker, /workers lists.
   -- The old ambiguous /new (workspace or worker?) is gone.
@@ -907,11 +956,19 @@ local SLASH = {
   prev     = function() M.prev() end,
 }
 
--- Cmdline completion for :AI — alias names after `/model ` or `/child `, slash verbs after a
--- bare `/`. customlist (we filter ourselves; vim doesn't). available_aliases is
--- warmed by check_daemon_once / :PlurnkModels; fire a background fetch if cold.
+-- Cmdline completion for :AI — daemon-derived model/reasoning choices and verbs.
 M.ai_complete = function(_arglead, cmdline, _)
   local state = require("plurnk.state")
+  local reasoning_partial = cmdline:match("/reasoning%s+(%S*)$")
+  if reasoning_partial then
+    local out = {}
+    local workspace = active_workspace()
+    for _, policy in ipairs(state.get_reasoning_policies(workspace)) do
+      if vim.startswith(policy, reasoning_partial) then out[#out + 1] = policy end
+    end
+    table.sort(out)
+    return out
+  end
   local model_partial = cmdline:match("/model%s+(%S*)$")
   local child_partial = cmdline:match("/child%s+(%S*)$")
   local alias_partial = model_partial or child_partial
@@ -1081,6 +1138,7 @@ M.setup = function()
   cmd("PlurnkFork",        M.fork,         { nargs = "?" })
   cmd("PlurnkWorkspaceWorkers", M.workspace_workers, {})
   cmd("PlurnkModels",      M.models,       {})
+  cmd("PlurnkReasoning",   function(opts) M.set_reasoning(opts.args) end, { nargs = "?" })
   cmd("PlurnkLog",         M.log,          { nargs = "?" })
   cmd("PlurnkPick",        M.pick,         { nargs = "?", complete = "file" })
   cmd("PlurnkHide",        M.hide,         { nargs = "?", complete = "file" })

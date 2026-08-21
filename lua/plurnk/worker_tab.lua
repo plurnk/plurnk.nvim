@@ -65,6 +65,8 @@ local function build_winbar(workspace, key)
 
   local model = state.get_active_model(workspace)
   if model then parts[#parts + 1] = "🤖 " .. model end
+  local reasoning = state.get_reasoning_policy(workspace)
+  if reasoning then parts[#parts + 1] = "🧠 " .. reasoning end
 
   local loop_id = state.get_current_loop_id(workspace)
   local turn = state.get_current_turn(workspace)
