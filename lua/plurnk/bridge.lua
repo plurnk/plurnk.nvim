@@ -8,6 +8,15 @@
 local M = {}
 local agui = require("plurnk.agui")
 
+local function unproject(e, assembler, workspace_name, worker_id)
+  local n = agui.unproject(e, assembler)
+  if n ~= nil and n.method == "reasoning/message" then
+    n.params.workspaceName = workspace_name
+    if type(worker_id) == "number" then n.params.workerId = worker_id end
+  end
+  return n
+end
+
 -- AG-UI+ IS the client surface: default http://PLURNK_HOST:PLURNK_PORT (the
 -- daemon's in-process module); PLURNK_AGUI_URL stays an explicit remote override.
 function M.target()
@@ -82,7 +91,7 @@ function M.run(thread_id, prompt, opts, on_done)
       end
       return
     end
-    local n = agui.unproject(e, tool)
+    local n = unproject(e, tool, thread_id, opts and opts.workerId)
     if n == nil then return end
     if n.method == "loop/proposal" then
       paused = true
@@ -250,7 +259,7 @@ local function accept_action_segment(action, segment, resolution)
 end
 
 local function action_event(action, e)
-  local n = agui.unproject(e, action.tool)
+  local n = unproject(e, action.tool, action.thread_id, action.worker_id)
   if n == nil then return end
   if n.method == "loop/proposal" then
     action.proposal_id = n.params.logEntryId
@@ -283,6 +292,7 @@ function M.rpc(thread_id, method, params, cb)
   lane_run(function()
     local action = {
       thread_id = thread_id,
+      worker_id = require("plurnk.state").get_worker_id(thread_id),
       method = method,
       cb = cb,
       target = t,
@@ -314,8 +324,9 @@ function M.resolve_interaction(thread_id, interaction_id, payload, cb)
   local a = M._active
   local dispatch = require("plurnk.dispatch")
   local tool = {}
+  local worker_id = require("plurnk.state").get_worker_id(thread_id)
   local on_event = (a ~= nil and a.thread_id == thread_id) and a.on_event or function(e)
-    local n = agui.unproject(e, tool)
+    local n = unproject(e, tool, thread_id, worker_id)
     if n ~= nil then pcall(dispatch.handle_notification, n) end
   end
   local on_done = (a ~= nil and a.thread_id == thread_id) and a.on_done or function(_) end
@@ -360,8 +371,9 @@ function M.resolve(thread_id, r, cb)
   local a = M._active
   local dispatch = require("plurnk.dispatch")
   local tool = {}
+  local worker_id = require("plurnk.state").get_worker_id(thread_id)
   local on_event = (a ~= nil and a.thread_id == thread_id) and a.on_event or function(e)
-    local n = agui.unproject(e, tool)
+    local n = unproject(e, tool, thread_id, worker_id)
     if n ~= nil then pcall(dispatch.handle_notification, n) end
   end
   local on_done = (a ~= nil and a.thread_id == thread_id) and a.on_done or function(_) end

@@ -58,6 +58,14 @@ local function gauge(label, used, capacity)
   return string.format("%s %d%%/%s", label, math.floor(used / capacity * 100 + 0.5), compact)
 end
 
+local function create_reasoning_fold(rec, first, last)
+  if first >= last or not rec.waterfall_win or not vim.api.nvim_win_is_valid(rec.waterfall_win) then return end
+  vim.api.nvim_win_call(rec.waterfall_win, function()
+    pcall(vim.cmd, string.format("%d,%dfold", first, last))
+    pcall(vim.cmd, string.format("%dfoldclose", first))
+  end)
+end
+
 local function build_winbar(workspace, key)
   local state = require("plurnk.state")
   local rid = type(key) == "number" and key or nil
@@ -123,6 +131,16 @@ local function decorate_waterfall_win(win, workspace, key)
   vim.wo[win].signcolumn = "no"
   vim.wo[win].cursorline = false
   vim.wo[win].scrolloff = 3
+  vim.wo[win].foldmethod = "manual"
+  vim.wo[win].foldenable = true
+  vim.wo[win].foldlevel = 0
+  local rec = workspace_records(workspace)[key]
+  if rec and rec.reasoning_fold_win ~= win then
+    rec.reasoning_fold_win = win
+    for _, fold in ipairs(rec.reasoning_folds or {}) do
+      create_reasoning_fold(rec, fold.first, fold.last)
+    end
+  end
   pcall(vim.api.nvim_set_option_value, "winbar", build_winbar(workspace, key), { win = win })
 end
 
@@ -159,6 +177,8 @@ local function ensure_record(workspace, key)
   rec = rec or {}
   rec.waterfall_buf = buf
   rec.worker_id = type(key) == "number" and key or nil
+  rec.reasoning_ids = rec.reasoning_ids or {}
+  rec.reasoning_folds = rec.reasoning_folds or {}
   recs[key] = rec
   return rec
 end
@@ -311,17 +331,22 @@ end
 -- Append-or-replace: replace the initial empty line on the first write.
 local function write_lines(buf, lines, replace_all)
   vim.bo[buf].modifiable = true
+  local first
   if replace_all then
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    first = 1
   else
     local current = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     if #current == 1 and current[1] == "" then
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+      first = 1
     else
       vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+      first = #current + 1
     end
   end
   vim.bo[buf].modifiable = false
+  return first, first + #lines - 1
 end
 
 local function render_entries(entries)
@@ -357,11 +382,34 @@ M.append_history = function(workspace, entries)
   end
 end
 
+-- One completed standard AG-UI reasoning message becomes one native fold. The
+-- identity is protocol-owned and therefore the exact de-duplication key.
+M.append_reasoning = function(workspace, worker_id, message_id, content)
+  if not workspace or type(message_id) ~= "string" or type(content) ~= "string" or content == "" then return end
+  local rec = type(worker_id) == "number" and record_for_run(workspace, worker_id)
+    or M.get_record(workspace) or ensure_record(workspace, "pending")
+  rec.reasoning_ids = rec.reasoning_ids or {}
+  if rec.reasoning_ids[message_id] then return end
+  rec.reasoning_ids[message_id] = true
+  local lines = require("plurnk.render").render_reasoning(content)
+  if #lines == 0 then return end
+  local first, last = write_lines(rec.waterfall_buf, lines)
+  rec.reasoning_folds = rec.reasoning_folds or {}
+  if first < last then rec.reasoning_folds[#rec.reasoning_folds + 1] = { first = first, last = last } end
+  create_reasoning_fold(rec, first, last)
+  autoscroll(rec)
+end
+
 -- Replace a worker's waterfall with rendered history (log.read on switch
 -- to a historical worker).
 M.hydrate = function(workspace, worker_id, entries)
   if not workspace or not worker_id then return end
   local rec = record_for_run(workspace, worker_id)
+  rec.reasoning_ids = {}
+  rec.reasoning_folds = {}
+  if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
+    vim.api.nvim_win_call(rec.waterfall_win, function() pcall(vim.cmd, "silent! normal! zE") end)
+  end
   write_lines(rec.waterfall_buf, render_entries(entries or {}), true)
   autoscroll(rec)
 end

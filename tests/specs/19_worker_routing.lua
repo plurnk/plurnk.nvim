@@ -64,6 +64,21 @@ local ok, err = pcall(function()
     if vim.api.nvim_buf_get_name(b):match("plurnk%-nvim://topo/feature%-pass") then found = b end
   end
   H.assert_truthy(found, "named run uses its label in the buffer title")
+
+  -- {§nvim-readable-reasoning}: one standard reasoning message becomes one
+  -- native, initially closed fold in the current worker's waterfall.
+  local before = vim.api.nvim_buf_line_count(adopted.waterfall_buf)
+  rt.append_reasoning("topo", 42, "1/1/2/SEND/reasoning", "first line\nsecond line\nthird line")
+  local reasoning_lines = vim.api.nvim_buf_get_lines(adopted.waterfall_buf, before, -1, false)
+  H.assert_eq(table.concat(reasoning_lines, "\n"), "💭 first line\n   second line\n   third line", "reasoning block is appended verbatim")
+  local fold_start = before + 1
+  local closed = vim.api.nvim_win_call(adopted.waterfall_win, function()
+    return vim.fn.foldclosed(fold_start)
+  end)
+  H.assert_eq(closed, fold_start, "multiline reasoning starts folded")
+  local count = vim.api.nvim_buf_line_count(adopted.waterfall_buf)
+  rt.append_reasoning("topo", 42, "1/1/2/SEND/reasoning", "duplicate")
+  H.assert_eq(vim.api.nvim_buf_line_count(adopted.waterfall_buf), count, "message identity prevents duplicate reasoning")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

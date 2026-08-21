@@ -13,6 +13,11 @@ local function R(t)
   return r.render_log_entry(t)
 end
 local ok, err = pcall(function()
+  local reasoning = r.render_reasoning("first line\nsecond line")
+  H.assert_eq(#reasoning, 2, "reasoning preserves its line structure")
+  H.assert_eq(reasoning[1], "💭 first line", "reasoning has its own compact identity")
+  H.assert_eq(reasoning[2], "   second line", "continuation aligns below reasoning content")
+
   -- READ with content extra + universal status sub-glyph (✅ on 200).
   local read_lines = R({
     op = "READ", origin = "model", scheme = "known", pathname = "/x",

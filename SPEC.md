@@ -149,6 +149,11 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Broadcast prose remains source-faithful except for exact terminal typography** —
   the common inline token `$\rightarrow$` renders as `→`; this is not general LaTeX
   or Markdown interpretation.
+- §nvim-readable-reasoning **Provider reasoning is a separate presentation lane** —
+  standard AG-UI reasoning deltas assemble once by message identity and render as a
+  `💭` block immediately before the paired SEND. Multiline blocks begin in a native
+  closed fold; absent, empty, and encrypted reasoning invent no readable transcript.
+  PLAN remains the model's durable reasoning inventory.
 - **Stream windows** — channel prefixes + interleave, batched
   flush (one `entry.read` per tick burst), partial-line hold, a conclusion footer, and
   `BufWipeout` → an `op.send` cancellation carrying status 499.

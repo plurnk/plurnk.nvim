@@ -196,11 +196,24 @@ local ok, err = pcall(function()
 
   vim.system = real_system
 
-  -- unproject(e, tool): CUSTOM plurnk.* → daemon notification shapes; core events
-  -- dropped; a stopped-world arrives as the request_approval TOOL_CALL triple and
-  -- assembles into ONE loop/proposal (AG-UI+ terminate-resume).
+  -- unproject(e, tool): CUSTOM plurnk.* → daemon notification shapes; standard
+  -- readable reasoning folds to one family notification; unrelated core events
+  -- drop. A stopped-world arrives as one request_approval notification.
   local tool = {}
   H.assert_eq(agui.unproject({ type = "TEXT_MESSAGE_CONTENT", delta = "x" }, tool), nil, "core AG-UI event dropped")
+  H.assert_eq(agui.unproject({ type = "REASONING_MESSAGE_START", messageId = "1/1/2/SEND/reasoning", role = "reasoning" }, tool), nil, "reasoning start buffers")
+  H.assert_eq(agui.unproject({ type = "REASONING_MESSAGE_CONTENT", messageId = "1/1/2/SEND/reasoning", delta = "check " }, tool), nil, "reasoning delta buffers")
+  H.assert_eq(agui.unproject({ type = "REASONING_MESSAGE_CONTENT", messageId = "1/1/2/SEND/reasoning", delta = "evidence" }, tool), nil, "reasoning deltas concatenate")
+  local reasoning = agui.unproject({ type = "REASONING_MESSAGE_END", messageId = "1/1/2/SEND/reasoning" }, tool)
+  H.assert_eq(reasoning.method, "reasoning/message", "reasoning end yields one family notification")
+  H.assert_eq(reasoning.params.content, "check evidence", "reasoning content is preserved once")
+  H.assert_eq(reasoning.params.messageId, "1/1/2/SEND/reasoning", "reasoning identity is preserved")
+  H.assert_eq(agui.unproject({ type = "REASONING_MESSAGE_START", messageId = "empty", role = "reasoning" }, tool), nil, "empty reasoning starts silently")
+  H.assert_eq(agui.unproject({ type = "REASONING_MESSAGE_END", messageId = "empty" }, tool), nil, "empty reasoning invents no block")
+  H.assert_eq(agui.unproject({ type = "REASONING_ENCRYPTED_VALUE", entityId = "1/1/2/SEND", encryptedValue = "opaque" }, tool), nil, "encrypted reasoning remains opaque")
+  H.assert_truthy(not pcall(agui.unproject, {
+    type = "REASONING_MESSAGE_CONTENT", messageId = "missing", delta = "orphan",
+  }, tool), "broken reasoning lifecycle fails at the projection boundary")
   local row = agui.unproject({ type = "CUSTOM", name = "plurnk.row", value = { id = 7, op = "SEND" } }, tool)
   H.assert_eq(row.method, "log/entry", "plurnk.row → log/entry")
   H.assert_eq(row.params.entry.id, 7, "row value wrapped as {entry}")

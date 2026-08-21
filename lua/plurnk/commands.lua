@@ -415,7 +415,10 @@ local function send_loop_run(workspace_name, prompt, flags)
   local open_paths = extract_open_paths(prompt)
   if #open_paths > 0 then fwd.openPaths = open_paths end
   require("plurnk.state").set_loop_inflight(workspace_name, true)
-  bridge.run(workspace_name, prompt, { forwardedProps = next(fwd) ~= nil and fwd or nil }, function(_final)
+  bridge.run(workspace_name, prompt, {
+    forwardedProps = next(fwd) ~= nil and fwd or nil,
+    workerId = require("plurnk.state").get_worker_id(workspace_name),
+  }, function(_final)
     require("plurnk.state").set_loop_inflight(workspace_name, false)
     require("plurnk.worker_tab").update_status(workspace_name)
     pcall(vim.cmd, "redrawstatus! | redrawtabline")
