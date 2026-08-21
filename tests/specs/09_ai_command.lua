@@ -39,21 +39,23 @@ local ok, err = pcall(function()
   -- worker.child.set persists the override; nothing child-related rides the run.
   require("plurnk.commands").set_child("kid")
   H.assert_eq(captured[#captured].method, "worker.child.set", "set_child persists server-side")
-  H.assert_eq(captured[#captured].params.alias, "kid", "the override is the server parameter")
+  H.assert_eq(captured[#captured].params.selector, "kid", "the selector is the server parameter")
   captured = {}
   ai({ args = "delegating", range = 0 })
   local child_run = find(captured, "loop.run")
   H.assert_eq(child_run.params.childAlias, nil, "no child selector rides loop.run")
   H.assert_eq(child_run.params.childModel, nil, "no client-side child resolution exists")
+  H.assert_eq(child_run.params.childSelector, nil, "durable child policy does not ride loop.run")
 
   require("plurnk.commands").set_child("inherit")
   H.assert_eq(captured[#captured].method, "worker.child.set", "inherit persists server-side")
-  H.assert_eq(captured[#captured].params.alias, vim.NIL, "inherit clears the override (alias null)")
+  H.assert_eq(captured[#captured].params.selector, vim.NIL, "inherit clears the override (selector null)")
   captured = {}
   ai({ args = "inheriting", range = 0 })
   local inherit_run = find(captured, "loop.run")
   H.assert_eq(inherit_run.params.childAlias, nil, "inherit never rides loop.run")
   H.assert_eq(inherit_run.params.childModel, nil, "inherit carries no child model")
+  H.assert_eq(inherit_run.params.childSelector, nil, "inherit remains durable worker policy")
   vim.env.PLURNK_MODEL_kid = nil
 
   -- {§nvim-reasoning-policy} — policy selection is one durable action; it is

@@ -378,11 +378,14 @@ local ok, err = pcall(function()
     on_event({ type = "CUSTOM", name = "plurnk.problem", value = failure })
     cb({ state = "failed", problem = failure, code = 0 })
   end
-  bridge.rpc("world", "op.exec", {}, function(result)
+  local failed_action_problem
+  bridge.rpc("world", "op.exec", {}, function(result, problem)
     H.assert_eq(result, nil, "failed action has no fabricated result")
+    failed_action_problem = problem
     failed_action_done = true
   end)
   H.wait_for(function() return failed_action_done end, 1000, "failed action settles")
+  H.assert_eq(failed_action_problem.status, 409, "the callback retains the action Problem")
   H.assert_eq(action_problem_events, 1, "failed action dispatches one Problem occurrence")
   H.assert_eq(action_notifies, 0, "lossless Problem dispatch suppresses a duplicate action notification")
   dispatch.handle_notification = original_handle

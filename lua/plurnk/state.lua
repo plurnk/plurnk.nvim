@@ -11,9 +11,9 @@
 local M = {}
 
 local project_path = nil
-local available_aliases = {}  -- providers.list result
-local selected_alias = nil    -- user-picked, consumed when worker policy persists
-local selected_child_alias = nil
+local available_aliases = {}       -- small providers.list result
+local selected_model_selector = nil -- user-picked, consumed when worker policy persists
+local selected_child_selector = nil
 local selected_reasoning_policy = nil
 local interacted = false
 local active_workspace_name = nil  -- most recently attached workspace on this connection
@@ -28,8 +28,8 @@ local function ensure_workspace(name)
       id = nil,                -- daemon-side workspace id
       worker_id = nil,            -- attached worker id (per-connection)
       worker_name = nil,          -- attached worker name
-      model_alias = nil,       -- daemon-resolved durable worker model
-      child_alias = nil,       -- durable spawn override, or "inherit"
+      model_selector = nil,    -- daemon-resolved alias or exact provider/model route
+      child_selector = nil,    -- durable spawn override, or "inherit"
       reasoning_policy = nil,  -- daemon-owned durable policy
       reasoning_policies = {}, -- daemon-supported choices for this worker
       model_display = nil,     -- "(no model)" or "alias=provider/model"
@@ -62,21 +62,21 @@ M.set_project_path = function(p) project_path = p end
 M.get_available_aliases = function() return available_aliases end
 M.set_available_aliases = function(aliases) available_aliases = aliases or {} end
 
-M.set_selected_alias = function(alias) selected_alias = alias end
-M.get_selected_child_alias = function() return selected_child_alias end
-M.set_selected_child_alias = function(alias) selected_child_alias = alias end
+M.set_selected_model_selector = function(selector) selected_model_selector = selector end
+M.get_selected_child_selector = function() return selected_child_selector end
+M.set_selected_child_selector = function(selector) selected_child_selector = selector end
 M.set_selected_reasoning_policy = function(policy) selected_reasoning_policy = policy end
 
 M.get_active_workspace_name = function() return active_workspace_name end
 M.set_active_workspace_name = function(name) active_workspace_name = name end
-M.consume_selected_alias = function()
-  local out = selected_alias
-  selected_alias = nil
+M.consume_selected_model_selector = function()
+  local out = selected_model_selector
+  selected_model_selector = nil
   return out
 end
-M.consume_selected_child_alias = function()
-  local out = selected_child_alias
-  selected_child_alias = nil
+M.consume_selected_child_selector = function()
+  local out = selected_child_selector
+  selected_child_selector = nil
   return out
 end
 M.consume_selected_reasoning_policy = function()
@@ -114,10 +114,21 @@ M.set_worker_label = function(name, worker_id, label)
   s.worker_labels[worker_id] = label
 end
 
-M.get_model_alias = function(name) local s = ensure_workspace(name); return s and s.model_alias end
-M.set_model_alias = function(name, alias) local s = ensure_workspace(name); if s then s.model_alias = alias end end
-M.get_child_alias = function(name) local s = ensure_workspace(name); return s and s.child_alias end
-M.set_child_alias = function(name, alias) local s = ensure_workspace(name); if s then s.child_alias = alias end end
+M.model_route_selector = function(route)
+  if type(route) ~= "table" then return nil end
+  if type(route.alias) == "string" and route.alias ~= "" then return route.alias end
+  if type(route.provider) == "string" and route.provider ~= ""
+      and type(route.model) == "string" and route.model ~= "" then
+    return route.provider .. "/" .. route.model
+  end
+  return nil
+end
+M.get_model_selector = function(name) local s = ensure_workspace(name); return s and s.model_selector end
+M.set_model_selector = function(name, selector) local s = ensure_workspace(name); if s then s.model_selector = selector end end
+M.set_model_route = function(name, route) M.set_model_selector(name, M.model_route_selector(route)) end
+M.get_child_selector = function(name) local s = ensure_workspace(name); return s and s.child_selector end
+M.set_child_selector = function(name, selector) local s = ensure_workspace(name); if s then s.child_selector = selector end end
+M.set_child_route = function(name, route) M.set_child_selector(name, M.model_route_selector(route)) end
 M.get_reasoning_policy = function(name) local s = ensure_workspace(name); return s and s.reasoning_policy end
 M.get_reasoning_policies = function(name) local s = ensure_workspace(name); return s and s.reasoning_policies or {} end
 M.set_reasoning = function(name, reasoning)
@@ -127,13 +138,13 @@ M.set_reasoning = function(name, reasoning)
   s.reasoning_policies = type(reasoning.supportedPolicies) == "table" and reasoning.supportedPolicies or {}
 end
 
--- The model alias in effect: the one last sent on this workspace's loop.run,
--- else the daemon's active default (providers.list `active`), else nil. Shared
+-- The durable model selector in effect, else the daemon's active alias from the
+-- small providers.list directory, else nil. Shared
 -- by the winbar (the header) and the statusline so both name the same model the
 -- TUI header does. Converges with @plurnk/plurnk buildHeader's resolution.
 M.get_active_model = function(name)
   local s = name and workspace_states[name]
-  if s and s.model_alias then return s.model_alias end
+  if s and s.model_selector then return s.model_selector end
   for _, a in ipairs(available_aliases) do
     if a.active then return a.alias end
   end

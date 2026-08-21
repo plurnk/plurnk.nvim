@@ -23,7 +23,10 @@ local ok, err = pcall(function()
     if method == "workspace.attach" and cb then cb({ id = 7, workerId = 42, workerName = "auto-run" }) end
     if method == "loop.cancel" and cb then cb({ cancelled = true, workerId = 9 }) end
     if method == "worker.fork" and cb then cb({ workerId = 99, workerName = "fork-run" }) end
+    if method == "providers.list" and cb then cb({ aliases = {} }) end
+    if method == "models.list" and cb then cb({ items = {}, offset = 0, total = 0 }) end
   end
+  vim.ui.select = function(_, _, cb) if cb then cb(nil) end end
   local function find(list, method)
     for _, m in ipairs(list) do if m.method == method then return m end end
     return nil
@@ -84,8 +87,10 @@ local ok, err = pcall(function()
   H.assert_eq(sent[1].method, "ping", ":AI/ping routes to PlurnkPing")
 
   sent = {}
-  ai({ args = "/models", range = 0 })
-  H.assert_eq(sent[1].method, "providers.list", ":AI/models routes to PlurnkModels")
+  ai({ args = "/models gemini", range = 0 })
+  H.assert_eq(sent[1].method, "providers.list", ":AI/models first obtains the small alias directory")
+  H.assert_eq(sent[2].method, "models.list", ":AI/models lazily requests the bounded catalog")
+  H.assert_eq(sent[2].params.search, "gemini", ":AI/models forwards its search")
 
   sent = {}
   ai({ args = "/stop", range = 0 })

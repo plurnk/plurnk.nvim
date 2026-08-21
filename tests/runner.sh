@@ -11,11 +11,11 @@
 # metaproject checkout — tmp DB, ephemeral port, killed on exit — so the suite
 # never touches a developer's live daemon on 3044.
 #
-# Model env: export PLURNK_MODEL=<alias> (forwarded into the private daemon —
-# the operator's active default may be broken, svc#501) plus any alias-scoped
+# Model env: export PLURNK_MODEL=<selector> to admit the explicitly model-driven
+# specs and forward that selection into the private daemon, plus any alias-scoped
 # PLURNK_PROVIDERS_{CONTEXT_WINDOW,OUTPUT_BUDGET,REASONING_BUDGET,REASONING}
-# controls needed to describe the serving box. A mismatched physical envelope
-# can make model loops wander past every timeout.
+# controls needed to describe the serving box. The ordinary suite remains
+# control-plane-only and does not read operator config or perform inference.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -26,6 +26,10 @@ OPERATOR_HOME="${HOME:?HOME is required}"
 OPERATOR_CONFIG_HOME="${XDG_CONFIG_HOME:-$OPERATOR_HOME/.config}"
 case "$OPERATOR_CONFIG_HOME" in /*) ;; *) OPERATOR_CONFIG_HOME="$OPERATOR_HOME/.config";; esac
 OPERATOR_ENV="$OPERATOR_CONFIG_HOME/plurnk/.env"
+DAEMON_ENV_ARGS=()
+if [ -n "${PLURNK_MODEL:-}" ]; then
+  DAEMON_ENV_ARGS+=(--env-file-if-exists="$OPERATOR_ENV" --env-file-if-exists=.env)
+fi
 
 DAEMON_PID=""
 DAEMON_DIR=""
@@ -59,11 +63,10 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   export PLURNK_PORT
   (
     cd "$SERVICE_DIR"
-    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" > "$DAEMON_DIR/test.env"
-    # The model-driven specs need an ACTIVE model. The operator's XDG config may
-    # name none; a caller-exported PLURNK_MODEL outranks it in the daemon's
-    # cascade via this file. Alias declarations still come from the operator env.
-    [ -n "${PLURNK_MODEL:-}" ] && printf 'PLURNK_MODEL=%s\n' "$PLURNK_MODEL" >> "$DAEMON_DIR/test.env"
+    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\nPLURNK_MODEL=%s\nPLURNK_MODEL_nvimtest=lmstudio/nvim-family/selected\nPLURNK_PROVIDERS_CONTEXT_WINDOW_nvimtest=32768\nPLURNK_PROVIDERS_REASONING_nvimtest=off\nPLURNK_MCP_ENABLED=[]\nLMSTUDIO_API_KEY=nvim-test\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" "${PLURNK_MODEL:-}" > "$DAEMON_DIR/test.env"
+    # Control-plane specs stay modelless even when the operator config names a
+    # default. Model-driven specs deliberately opt in by exporting PLURNK_MODEL;
+    # alias declarations may still come from the operator environment.
     # the service loads env IN-SCRIPT (process.loadEnvFile overrides process env), so
     # exports don't survive — its own --env-file flags, loaded last, are the override.
     # A TS-source entrypoint (the monorepo) runs its WORKSPACE SIBLINGS from source
@@ -76,8 +79,7 @@ if [ -z "${PLURNK_PORT:-}" ]; then
     XDG_CONFIG_HOME="$DAEMON_DIR/config" \
     XDG_DATA_HOME="$DAEMON_DIR/data" \
     node $NODE_CONDITIONS "$SERVICE_BIN" \
-      --env-file-if-exists="$OPERATOR_ENV" \
-      --env-file-if-exists=.env \
+      "${DAEMON_ENV_ARGS[@]}" \
       --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
@@ -87,10 +89,17 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   # (Port was exported before boot; just await the module answering.)
   # A --conditions=plurnk-dev daemon compiles the TS graph on boot — well past the
   # old 10s window; specs 01-05 starved on cold boots. 60s, first answer wins.
+  DAEMON_READY=0
   for _ in $(seq 1 300); do
-    curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}' && break
+    if curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}'; then DAEMON_READY=1; break; fi
+    kill -0 "$DAEMON_PID" 2>/dev/null || break
     sleep 0.2
   done
+  if [ "$DAEMON_READY" -ne 1 ]; then
+    echo "private daemon failed to start" >&2
+    cat "$DAEMON_DIR/daemon.log" >&2
+    exit 1
+  fi
   echo "── private daemon module on :$PLURNK_PORT ──"
 fi
 
@@ -101,10 +110,13 @@ pass=0
 fail=0
 failed_names=()
 
-# The two LIVE specs (real model / real exec streaming) get a FRESH daemon: under
-# the full run's accumulated workspaces + embed load can push them past their deadlines
-# (10's 508s predate the AG-UI migration). Isolation is the fix, not retries.
-ISOLATED_SPECS="10_ai_end_to_end 17_exec_live"
+# Real-model specs are excluded from the ordinary deterministic gate. Exporting
+# PLURNK_MODEL is both their model selection and their explicit admission.
+MODEL_SPECS="10_ai_end_to_end 39_ask_steer"
+
+# Stateful composed specimens get a fresh daemon so earlier client state cannot
+# change their meaning. Isolation is the fix, not retries.
+ISOLATED_SPECS="10_ai_end_to_end 17_exec_live 39_ask_steer"
 
 reboot_daemon() {
   [ -n "${DAEMON_PID:-}" ] || return 0
@@ -114,11 +126,10 @@ reboot_daemon() {
   export PLURNK_PORT
   (
     cd "$SERVICE_DIR"
-    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" > "$DAEMON_DIR/test.env"
-    # The model-driven specs need an ACTIVE model. The operator's XDG config may
-    # name none; a caller-exported PLURNK_MODEL outranks it in the daemon's
-    # cascade via this file. Alias declarations still come from the operator env.
-    [ -n "${PLURNK_MODEL:-}" ] && printf 'PLURNK_MODEL=%s\n' "$PLURNK_MODEL" >> "$DAEMON_DIR/test.env"
+    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\nPLURNK_MODEL=%s\nPLURNK_MODEL_nvimtest=lmstudio/nvim-family/selected\nPLURNK_PROVIDERS_CONTEXT_WINDOW_nvimtest=32768\nPLURNK_PROVIDERS_REASONING_nvimtest=off\nPLURNK_MCP_ENABLED=[]\nLMSTUDIO_API_KEY=nvim-test\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" "${PLURNK_MODEL:-}" > "$DAEMON_DIR/test.env"
+    # Control-plane specs stay modelless even when the operator config names a
+    # default. Model-driven specs deliberately opt in by exporting PLURNK_MODEL;
+    # alias declarations may still come from the operator environment.
     # the service loads env IN-SCRIPT (process.loadEnvFile overrides process env), so
     # exports don't survive — its own --env-file flags, loaded last, are the override.
     # A TS-source entrypoint (the monorepo) runs its WORKSPACE SIBLINGS from source
@@ -131,18 +142,24 @@ reboot_daemon() {
     XDG_CONFIG_HOME="$DAEMON_DIR/config" \
     XDG_DATA_HOME="$DAEMON_DIR/data" \
     node $NODE_CONDITIONS "$SERVICE_BIN" \
-      --env-file-if-exists="$OPERATOR_ENV" \
-      --env-file-if-exists=.env \
+      "${DAEMON_ENV_ARGS[@]}" \
       --env-file="$DAEMON_DIR/test.env" > "$DAEMON_DIR/daemon.log" 2>&1 &
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
   # A --conditions=plurnk-dev daemon compiles the TS graph on boot — well past the
   # old 10s window; specs 01-05 starved on cold boots. 60s, first answer wins.
+  DAEMON_READY=0
   for _ in $(seq 1 300); do
-    curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}' && break
+    if curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}'; then DAEMON_READY=1; break; fi
+    kill -0 "$DAEMON_PID" 2>/dev/null || break
     sleep 0.2
   done
+  if [ "$DAEMON_READY" -ne 1 ]; then
+    echo "private daemon failed to restart" >&2
+    cat "$DAEMON_DIR/daemon.log" >&2
+    return 1
+  fi
   echo "  (fresh daemon on :$PLURNK_PORT)"
 }
 
@@ -150,6 +167,18 @@ for spec in "$SPECS_DIR"/*.lua; do
   name="$(basename "$spec" .lua)"
   if [ -n "$FILTER" ] && [[ "$name" != "$FILTER"* ]]; then continue; fi
   echo "== $name =="
+  case " $MODEL_SPECS " in
+    *" $name "*)
+      if [ -z "${PLURNK_MODEL:-}" ]; then
+        if [ -n "$FILTER" ]; then
+          echo "  ERROR: $name requires an explicit PLURNK_MODEL selector" >&2
+          exit 2
+        fi
+        echo "  SKIP: real-model spec requires an explicit PLURNK_MODEL selector"
+        continue
+      fi
+      ;;
+  esac
   case " $ISOLATED_SPECS " in *" $name "*) reboot_daemon;; esac
   # SIGKILL, not the default SIGTERM: headless nvim survives SIGTERM, so a
   # hung spec under plain `timeout` detaches and spins forever (99% CPU
@@ -174,6 +203,10 @@ echo "PASS: $pass"
 echo "FAIL: $fail"
 if [ $fail -gt 0 ]; then
   printf 'failed: %s\n' "${failed_names[@]}"
+  if [ -n "$DAEMON_DIR" ] && [ -s "$DAEMON_DIR/daemon.log" ]; then
+    echo "── private daemon log (tail) ──"
+    tail -n 80 "$DAEMON_DIR/daemon.log"
+  fi
   exit 1
 fi
 exit 0
