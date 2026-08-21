@@ -80,7 +80,8 @@ what this client guarantees. Tests are organized by observable behavior under
   routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
   rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
 - **Completion** — `:AI` cmdline completion offers verbs, model aliases,
-  child inheritance, and local files where a verb consumes one.
+  child inheritance, daemon-supported reasoning policies, and local files
+  where a verb consumes one.
 - §nvim-workspace-mcp-controls **Workspace MCP controls are daemon actions** —
   the client tokenizes quoted alias/target arguments and JSON-decodes an
   optional local options file. The daemon owns normalization, schema
@@ -213,6 +214,14 @@ what this client guarantees. Tests are organized by observable behavior under
   `/child <alias>` persists it via `worker.child.set`, and `/child inherit` sends
   `alias: null` (clearing the override); `PLURNK_MODEL_CHILD` seeds the worker
   server-side from the daemon's own env.
+- §nvim-reasoning-policy **Reasoning is a separate durable worker policy** —
+  `/reasoning` reads the effective policy and daemon-supported choices;
+  `/reasoning <policy>` persists one through `worker.reasoning.set`. A selection
+  made before workspace creation is consumed once after model and child
+  selection, never forwarded on `loop.run`. Attach and worker switches hydrate
+  the daemon value, model changes refresh its supported choices, and the worker
+  winbar renders the effective policy independently of the model alias. The
+  client owns no provider-effort catalog and preserves daemon Problems.
 - **Execs policy forwards; secrets never do** — `PLURNK_EXECS_*`
   enable/disable grammar rides verbatim for the daemon's subtractive intersection;
   `PLURNK_EXECS_MCP_*` server configs (URLs, bearer tokens) never touch the wire.

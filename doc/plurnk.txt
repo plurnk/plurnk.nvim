@@ -37,7 +37,8 @@ cmdline abbreviations.
   :AI???            new headless workspace (no project root)
   :AI????           new worker in the current workspace (fork)
   :AI... {text}     inject into the running loop (pending service#193)
-  :AI/{verb}        models workspaces workers workspace worker rename log yolo ping
+  :AI/{verb}        models model child reasoning workspaces workers
+                    workspace worker rename log yolo ping
                     mcp; add {alias} {target} [options.json]
                     enable/disable/remove {alias}; oauth {alias} {callback-url}
                     open accept reject next prev stop clear
@@ -91,8 +92,8 @@ subscription with status 499.
   vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 <
 The statusline remains a lean `🐹` plus live state glyph. The worker winbar owns
-the rich snapshot, for example `🐹 workspace · worker · 🤖 alias · L3·T2 · ✅ 200
-· ↑12.3k ↓420 · ctx 15%/49k · loop: $0.0042`. Input/output, context, and the
+the rich snapshot, for example `🐹 workspace · worker · 🤖 alias · 🧠 adaptive
+· L3·T2 · ✅ 200 · ↑12.3k ↓420 · ctx 15%/49k · loop: $0.0042`. Input/output, context, and the
 exact decimal or unknown cost all come from the last loop's terminal accounting
 envelope; they are never a client-computed workspace total.
 

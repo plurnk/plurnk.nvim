@@ -18,6 +18,8 @@ local ok, err = pcall(function()
     if callback then
       if method == "worker.model.set" then
         callback({ alias = params.alias, provider = "openai", model = "x" })
+      elseif method == "worker.reasoning.get" then
+        callback({ policy = "adaptive", supportedPolicies = { "off", "adaptive", "high" } })
       elseif method == "worker.child.set" then
         if params.alias == vim.NIL then callback(nil) else callback({ alias = params.alias }) end
       end
@@ -32,8 +34,9 @@ local ok, err = pcall(function()
   -- :AI/model <alias> persists onto the worker server-side and mirrors the
   -- resolved spec; an attached workspace leaves no one-shot pick.
   cmds.set_model("gpt4")
-  H.assert_eq(calls[#calls].method, "worker.model.set", "set_model persists server-side")
-  H.assert_eq(calls[#calls].params.alias, "gpt4", "the alias is the parameter")
+  H.assert_eq(calls[1].method, "worker.model.set", "set_model persists server-side")
+  H.assert_eq(calls[1].params.alias, "gpt4", "the alias is the parameter")
+  H.assert_eq(calls[2].method, "worker.reasoning.get", "model change refreshes supported reasoning choices")
   H.assert_eq(state.get_model_alias("ms"), "gpt4", "the resolved alias lights the statusline")
   H.assert_eq(state.consume_selected_alias(), nil, "an attached workspace leaves no one-shot pick")
 

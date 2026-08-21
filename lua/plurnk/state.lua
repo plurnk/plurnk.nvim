@@ -12,8 +12,9 @@ local M = {}
 
 local project_path = nil
 local available_aliases = {}  -- providers.list result
-local selected_alias = nil    -- user-picked, consumed by next loop.run
+local selected_alias = nil    -- user-picked, consumed when worker policy persists
 local selected_child_alias = nil
+local selected_reasoning_policy = nil
 local interacted = false
 local active_workspace_name = nil  -- most recently attached workspace on this connection
 
@@ -27,8 +28,10 @@ local function ensure_workspace(name)
       id = nil,                -- daemon-side workspace id
       worker_id = nil,            -- attached worker id (per-connection)
       worker_name = nil,          -- attached worker name
-      model_alias = nil,       -- alias passed on most recent loop.run
-      child_alias = nil,       -- alias or "inherit" passed on most recent loop.run
+      model_alias = nil,       -- daemon-resolved durable worker model
+      child_alias = nil,       -- durable spawn override, or "inherit"
+      reasoning_policy = nil,  -- daemon-owned durable policy
+      reasoning_policies = {}, -- daemon-supported choices for this worker
       model_display = nil,     -- "(no model)" or "alias=provider/model"
       current_loop_id = nil,
       current_turn = nil,
@@ -62,6 +65,7 @@ M.set_available_aliases = function(aliases) available_aliases = aliases or {} en
 M.set_selected_alias = function(alias) selected_alias = alias end
 M.get_selected_child_alias = function() return selected_child_alias end
 M.set_selected_child_alias = function(alias) selected_child_alias = alias end
+M.set_selected_reasoning_policy = function(policy) selected_reasoning_policy = policy end
 
 M.get_active_workspace_name = function() return active_workspace_name end
 M.set_active_workspace_name = function(name) active_workspace_name = name end
@@ -73,6 +77,11 @@ end
 M.consume_selected_child_alias = function()
   local out = selected_child_alias
   selected_child_alias = nil
+  return out
+end
+M.consume_selected_reasoning_policy = function()
+  local out = selected_reasoning_policy
+  selected_reasoning_policy = nil
   return out
 end
 
@@ -109,6 +118,14 @@ M.get_model_alias = function(name) local s = ensure_workspace(name); return s an
 M.set_model_alias = function(name, alias) local s = ensure_workspace(name); if s then s.model_alias = alias end end
 M.get_child_alias = function(name) local s = ensure_workspace(name); return s and s.child_alias end
 M.set_child_alias = function(name, alias) local s = ensure_workspace(name); if s then s.child_alias = alias end end
+M.get_reasoning_policy = function(name) local s = ensure_workspace(name); return s and s.reasoning_policy end
+M.get_reasoning_policies = function(name) local s = ensure_workspace(name); return s and s.reasoning_policies or {} end
+M.set_reasoning = function(name, reasoning)
+  local s = ensure_workspace(name)
+  if not s or type(reasoning) ~= "table" then return end
+  s.reasoning_policy = reasoning.policy
+  s.reasoning_policies = type(reasoning.supportedPolicies) == "table" and reasoning.supportedPolicies or {}
+end
 
 -- The model alias in effect: the one last sent on this workspace's loop.run,
 -- else the daemon's active default (providers.list `active`), else nil. Shared

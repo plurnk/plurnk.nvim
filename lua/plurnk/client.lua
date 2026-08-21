@@ -15,6 +15,7 @@ M.consume_selected_alias = state.consume_selected_alias
 M.get_selected_child_alias = state.get_selected_child_alias
 M.set_selected_child_alias = state.set_selected_child_alias
 M.consume_selected_child_alias = state.consume_selected_child_alias
+M.consume_selected_reasoning_policy = state.consume_selected_reasoning_policy
 
 M.has_interacted = state.has_interacted
 M.mark_interacted = state.mark_interacted

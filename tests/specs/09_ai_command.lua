@@ -56,6 +56,17 @@ local ok, err = pcall(function()
   H.assert_eq(inherit_run.params.childModel, nil, "inherit carries no child model")
   vim.env.PLURNK_MODEL_kid = nil
 
+  -- {§nvim-reasoning-policy} — policy selection is one durable action; it is
+  -- never copied into the loop's forwarded properties.
+  require("plurnk.commands").set_reasoning("high")
+  H.assert_eq(captured[#captured].method, "worker.reasoning.set", "reasoning persists server-side")
+  H.assert_eq(captured[#captured].params.policy, "high", "the exact policy reaches the daemon")
+  captured = {}
+  ai({ args = "reason about this", range = 0 })
+  local reasoning_run = find(captured, "loop.run")
+  H.assert_eq(reasoning_run.params.reasoning, nil, "reasoning policy never rides loop.run")
+  H.assert_eq(reasoning_run.params.reasoningPolicy, nil, "no client-local policy spelling rides loop.run")
+
   -- :AI: Hello, world.
   ai({ args = ": Hello, world.", range = 0 })
   H.assert_eq(captured[#captured].method, "loop.run", ":AI: routes to loop.run")
