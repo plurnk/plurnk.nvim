@@ -63,6 +63,10 @@ The input split (bottom, 3 lines): `<CR>` in normal mode submits. Prefixes
 match :AI — `? ` ask, `: ` act, `! ` exec; `# PLAN0` / `## OP0` enter raw
 PLURNK.
 
+Readable provider reasoning appears before its SEND as a distinct `💭` block.
+Multiline reasoning begins in a native closed fold; PLAN remains the model's
+durable reasoning inventory.
+
 ==============================================================================
 4. Proposals                                                 *plurnk-proposals*
 

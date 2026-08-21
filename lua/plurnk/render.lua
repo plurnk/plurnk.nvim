@@ -142,6 +142,17 @@ local function normalize_prose(text)
   return text:gsub("%$\\rightarrow%$", "→")
 end
 
+-- Provider reasoning is neither PLAN nor speech. Preserve its line structure
+-- in one quiet block without inventing a log coordinate or status code.
+M.render_reasoning = function(content)
+  if type(content) ~= "string" or content == "" then return {} end
+  local lines = {}
+  for line in (content .. "\n"):gmatch("(.-)\n") do
+    lines[#lines + 1] = (#lines == 0 and "💭 " or "   ") .. line
+  end
+  return lines
+end
+
 -- `01/02/03 ` coordinate prefix — the model's log://L/T/S address,
 -- zero-padded min-2 for alignment. Empty until the wire carries the
 -- seqs (plurnk-service#208); DB ids are NOT the user's loop/turn

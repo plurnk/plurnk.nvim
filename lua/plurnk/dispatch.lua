@@ -95,6 +95,17 @@ M.handle_log_entry = function(params, workspace_name)
   end)
 end
 
+-- Standard provider reasoning is presentation evidence, not a log operation.
+-- Its stable AG-UI message identity lets the worker buffer suppress duplicates.
+M.handle_reasoning_message = function(params, workspace_name)
+  if type(params) ~= "table" or type(params.messageId) ~= "string"
+      or type(params.content) ~= "string" or params.content == "" or not workspace_name then return end
+  vim.schedule(function()
+    local ok, worker_tab = pcall(require, "plurnk.worker_tab")
+    if ok then worker_tab.append_reasoning(workspace_name, params.workerId, params.messageId, params.content) end
+  end)
+end
+
 -- loop/proposal: a side-effecting op is paused awaiting client resolution
 -- per SPEC §6.1. We hand it off to resolve.lua.
 --
@@ -264,10 +275,12 @@ M.handle_notification = function(payload)
   -- The daemon stamps workspaceId on every notification (plurnk-service
   -- #191, landed 2026-06-10). Route on it; the active-workspace fallback
   -- covers only ids we haven't learned a name for yet.
-  local workspace_name = state.workspace_name_for_id(params.workspaceId)
+  local workspace_name = params.workspaceName
+    or state.workspace_name_for_id(params.workspaceId)
     or state.get_active_workspace_name()
 
   if method == "log/entry" then M.handle_log_entry(params, workspace_name)
+  elseif method == "reasoning/message" then M.handle_reasoning_message(params, workspace_name)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, workspace_name)
   elseif method == "loop/interaction" then M.handle_loop_interaction(params, workspace_name)
   elseif method == "loop/terminated" then M.handle_loop_terminated(params, workspace_name)

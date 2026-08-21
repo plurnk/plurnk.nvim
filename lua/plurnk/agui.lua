@@ -81,13 +81,38 @@ function M.parse_sse(buffer, eof)
   end
 end
 
--- Un-project one AG-UI event → the daemon notification shape dispatch.lua already
--- routes ({ method, params }), or nil to drop it. AG-UI+ dialect: a stopped-world
+-- Project standard readable reasoning or un-project a family AG-UI event into
+-- the notification shape dispatch.lua routes ({ method, params }), or nil to
+-- await more deltas/drop it. AG-UI+ dialect: a stopped-world
 -- proposal arrives as a request_approval/request_user_input TOOL_CALL triple (the
 -- run then FINISHES; the loop stays paused in-engine — the resume is a tool-result
 -- run). The assembler below folds the triple into ONE loop/proposal notification.
 function M.unproject(e, tool)
   if type(e) ~= "table" then return nil end
+  if e.type == "REASONING_START" or e.type == "REASONING_END" then return nil end
+  if e.type == "REASONING_MESSAGE_START" and type(e.messageId) == "string" then
+    tool.reasoning = tool.reasoning or {}
+    if tool.reasoning[e.messageId] ~= nil then
+      error("reasoning message started twice: " .. e.messageId, 0)
+    end
+    tool.reasoning[e.messageId] = ""
+    return nil
+  end
+  if e.type == "REASONING_MESSAGE_CONTENT" and type(e.messageId) == "string" then
+    tool.reasoning = tool.reasoning or {}
+    local prior = tool.reasoning[e.messageId]
+    if prior == nil then error("reasoning content arrived before its start: " .. e.messageId, 0) end
+    tool.reasoning[e.messageId] = prior .. tostring(e.delta or "")
+    return nil
+  end
+  if e.type == "REASONING_MESSAGE_END" and type(e.messageId) == "string" then
+    tool.reasoning = tool.reasoning or {}
+    local content = tool.reasoning[e.messageId]
+    if content == nil then error("reasoning message ended before its start: " .. e.messageId, 0) end
+    tool.reasoning[e.messageId] = nil
+    if content == "" then return nil end
+    return { method = "reasoning/message", params = { messageId = e.messageId, content = content } }
+  end
   if e.type == "TOOL_CALL_START" and type(e.toolCallId) == "string" and e.toolCallId:find("^prop:") then
     tool.id = e.toolCallId; tool.args = ""
     return nil
