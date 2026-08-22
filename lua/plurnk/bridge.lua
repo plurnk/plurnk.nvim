@@ -55,6 +55,12 @@ function M.run(thread_id, prompt, opts, on_done)
       return
     end
     if type(e) == "table" and e.type == "RUN_FINISHED" then
+      local interaction = unproject(e, tool, thread_id, opts and opts.workerId)
+      if interaction ~= nil and interaction.method == "loop/interaction" then
+        paused = true
+        interaction_interrupt = "int:" .. tostring(interaction.params.interactionId)
+        pcall(dispatch.handle_notification, interaction)
+      end
       local outcome = e.outcome
       if interaction_interrupt ~= nil then
         if not agui.has_interrupt(outcome, interaction_interrupt) then
@@ -105,6 +111,8 @@ function M.run(thread_id, prompt, opts, on_done)
     end
     if n.method == "loop/terminated" then
       paused = false
+      proposed_interrupt = nil
+      interaction_interrupt = nil
       local result = type(n.params) == "table" and n.params.result or nil
       local terminal_problem
       plurnk_status, terminal_problem = agui.operation_result(result)

@@ -51,7 +51,7 @@ local ok, err = pcall(function()
   require("plurnk.client").send = function(method, _, _, cb)
     if method == "discover" and cb then
       -- A manifest missing the AG-UI+ markers this client depends on (op.exec/op.look).
-      cb({ methods = { ping = {}, ["workspace.list"] = {} }, notifications = {} })
+      cb({ actions = { ping = {}, ["workspace.list"] = {} }, notifications = {} })
     end
   end
   notes = {}

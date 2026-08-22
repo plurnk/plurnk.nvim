@@ -285,7 +285,7 @@ local function create_workspace_then(copts, callback)
 end
 
 -- Conversation fork (`????`): branch the model worker, carrying its history —
--- worker.fork (svc#248, now wired). Optional `name` names the branch at
+-- run.fork. Optional `name` names the branch at
 -- instantiation (immutable after; reserved/taken rejected; defaults
 -- `<parent>-fork`). Forks the workspace's current model worker, binds this
 -- connection to the new worker so the next loop.run lands there, then continues.
@@ -293,9 +293,9 @@ local function fork_worker_then(workspace_name, callback, name)
   local client = require("plurnk.client")
   local params = {}
   if name and name ~= "" then params.name = name end
-  client.send("worker.fork", params, false, function(result)
+  client.send("run.fork", params, false, function(result)
     if type(result) ~= "table" or not result.workerId then
-      client.notify("worker.fork failed (need a model worker to fork — start a loop first)", vim.log.levels.WARN)
+      client.notify("run.fork failed (need a model worker to fork — start a loop first)", vim.log.levels.WARN)
       return
     end
     local sid = require("plurnk.state").get_workspace_id(workspace_name)
@@ -329,7 +329,7 @@ M.switch_worker = function(workspace_name, worker_id, callback)
 end
 
 -- :PlurnkFork [name] — branch the current conversation into a new worker
--- (worker.fork, svc#248), optionally named at instantiation (immutable after).
+-- (`run.fork`), optionally named at instantiation (immutable after).
 -- Switches to the fork; the next prompt speaks into it. No prompt of its own —
 -- `:AI???? <text>` is the fork-and-speak form.
 M.fork = function(opts)

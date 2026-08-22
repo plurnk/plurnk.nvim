@@ -87,14 +87,20 @@ M.check_daemon_once = function()
   if daemon_checked then return end
   daemon_checked = true
   M.send("discover", {}, false, function(result)
-    if type(result) ~= "table" or type(result.methods) ~= "table" then return end
+    if type(result) ~= "table" or type(result.actions) ~= "table" then return end
     local missing = {}
-    -- AG-UI+ markers this client depends on (cancellation is SSE hangup now, not a method).
+    -- Schema-bearing AG-UI+ actions this client depends on.
     for _, m in ipairs({ "op.exec", "op.look" }) do
-      if result.methods[m] == nil then missing[#missing + 1] = m end
+      local action = result.actions[m]
+      if type(action) ~= "table"
+          or type(action.inputSchema) ~= "table"
+          or type(action.outputSchema) ~= "table" then
+        missing[#missing + 1] = m
+      end
     end
     local notifs = result.notifications
-    if type(notifs) ~= "table" or notifs["stream/concluded"] == nil then
+    local concluded = type(notifs) == "table" and notifs["stream/concluded"] or nil
+    if type(concluded) ~= "table" or type(concluded.payloadSchema) ~= "table" then
       missing[#missing + 1] = "stream/concluded"
     end
     if #missing > 0 then

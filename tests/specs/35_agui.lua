@@ -308,6 +308,49 @@ local ok, err = pcall(function()
   require("plurnk.bridge").run("world", "fail", {}, function(status) missing_problem_status = status end)
   H.assert_eq(missing_problem_status, 502, "bare RUN_ERROR cannot manufacture terminal failure truth")
   H.assert_eq(problem_events, 2, "a missing Problem creates one transport failure occurrence")
+
+  local interaction_notice, interaction_status, resumed_interaction
+  local response_schema = { type = "object", properties = { repository = { enum = { "plurnk-service" } } } }
+  dispatch.handle_notification = function(notification)
+    if notification.method == "loop/interaction" then interaction_notice = notification end
+  end
+  agui.run = function(_, _, on_event, on_done)
+    on_event({ type = "TOOL_CALL_START", toolCallId = "int:8", toolCallName = "select_repository" })
+    on_event({ type = "TOOL_CALL_ARGS", toolCallId = "int:8", delta = '{"owner":"plurnk"}' })
+    on_event({ type = "TOOL_CALL_END", toolCallId = "int:8" })
+    on_event({
+      type = "RUN_FINISHED",
+      outcome = {
+        type = "interrupt",
+        interrupts = { {
+          id = "int:8",
+          reason = "tool_call",
+          toolCallId = "int:8",
+          message = "Choose one repository.",
+          responseSchema = response_schema,
+        } },
+      },
+    })
+    on_done(0, nil)
+    return {}
+  end
+  local interaction_bridge = require("plurnk.bridge")
+  interaction_bridge.run("world", "choose", {}, function(status) interaction_status = status end)
+  H.assert_eq(interaction_status, nil, "interaction interrupt keeps the logical run pending")
+  H.assert_eq(interaction_notice.params.request.message, "Choose one repository.", "bridge dispatches interrupt guidance")
+  local original_resolve_interaction = agui.resolve_interaction
+  agui.resolve_interaction = function(_, _, interaction_id, payload, on_event, on_done)
+    resumed_interaction = { interactionId = interaction_id, payload = payload }
+    on_event({ type = "CUSTOM", name = "plurnk.terminated", value = { result = { status = 200 }, hitMaxTurns = false } })
+    on_event({ type = "RUN_FINISHED", outcome = { type = "success" } })
+    on_done(0, nil)
+    return {}
+  end
+  interaction_bridge.resolve_interaction("world", 8, { repository = "plurnk-service" }, function() end)
+  H.assert_eq(interaction_status, 200, "interaction resume completes the original run")
+  H.assert_eq(resumed_interaction.interactionId, 8, "interaction answer addresses the pending request")
+  H.assert_eq(resumed_interaction.payload.repository, "plurnk-service", "interaction answer rides the standard resume")
+  agui.resolve_interaction = original_resolve_interaction
   agui.run = original_run
   dispatch.handle_notification = original_handle_notification
 
@@ -402,6 +445,31 @@ local ok, err = pcall(function()
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.branch_batch", value = { batchId = 7, state = "queued" } }, tool).method, "workspace/branch-batch", "branch batch custom preserved")
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { result = { status = 200 } } }, tool).method, "stream/concluded", "result → concluded")
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.stream", value = { state = "active" } }, tool).method, "stream/event", "state → event")
+
+  local interaction_tool = {}
+  H.assert_eq(agui.unproject({ type = "TOOL_CALL_START", toolCallId = "int:8", toolCallName = "select_repository" }, interaction_tool), nil, "interaction start assembles silently")
+  H.assert_eq(agui.unproject({ type = "TOOL_CALL_ARGS", toolCallId = "int:8", delta = '{"owner":"plurnk"}' }, interaction_tool), nil, "interaction args accumulate")
+  H.assert_eq(agui.unproject({ type = "TOOL_CALL_END", toolCallId = "int:8" }, interaction_tool), nil, "interaction awaits its interrupt guidance")
+  local response_schema = { type = "object", properties = { repository = { enum = { "plurnk-service" } } } }
+  local interaction = agui.unproject({
+    type = "RUN_FINISHED",
+    outcome = {
+      type = "interrupt",
+      interrupts = { {
+        id = "int:8",
+        reason = "tool_call",
+        toolCallId = "int:8",
+        message = "Choose one repository.",
+        responseSchema = response_schema,
+      } },
+    },
+  }, interaction_tool)
+  H.assert_eq(interaction.method, "loop/interaction", "interaction triple and interrupt become one notification")
+  H.assert_eq(interaction.params.interactionId, 8, "interaction id decoded")
+  H.assert_eq(interaction.params.request.toolName, "select_repository", "interaction tool name preserved")
+  H.assert_eq(interaction.params.request.arguments.owner, "plurnk", "interaction arguments preserved")
+  H.assert_eq(interaction.params.request.message, "Choose one repository.", "interrupt guidance preserved")
+  H.assert_eq(interaction.params.request.responseSchema, response_schema, "interrupt response schema preserved")
 
   -- JSON null → Lua nil (luanil), NOT vim.NIL — else render.lua concatenates a
   -- userdata (the live-smoke fragment bug). parse_sse must normalize.
