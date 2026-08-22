@@ -17,7 +17,13 @@ M.OP_GLYPHS = {
   SEND = "💬",
   EXEC = "🔧",
   BARE = "🔮",
-  PLAN = "🧠",  -- the model's per-turn reasoning (grammar 0.70 leads every turn with PLAN)
+}
+
+M.PLAN_STATUS_GLYPHS = {
+  completed = "✅",
+  in_progress = "🚧",
+  memory = "💾",
+  pending = "⬜",
 }
 
 M.ORIGIN_GLYPHS = {
@@ -164,6 +170,55 @@ local function coord_prefix(entry)
   return string.format("%02d/%02d/%02d ", entry.loop_seq, entry.turn_seq, entry.sequence)
 end
 
+local function plan_entry(entry)
+  local projected_memory = entry.status == "completed"
+    and type(entry.content) == "string"
+    and entry.content:sub(1, 8) == "Memory: "
+  local glyph = projected_memory and M.PLAN_STATUS_GLYPHS.memory or M.PLAN_STATUS_GLYPHS[entry.status]
+  if glyph == nil or type(entry.content) ~= "string" then
+    error("PLAN row carries a noncanonical Plan entry")
+  end
+  if entry.priority ~= "medium" and entry.priority ~= "high" and entry.priority ~= "low" then
+    error("PLAN row carries a noncanonical ACP Plan priority")
+  end
+  local content = entry.content:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+  if projected_memory then content = content:sub(9) end
+  if entry.priority ~= "medium" then content = "[" .. entry.priority .. "] " .. content end
+  return glyph, content
+end
+
+local function render_plan(entry)
+  local tx = type(entry.tx) == "table" and entry.tx or nil
+  local plan = tx and type(tx.body) == "table" and tx.body or nil
+  if plan == nil or type(plan.entries) ~= "table" then
+    error("PLAN row must carry its canonical Plan body")
+  end
+
+  local status = tostring(entry.status_rx or "?")
+  local sub_glyph = M.status_glyph(entry.status_rx, entry.signal)
+  local blank_coord = string.rep(" ", #coord_prefix(entry))
+  local rows = {}
+  for _, item in ipairs(plan.entries) do
+    local glyph, text = plan_entry(item)
+    rows[#rows + 1] = { glyph = glyph, text = text }
+  end
+  if #rows == 0 then rows[1] = { glyph = "📭", text = "no entries" } end
+
+  local lines = {}
+  for index, row in ipairs(rows) do
+    local prefix
+    if index == 1 then
+      prefix = coord_prefix(entry) .. row.glyph .. " " .. sub_glyph .. " " .. status .. " "
+    else
+      prefix = blank_coord .. row.glyph .. string.rep(" ", 5 + #status)
+    end
+    lines[index] = prefix .. row.text
+  end
+  local note = annotation(entry)
+  if note ~= "" then lines[1] = lines[1] .. "  — " .. note end
+  return lines
+end
+
 -- Render the broadcast SEND (op=SEND, no path). For short single-line
 -- bodies, inline after the status. For multi-line or long bodies, header
 -- line + body lines indented under the speaker.
@@ -238,6 +293,9 @@ M.render_log_entry = function(entry)
   if M.is_prompt_entry(entry) then
     return M.render_prompt(entry)
   end
+  if entry.op == "PLAN" then
+    return render_plan(entry)
+  end
 
   -- TWO lanes: the OP is the identity (the origin column is gone — converged with
   -- the TUI); the status lane holds a glyph or a reserved blank.
@@ -272,14 +330,6 @@ M.render_log_entry = function(entry)
   if extra ~= "" then table.insert(parts, "  " .. extra) end
   local note = annotation(entry)
   if note ~= "" then table.insert(parts, "  — " .. note) end
-
-  -- PLAN carries the model's reasoning as a plain string in tx.body (NOT the
-  -- SEND {raw,json} shape) — surface it, newlines collapsed, so the waterfall
-  -- shows what the model planned instead of a bare glyph.
-  if entry.op == "PLAN" and entry.tx and type(entry.tx.body) == "string" then
-    local plan = entry.tx.body:gsub("%s*\n%s*", " "):gsub("^%s+", ""):gsub("%s+$", "")
-    if #plan > 0 then table.insert(parts, "  " .. plan) end
-  end
 
   return { table.concat(parts) }
 end

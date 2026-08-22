@@ -154,6 +154,14 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Two glyph lanes** — every waterfall row carries identity ·
   status (🐹 client; the model SEND lane is status-flavored: 💭 102, 💡 200, 💤 202,
   🤔 300), the status code in one column; width-stable glyphs only.
+- **Plan entries remain structured** — PLAN renders its complete entry list in
+  source order, one line each: ✅ `completed`, 🚧 `in_progress`, 💾 `memory`, and
+  ⬜ `pending`. ACP-projected `completed` content beginning "Memory: " also renders
+  as 💾 without that transport-only prefix.
+  The first line carries the durable row coordinate and dispatch status; later lines
+  align beneath it. Entry whitespace collapses to one line, neutral `medium` priority
+  is implicit, and non-neutral priority renders as `[high]` or `[low]`. An empty Plan
+  renders `📭 no entries`.
 - **Operation annotations stay labels** — a present durable annotation follows the
   canonical row as sanitized literal text; Markdown and HTML are not interpreted.
 - **Broadcast prose remains source-faithful except for exact terminal typography** —
@@ -164,7 +172,7 @@ what this client guarantees. Tests are organized by observable behavior under
   arrive. The completed region precedes the paired SEND and a multiline block then
   becomes a native closed fold; absent, empty, and encrypted reasoning invent no
   readable transcript.
-  PLAN remains the model's durable reasoning inventory.
+  PLAN remains the model's durable working-memory inventory.
 - **Stream windows** — channel prefixes + interleave, batched
   flush (one `entry.read` per tick burst), partial-line hold, a conclusion footer, and
   `BufWipeout` → an `op.send` cancellation carrying status 499.
