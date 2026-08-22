@@ -22,9 +22,9 @@ M.OP_GLYPHS = {
 M.PLAN_STATUS_GLYPHS = {
   completed = "✅",
   in_progress = "🚧",
-  memory = "💾",
   pending = "⬜",
 }
+M.PLAN_MEMORY_GLYPH = "💾"
 
 M.ORIGIN_GLYPHS = {
   model = "🤖",   -- retained for ambient/topology labels; SEND rows use send_glyph
@@ -174,7 +174,7 @@ local function plan_entry(entry)
   local projected_memory = entry.status == "completed"
     and type(entry.content) == "string"
     and entry.content:sub(1, 8) == "Memory: "
-  local glyph = projected_memory and M.PLAN_STATUS_GLYPHS.memory or M.PLAN_STATUS_GLYPHS[entry.status]
+  local glyph = projected_memory and M.PLAN_MEMORY_GLYPH or M.PLAN_STATUS_GLYPHS[entry.status]
   if glyph == nil or type(entry.content) ~= "string" then
     error("PLAN row carries a noncanonical Plan entry")
   end
