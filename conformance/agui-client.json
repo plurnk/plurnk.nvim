@@ -592,6 +592,22 @@
         "presentation"
       ]
     },
+    "reasoning/event": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/35_agui.lua — ordered live projection",
+        "tests/specs/45_reasoning_render.lua — lifecycle dispatch",
+        "tests/specs/19_worker_routing.lua — in-place buffer presentation",
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
+    },
     "stream/event": {
       "posture": "native",
       "evidence": [

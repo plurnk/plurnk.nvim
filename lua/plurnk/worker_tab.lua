@@ -179,6 +179,7 @@ local function ensure_record(workspace, key)
   rec.worker_id = type(key) == "number" and key or nil
   rec.reasoning_ids = rec.reasoning_ids or {}
   rec.reasoning_folds = rec.reasoning_folds or {}
+  rec.reasoning_live = rec.reasoning_live or {}
   recs[key] = rec
   return rec
 end
@@ -382,22 +383,65 @@ M.append_history = function(workspace, entries)
   end
 end
 
--- One completed standard AG-UI reasoning message becomes one native fold. The
--- identity is protocol-owned and therefore the exact de-duplication key.
+local function reasoning_record(workspace, worker_id)
+  return type(worker_id) == "number" and record_for_run(workspace, worker_id)
+    or M.get_record(workspace) or ensure_record(workspace, "pending")
+end
+
+M.begin_reasoning = function(workspace, worker_id, message_id)
+  if not workspace or type(message_id) ~= "string" then return end
+  local rec = reasoning_record(workspace, worker_id)
+  rec.reasoning_ids = rec.reasoning_ids or {}
+  rec.reasoning_live = rec.reasoning_live or {}
+  if rec.reasoning_ids[message_id] then return end
+  if rec.reasoning_live[message_id] ~= nil then error("reasoning message started twice: " .. message_id, 0) end
+  rec.reasoning_live[message_id] = { content = "" }
+end
+
+M.append_reasoning_delta = function(workspace, worker_id, message_id, delta)
+  if not workspace or type(message_id) ~= "string" or type(delta) ~= "string" then return end
+  local rec = reasoning_record(workspace, worker_id)
+  local live = rec.reasoning_live and rec.reasoning_live[message_id]
+  if live == nil then error("reasoning content arrived before its start: " .. message_id, 0) end
+  live.content = live.content .. delta
+  local lines = require("plurnk.render").render_reasoning(live.content)
+  if #lines == 0 then return end
+  if live.first == nil then
+    live.first, live.last = write_lines(rec.waterfall_buf, lines)
+  else
+    vim.bo[rec.waterfall_buf].modifiable = true
+    vim.api.nvim_buf_set_lines(rec.waterfall_buf, live.first - 1, live.last, false, lines)
+    vim.bo[rec.waterfall_buf].modifiable = false
+    live.last = live.first + #lines - 1
+  end
+  autoscroll(rec)
+end
+
+M.end_reasoning = function(workspace, worker_id, message_id)
+  if not workspace or type(message_id) ~= "string" then return end
+  local rec = reasoning_record(workspace, worker_id)
+  local live = rec.reasoning_live and rec.reasoning_live[message_id]
+  if live == nil then error("reasoning message ended before its start: " .. message_id, 0) end
+  rec.reasoning_live[message_id] = nil
+  rec.reasoning_ids = rec.reasoning_ids or {}
+  rec.reasoning_ids[message_id] = true
+  if live.first == nil or live.last == nil then return end
+  rec.reasoning_folds = rec.reasoning_folds or {}
+  if live.first < live.last then rec.reasoning_folds[#rec.reasoning_folds + 1] = { first = live.first, last = live.last } end
+  create_reasoning_fold(rec, live.first, live.last)
+  autoscroll(rec)
+end
+
+-- Completed replay uses the same lifecycle as live delivery.
 M.append_reasoning = function(workspace, worker_id, message_id, content)
   if not workspace or type(message_id) ~= "string" or type(content) ~= "string" or content == "" then return end
   local rec = type(worker_id) == "number" and record_for_run(workspace, worker_id)
     or M.get_record(workspace) or ensure_record(workspace, "pending")
   rec.reasoning_ids = rec.reasoning_ids or {}
   if rec.reasoning_ids[message_id] then return end
-  rec.reasoning_ids[message_id] = true
-  local lines = require("plurnk.render").render_reasoning(content)
-  if #lines == 0 then return end
-  local first, last = write_lines(rec.waterfall_buf, lines)
-  rec.reasoning_folds = rec.reasoning_folds or {}
-  if first < last then rec.reasoning_folds[#rec.reasoning_folds + 1] = { first = first, last = last } end
-  create_reasoning_fold(rec, first, last)
-  autoscroll(rec)
+  M.begin_reasoning(workspace, worker_id, message_id)
+  M.append_reasoning_delta(workspace, worker_id, message_id, content)
+  M.end_reasoning(workspace, worker_id, message_id)
 end
 
 -- Replace a worker's waterfall with rendered history (log.read on switch
@@ -407,6 +451,7 @@ M.hydrate = function(workspace, worker_id, entries)
   local rec = record_for_run(workspace, worker_id)
   rec.reasoning_ids = {}
   rec.reasoning_folds = {}
+  rec.reasoning_live = {}
   if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
     vim.api.nvim_win_call(rec.waterfall_win, function() pcall(vim.cmd, "silent! normal! zE") end)
   end

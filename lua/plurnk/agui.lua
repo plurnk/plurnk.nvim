@@ -96,22 +96,25 @@ function M.unproject(e, tool)
       error("reasoning message started twice: " .. e.messageId, 0)
     end
     tool.reasoning[e.messageId] = ""
-    return nil
+    return { method = "reasoning/event", params = { phase = "start", messageId = e.messageId } }
   end
   if e.type == "REASONING_MESSAGE_CONTENT" and type(e.messageId) == "string" then
     tool.reasoning = tool.reasoning or {}
     local prior = tool.reasoning[e.messageId]
     if prior == nil then error("reasoning content arrived before its start: " .. e.messageId, 0) end
-    tool.reasoning[e.messageId] = prior .. tostring(e.delta or "")
-    return nil
+    local delta = tostring(e.delta or "")
+    local content = prior .. delta
+    tool.reasoning[e.messageId] = content
+    return { method = "reasoning/event", params = {
+      phase = "content", messageId = e.messageId, delta = delta, content = content,
+    } }
   end
   if e.type == "REASONING_MESSAGE_END" and type(e.messageId) == "string" then
     tool.reasoning = tool.reasoning or {}
     local content = tool.reasoning[e.messageId]
     if content == nil then error("reasoning message ended before its start: " .. e.messageId, 0) end
     tool.reasoning[e.messageId] = nil
-    if content == "" then return nil end
-    return { method = "reasoning/message", params = { messageId = e.messageId, content = content } }
+    return { method = "reasoning/event", params = { phase = "end", messageId = e.messageId, content = content } }
   end
   if e.type == "TOOL_CALL_START" and type(e.toolCallId) == "string"
       and (e.toolCallId:find("^prop:") or e.toolCallId:find("^int:")) then
