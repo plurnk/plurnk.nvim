@@ -65,12 +65,16 @@ local ok, err = pcall(function()
   end
   H.assert_truthy(found, "named run uses its label in the buffer title")
 
-  -- {§nvim-readable-reasoning}: one standard reasoning message becomes one
-  -- native, initially closed fold in the current worker's waterfall.
+  -- {§nvim-readable-reasoning}: live deltas update one region, which becomes
+  -- one native, initially closed fold at completion.
   local before = vim.api.nvim_buf_line_count(adopted.waterfall_buf)
-  rt.append_reasoning("topo", 42, "1/1/2/SEND/reasoning", "first line\nsecond line\nthird line")
+  rt.begin_reasoning("topo", 42, "1/1/2/SEND/reasoning")
+  rt.append_reasoning_delta("topo", 42, "1/1/2/SEND/reasoning", "first line")
+  H.assert_eq(vim.api.nvim_buf_get_lines(adopted.waterfall_buf, before, -1, false)[1], "💭 first line", "first delta is visible before completion")
+  rt.append_reasoning_delta("topo", 42, "1/1/2/SEND/reasoning", "\nsecond line\nthird line")
   local reasoning_lines = vim.api.nvim_buf_get_lines(adopted.waterfall_buf, before, -1, false)
   H.assert_eq(table.concat(reasoning_lines, "\n"), "💭 first line\n   second line\n   third line", "reasoning block is appended verbatim")
+  rt.end_reasoning("topo", 42, "1/1/2/SEND/reasoning")
   local fold_start = before + 1
   local closed = vim.api.nvim_win_call(adopted.waterfall_win, function()
     return vim.fn.foldclosed(fold_start)

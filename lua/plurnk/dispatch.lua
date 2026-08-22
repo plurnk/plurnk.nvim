@@ -96,13 +96,19 @@ M.handle_log_entry = function(params, workspace_name)
 end
 
 -- Standard provider reasoning is presentation evidence, not a log operation.
--- Its stable AG-UI message identity lets the worker buffer suppress duplicates.
-M.handle_reasoning_message = function(params, workspace_name)
-  if type(params) ~= "table" or type(params.messageId) ~= "string"
-      or type(params.content) ~= "string" or params.content == "" or not workspace_name then return end
+-- Preserve its live AG-UI lifecycle while one buffer region grows in place.
+M.handle_reasoning_event = function(params, workspace_name)
+  if type(params) ~= "table" or type(params.messageId) ~= "string" or not workspace_name then return end
   vim.schedule(function()
     local ok, worker_tab = pcall(require, "plurnk.worker_tab")
-    if ok then worker_tab.append_reasoning(workspace_name, params.workerId, params.messageId, params.content) end
+    if not ok then return end
+    if params.phase == "start" then
+      worker_tab.begin_reasoning(workspace_name, params.workerId, params.messageId)
+    elseif params.phase == "content" and type(params.delta) == "string" then
+      worker_tab.append_reasoning_delta(workspace_name, params.workerId, params.messageId, params.delta)
+    elseif params.phase == "end" then
+      worker_tab.end_reasoning(workspace_name, params.workerId, params.messageId)
+    end
   end)
 end
 
@@ -280,7 +286,7 @@ M.handle_notification = function(payload)
     or state.get_active_workspace_name()
 
   if method == "log/entry" then M.handle_log_entry(params, workspace_name)
-  elseif method == "reasoning/message" then M.handle_reasoning_message(params, workspace_name)
+  elseif method == "reasoning/event" then M.handle_reasoning_event(params, workspace_name)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, workspace_name)
   elseif method == "loop/interaction" then M.handle_loop_interaction(params, workspace_name)
   elseif method == "loop/terminated" then M.handle_loop_terminated(params, workspace_name)

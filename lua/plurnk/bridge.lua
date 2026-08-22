@@ -10,7 +10,7 @@ local agui = require("plurnk.agui")
 
 local function unproject(e, assembler, workspace_name, worker_id)
   local n = agui.unproject(e, assembler)
-  if n ~= nil and n.method == "reasoning/message" then
+  if n ~= nil and n.method == "reasoning/event" then
     n.params.workspaceName = workspace_name
     if type(worker_id) == "number" then n.params.workerId = worker_id end
   end
