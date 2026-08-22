@@ -63,7 +63,7 @@ local ok, err = pcall(function()
     status_rx = 200,
     tx = { body = { entries = {
       { content = "Contract settled.", priority = "medium", status = "completed" },
-      { content = "One baseline owns the schema.", priority = "medium", status = "memory" },
+      { content = "Memory: One baseline owns the schema.", priority = "medium", status = "completed" },
       { content = "Update\nclients.", priority = "high", status = "in_progress" },
       { content = "Run drills.", priority = "low", status = "pending" },
     } } },
@@ -88,6 +88,14 @@ local ok, err = pcall(function()
   })
   H.assert_eq(projected_memory[1], "01/01/01 💾    200 One baseline owns the schema.",
     "ACP-projected memory retains its Plurnk presentation")
+
+  H.assert_truthy(not pcall(R, {
+    op = "PLAN", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 200,
+    tx = { body = { entries = {
+      { content = "Internal memory", priority = "medium", status = "memory" },
+    } } },
+  }), "the client consumes ACP, never the daemon's model-native memory status")
 
   local empty_plan = R({
     op = "PLAN", origin = "model", scheme = nil, pathname = nil,

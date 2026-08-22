@@ -154,10 +154,10 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Two glyph lanes** — every waterfall row carries identity ·
   status (🐹 client; the model SEND lane is status-flavored: 💭 102, 💡 200, 💤 202,
   🤔 300), the status code in one column; width-stable glyphs only.
-- **Plan entries remain structured** — PLAN renders its complete entry list in
-  source order, one line each: ✅ `completed`, 🚧 `in_progress`, 💾 `memory`, and
-  ⬜ `pending`. ACP-projected `completed` content beginning "Memory: " also renders
-  as 💾 without that transport-only prefix.
+- **Plan entries remain structured** — PLAN consumes the ACP Plan projection and
+  renders its complete entry list in source order, one line each: ✅ `completed`,
+  🚧 `in_progress`, and ⬜ `pending`; `completed` content beginning "Memory: "
+  renders as 💾 without the projection prefix.
   The first line carries the durable row coordinate and dispatch status; later lines
   align beneath it. Entry whitespace collapses to one line, neutral `medium` priority
   is implicit, and non-neutral priority renders as `[high]` or `[low]`. An empty Plan
