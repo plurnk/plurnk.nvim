@@ -31,7 +31,7 @@ local ok, err = pcall(function()
 
   H.call("workspace.constrain", { effect = "pick", glob = "lua/**" })
   H.assert_truthy(vim.deep_equal(observe("workspace.constraints").constraints, {
-    { effect = "pick", glob = "lua/**" },
+    { effect = "pick", glob = "lua/**", source = "explicit" },
   }), "separate connection observes constraint")
   H.call("workspace.unconstrain", { effect = "pick", glob = "lua/**" })
   H.assert_eq(#observe("workspace.constraints").constraints, 0, "separate connection observes unconstrain")
