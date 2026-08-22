@@ -64,8 +64,8 @@ match :AI — `? ` ask, `: ` act, `! ` exec; `# PLAN0` / `## OP0` enter raw
 PLURNK.
 
 Readable provider reasoning appears before its SEND as a distinct `💭` block.
-Multiline reasoning begins in a native closed fold; PLAN remains the model's
-durable reasoning inventory.
+Multiline reasoning begins in a native closed fold. PLAN remains the model's
+durable working-memory inventory: ✅ completed, 🚧 in progress, ⬜ pending.
 
 ==============================================================================
 4. Proposals                                                 *plurnk-proposals*

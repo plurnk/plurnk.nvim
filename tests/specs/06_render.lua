@@ -57,14 +57,30 @@ local ok, err = pcall(function()
   H.assert_match(find_lines[1], "🔍", "FIND glyph")
   H.assert_match(find_lines[1], "→ 3 results", "FIND count")
 
-  -- PLAN → 🧠 glyph + the plan text from tx.body (a plain string, not {raw,json}).
+  -- PLAN → one ordered status-glyph line per canonical ACP entry.
   local plan_lines = R({
     op = "PLAN", origin = "model", scheme = nil, pathname = nil,
-    status_rx = 200, tx = { body = "Acknowledge user prompt." },
+    status_rx = 200,
+    tx = { body = { entries = {
+      { content = "Contract settled.", priority = "medium", status = "completed" },
+      { content = "Update\nclients.", priority = "high", status = "in_progress" },
+      { content = "Run drills.", priority = "low", status = "pending" },
+    } } },
   })
-  H.assert_match(plan_lines[1], "🧠", "PLAN glyph (not a bare ?)")
-  H.assert_match(plan_lines[1], "Acknowledge user prompt%.", "PLAN shows the reasoning text")
-  H.assert_truthy(not plan_lines[1]:match("%?"), "PLAN is not the ? fallback")
+  H.assert_eq(#plan_lines, 3, "PLAN has one line per entry")
+  H.assert_eq(plan_lines[1], "01/01/01 ✅    200 Contract settled.", "completed entry owns the first line")
+  H.assert_eq(plan_lines[2], "         🚧        [high] Update clients.", "in-progress entry aligns below it")
+  H.assert_eq(plan_lines[3], "         ⬜        [low] Run drills.", "pending entry aligns below it")
+  H.assert_truthy(not table.concat(plan_lines, "\n"):match("🧠"), "structured PLAN has no opaque brain glyph")
+  H.assert_eq(vim.fn.strdisplaywidth("✅"), 2, "completed glyph is width-stable")
+  H.assert_eq(vim.fn.strdisplaywidth("🚧"), 2, "in-progress glyph is width-stable")
+  H.assert_eq(vim.fn.strdisplaywidth("⬜"), 2, "pending glyph is width-stable")
+
+  local empty_plan = R({
+    op = "PLAN", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 200, tx = { body = { entries = {} } },
+  })
+  H.assert_eq(empty_plan[1], "01/01/01 📭    200 no entries", "empty PLAN remains visible")
 
   local bare_lines = R({
     op = "BARE", origin = "model", scheme = nil, pathname = nil,
