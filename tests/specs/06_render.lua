@@ -57,24 +57,37 @@ local ok, err = pcall(function()
   H.assert_match(find_lines[1], "🔍", "FIND glyph")
   H.assert_match(find_lines[1], "→ 3 results", "FIND count")
 
-  -- PLAN → one ordered status-glyph line per canonical ACP entry.
+  -- PLAN → one ordered status-glyph line per canonical entry.
   local plan_lines = R({
     op = "PLAN", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200,
     tx = { body = { entries = {
       { content = "Contract settled.", priority = "medium", status = "completed" },
+      { content = "One baseline owns the schema.", priority = "medium", status = "memory" },
       { content = "Update\nclients.", priority = "high", status = "in_progress" },
       { content = "Run drills.", priority = "low", status = "pending" },
     } } },
   })
-  H.assert_eq(#plan_lines, 3, "PLAN has one line per entry")
+  H.assert_eq(#plan_lines, 4, "PLAN has one line per entry")
   H.assert_eq(plan_lines[1], "01/01/01 ✅    200 Contract settled.", "completed entry owns the first line")
-  H.assert_eq(plan_lines[2], "         🚧        [high] Update clients.", "in-progress entry aligns below it")
-  H.assert_eq(plan_lines[3], "         ⬜        [low] Run drills.", "pending entry aligns below it")
+  H.assert_eq(plan_lines[2], "         💾        One baseline owns the schema.", "memory entry aligns below it")
+  H.assert_eq(plan_lines[3], "         🚧        [high] Update clients.", "in-progress entry aligns below it")
+  H.assert_eq(plan_lines[4], "         ⬜        [low] Run drills.", "pending entry aligns below it")
   H.assert_truthy(not table.concat(plan_lines, "\n"):match("🧠"), "structured PLAN has no opaque brain glyph")
   H.assert_eq(vim.fn.strdisplaywidth("✅"), 2, "completed glyph is width-stable")
   H.assert_eq(vim.fn.strdisplaywidth("🚧"), 2, "in-progress glyph is width-stable")
+  H.assert_eq(vim.fn.strdisplaywidth("💾"), 2, "memory glyph is width-stable")
   H.assert_eq(vim.fn.strdisplaywidth("⬜"), 2, "pending glyph is width-stable")
+
+  local projected_memory = R({
+    op = "PLAN", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 200,
+    tx = { body = { entries = {
+      { content = "Memory: One baseline owns the schema.", priority = "medium", status = "completed" },
+    } } },
+  })
+  H.assert_eq(projected_memory[1], "01/01/01 💾    200 One baseline owns the schema.",
+    "ACP-projected memory retains its Plurnk presentation")
 
   local empty_plan = R({
     op = "PLAN", origin = "model", scheme = nil, pathname = nil,

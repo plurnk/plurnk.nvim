@@ -22,6 +22,7 @@ M.OP_GLYPHS = {
 M.PLAN_STATUS_GLYPHS = {
   completed = "✅",
   in_progress = "🚧",
+  memory = "💾",
   pending = "⬜",
 }
 
@@ -170,14 +171,18 @@ local function coord_prefix(entry)
 end
 
 local function plan_entry(entry)
-  local glyph = M.PLAN_STATUS_GLYPHS[entry.status]
+  local projected_memory = entry.status == "completed"
+    and type(entry.content) == "string"
+    and entry.content:sub(1, 8) == "Memory: "
+  local glyph = projected_memory and M.PLAN_STATUS_GLYPHS.memory or M.PLAN_STATUS_GLYPHS[entry.status]
   if glyph == nil or type(entry.content) ~= "string" then
-    error("PLAN row carries a noncanonical ACP Plan entry")
+    error("PLAN row carries a noncanonical Plan entry")
   end
   if entry.priority ~= "medium" and entry.priority ~= "high" and entry.priority ~= "low" then
     error("PLAN row carries a noncanonical ACP Plan priority")
   end
   local content = entry.content:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+  if projected_memory then content = content:sub(9) end
   if entry.priority ~= "medium" then content = "[" .. entry.priority .. "] " .. content end
   return glyph, content
 end
@@ -186,7 +191,7 @@ local function render_plan(entry)
   local tx = type(entry.tx) == "table" and entry.tx or nil
   local plan = tx and type(tx.body) == "table" and tx.body or nil
   if plan == nil or type(plan.entries) ~= "table" then
-    error("PLAN row must carry its canonical ACP Plan body")
+    error("PLAN row must carry its canonical Plan body")
   end
 
   local status = tostring(entry.status_rx or "?")
