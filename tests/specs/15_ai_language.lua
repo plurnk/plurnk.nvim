@@ -22,7 +22,7 @@ local ok, err = pcall(function()
     if method == "workspace.create" and cb then cb({ id = 7, name = "lang-" .. #sent, workerId = 42, workerName = "auto-run" }) end
     if method == "workspace.attach" and cb then cb({ id = 7, workerId = 42, workerName = "auto-run" }) end
     if method == "loop.cancel" and cb then cb({ cancelled = true, workerId = 9 }) end
-    if method == "worker.fork" and cb then cb({ workerId = 99, workerName = "fork-run" }) end
+    if method == "run.fork" and cb then cb({ workerId = 99, workerName = "fork-run" }) end
     if method == "providers.list" and cb then cb({ aliases = {} }) end
     if method == "models.list" and cb then cb({ items = {}, offset = 0, total = 0 }) end
   end
@@ -52,12 +52,12 @@ local ok, err = pcall(function()
   H.assert_truthy(lr3, ":AI??? then loop.run")
   H.assert_eq(lr3.params.prompt, "bare metal", ":AI??? carries prompt")
 
-  -- ── `????` — conversation fork (worker.fork, svc#248, now wired) ──────
+  -- ── `????` — conversation fork (`run.fork`) ──────
   -- Branch the model worker, bind the connection to the fork, then speak the
-  -- prompt into it: worker.fork → workspace.attach(workerId) → loop.run.
+  -- prompt into it: run.fork → workspace.attach(workerId) → loop.run.
   sent = {}
   ai({ args = "???? take two", range = 0 })
-  H.assert_truthy(find(sent, "worker.fork"), ":AI???? forks via worker.fork")
+  H.assert_truthy(find(sent, "run.fork"), ":AI???? forks via run.fork")
   local lrf = find(sent, "loop.run")
   H.assert_truthy(lrf, ":AI???? runs a loop in the fork")
   H.assert_eq(lrf.params.prompt, "take two", ":AI???? carries the prompt into the fork")

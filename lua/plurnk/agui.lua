@@ -113,35 +113,73 @@ function M.unproject(e, tool)
     if content == "" then return nil end
     return { method = "reasoning/message", params = { messageId = e.messageId, content = content } }
   end
-  if e.type == "TOOL_CALL_START" and type(e.toolCallId) == "string" and e.toolCallId:find("^prop:") then
-    tool.id = e.toolCallId; tool.args = ""
+  if e.type == "TOOL_CALL_START" and type(e.toolCallId) == "string"
+      and (e.toolCallId:find("^prop:") or e.toolCallId:find("^int:")) then
+    tool.id = e.toolCallId; tool.name = e.toolCallName; tool.args = ""
     return nil
   end
   if e.type == "TOOL_CALL_ARGS" and tool.id ~= nil and e.toolCallId == tool.id then
     tool.args = tool.args .. (e.delta or ""); return nil
   end
   if e.type == "TOOL_CALL_END" and tool.id ~= nil and e.toolCallId == tool.id then
-    local log_entry_id = tonumber(tool.id:sub(6))
+    local id, name = tool.id, tool.name
     local okp, a = pcall(vim.json.decode, tool.args ~= "" and tool.args or "{}", { luanil = { object = true, array = true } })
-    tool.id = nil
+    tool.id = nil; tool.name = nil; tool.args = nil
     if not okp then
+      local interaction = id:find("^int:") ~= nil
       return {
         method = "problem/event",
         params = {
           problem = M.transport_problem(
-            "proposal-invalid",
-            "Proposal invalid",
+            interaction and "interaction-invalid" or "proposal-invalid",
+            interaction and "Interaction invalid" or "Proposal invalid",
             502,
-            "The proposal contained invalid JSON arguments.",
+            interaction and "The interaction contained invalid JSON arguments."
+              or "The proposal contained invalid JSON arguments.",
             false,
-            "proposal-resolution",
-            { logEntryId = log_entry_id, reason = tostring(a) }
+            interaction and "interaction-resolution" or "proposal-resolution",
+            interaction
+              and { interactionId = tonumber(id:sub(5)), reason = tostring(a) }
+              or { logEntryId = tonumber(id:sub(6)), reason = tostring(a) }
           ),
         },
       }
     end
+    if id:find("^int:") then
+      tool.interaction = {
+        interactionId = tonumber(id:sub(5)),
+        interruptId = id,
+        request = {
+          toolName = type(name) == "string" and name or "request_user_input",
+          arguments = a,
+        },
+      }
+      return nil
+    end
+    local log_entry_id = tonumber(id:sub(6))
     a.logEntryId = log_entry_id
     return { method = "loop/proposal", params = a }
+  end
+  if e.type == "RUN_FINISHED" and type(tool.interaction) == "table" then
+    local interaction = tool.interaction
+    local interrupt
+    if type(e.outcome) == "table" and type(e.outcome.interrupts) == "table" then
+      for _, candidate in ipairs(e.outcome.interrupts) do
+        if type(candidate) == "table"
+            and (candidate.id == interaction.interruptId or candidate.toolCallId == interaction.interruptId) then
+          interrupt = candidate
+          break
+        end
+      end
+    end
+    if interrupt == nil then return nil end
+    tool.interaction = nil
+    interaction.request.message = type(interrupt.message) == "string"
+        and interrupt.message or "Provide the requested input."
+    interaction.request.responseSchema = type(interrupt.responseSchema) == "table"
+        and interrupt.responseSchema or {}
+    interaction.interruptId = nil
+    return { method = "loop/interaction", params = interaction }
   end
   if e.type ~= "CUSTOM" then return nil end
   local name, v = e.name, e.value

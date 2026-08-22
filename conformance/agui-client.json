@@ -1,0 +1,638 @@
+{
+  "schemaVersion": 1,
+  "client": "plurnk.nvim",
+  "actions": {
+    "ping": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/01_ping.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "discover": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/20_prelaunch.lua",
+        "tests/specs/48_agui_conformance.lua",
+        "tests/composition.mjs — installed plugin against built service"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "composition"
+      ]
+    },
+    "providers.list": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/02_providers.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "models.list": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/46_model_catalog.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "workspace.list": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/03_workspace_list.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "workspace.create": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/04_workspace_create.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "workspace.attach": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/36_workspace_door.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "workspace.workers": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/19_worker_routing.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "log.read": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/13_worker_tab_layout.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "loop.inject": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/39_ask_steer.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "lifecycle"
+      ]
+    },
+    "loop.cancel": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/09_ai_command.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "lifecycle"
+      ]
+    },
+    "workspace.prompts": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure"
+      ]
+    },
+    "workspace.rename": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/25_workspace_rename.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "workspace.constrain": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls",
+        "../plurnk-service/scripts/test-client-conformance.mjs — same-daemon cross-client composition"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability",
+        "composition"
+      ]
+    },
+    "workspace.unconstrain": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "workspace.constraints": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua",
+        "../plurnk-service/scripts/test-client-conformance.mjs — same-daemon cross-client composition"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "composition"
+      ]
+    },
+    "workspace.derivation": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure"
+      ]
+    },
+    "entry.read": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/16_stream_render.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "op.exec": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/17_exec_live.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "lifecycle"
+      ]
+    },
+    "op.parse": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/05_op_parse_logentry.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "lifecycle"
+      ]
+    },
+    "workspace.members": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "op.look": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/18_input_dsl.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "run.fork": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/26_worker_fork.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.model.get": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/28_model_completion.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "worker.model.set": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/47_model_selection_live.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.child.set": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/28_model_completion.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.reasoning.get": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/44_reasoning.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation"
+      ]
+    },
+    "worker.reasoning.set": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/44_reasoning.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.settings.get": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport",
+        "tests/composition.mjs — installed plugin and cross-client reconstruction"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure",
+        "composition"
+      ]
+    },
+    "worker.settings.set": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls",
+        "tests/composition.mjs — installed plugin and cross-client reconstruction"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure",
+        "durability",
+        "composition"
+      ]
+    },
+    "workspace.mcp.list": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/41_mcp.lua",
+        "../plurnk-service/scripts/test-client-conformance.mjs — client-local MCP isolation"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "composition"
+      ]
+    },
+    "workspace.mcp.add": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/41_mcp.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "workspace.mcp.enable": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/41_mcp.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "workspace.mcp.disable": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/41_mcp.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "workspace.mcp.remove": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/41_mcp.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "workspace.mcp.oauth.complete": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/41_mcp.lua",
+        "../plurnk-service/plurnk-mcp/src/Module.test.ts — OAuth completion persistence and restart behavior"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "workspace.mcp.complete": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure"
+      ]
+    }
+  },
+  "notifications": {
+    "log/entry": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/05_op_parse_logentry.lua",
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
+    },
+    "loop/terminated": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/35_agui.lua",
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
+    },
+    "loop/proposal": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/07_resolve.lua",
+        "tests/specs/35_agui.lua",
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
+    },
+    "loop/interaction": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/34_question.lua",
+        "tests/specs/35_agui.lua",
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
+    },
+    "notice/event": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/29_notice_severity.lua",
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
+    },
+    "stream/event": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/16_stream_render.lua",
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
+    },
+    "stream/concluded": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/16_stream_render.lua",
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
+    },
+    "workspace/branch-batch": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/38_branch_batch.lua",
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
+    }
+  }
+}

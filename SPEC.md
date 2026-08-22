@@ -51,8 +51,15 @@ what this client guarantees. Tests are organized by observable behavior under
   @plurnk/plurnk-service start`) and install lines — one message with the CLI's
   `client:connection:refused` block; never a silent nil result.
 - **The stale-daemon probe** - `discover` runs once per instance; a manifest
-  missing the AG-UI+ markers this client depends on (`op.exec`,
+  missing the schema-bearing AG-UI+ markers this client depends on (`op.exec`,
   `op.look`) warns bluntly that the daemon is older than the client.
+- §nvim-agui-conformance **The public surface is exhaustively accounted for** -
+  `conformance/agui-client.json` classifies every live discovery action and
+  notification as native, losslessly generic, or explicitly unsupported. The
+  contracts reporter requires exact key equality, declared verification
+  dimensions, and existing evidence; it emits one record per member. The Lua
+  transport consumes the shared SSE/lifecycle corpus, and a separate AG-UI
+  connection observes every durable editor-exposed control.
 - **Control-plane liveness** — `ping` answers an empty-object result;
   `providers.list` returns the small declared-alias directory used by completion
   and the statusline. `models.list` returns bounded pages from the daemon's
@@ -132,7 +139,7 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Run-keyed routing** — entries route to their run's buffer by
   `entry.worker_id`, no interleaving; a pending record is adopted by the first run seen.
 - **Fork branches the conversation** — `:PlurnkFork` / `:AI????` →
-  `worker.fork`, optionally named at instantiation (immutable after), then binds to the
+  `run.fork`, optionally named at instantiation (immutable after), then binds to the
   new worker.
 - **Rename is a mutable handle on the world** — `workspace.rename`
   rekeys local state and the worker tab in place; a worker's name is immutable.
