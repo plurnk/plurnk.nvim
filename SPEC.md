@@ -136,6 +136,25 @@ what this client guarantees. Tests are organized by observable behavior under
   Daemon Problems use the existing lossless Problem path and are neither
   rewritten nor retried.
 
+- §nvim-outbound-agents **Outbound A2A agents are daemon actions** —
+  `:AI/agents` is a thin projection of the Worker's `agents` Functionality
+  family, the same common lifecycle as `:AI/mcp` and `:AI/skills`. The client
+  composes one exact `A2aAgentDefinition` and renders the daemon's states; the
+  remote Agent Card, connection, and enablement policy live in the service, and
+  the model addresses an enabled agent as `a2a://<alias>`.
+
+  | Input | AG-UI+ action |
+  |---|---|
+  | `:AI/agents` | `worker.agents.list {}` |
+  | `:AI/agents discover <url>` | `worker.agents.discover {source}` — one inert card-derived candidate |
+  | `:AI/agents add <alias> <url> [options.json]` | `worker.agents.add {alias, definition: {name: alias, url, ...options}}`; `options.json` supplies `cardPath`, `headers`, `authorization` |
+  | `:AI/agents enable <alias>` | `worker.agents.enable {alias}` |
+  | `:AI/agents disable <alias>` | `worker.agents.disable {alias}` |
+  | `:AI/agents remove <alias>` | `worker.agents.remove {alias}` |
+
+  Unreadable or invalid local JSON stops before dispatch; daemon Problems use
+  the existing lossless Problem path and are neither rewritten nor retried.
+
 ## §4 Workspaces and workers
 
 - **The name is the identity** — `workspace.create` returns

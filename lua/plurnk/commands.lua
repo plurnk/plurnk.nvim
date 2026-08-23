@@ -942,6 +942,8 @@ local HELP = table.concat({
   "                   mcp (list available workspace MCP servers)",
   "                       add <alias> <target> [options.json] · enable/disable/remove <alias>",
   "                       oauth <alias> <callback-url>",
+  "                   agents (list this Worker's outbound A2A agents)",
+  "                       discover <url> · add <alias> <url> [options.json] · enable/disable/remove <alias>",
   "                   skills (list this Worker's Agent Skills)",
   "                       discover <query|source> · add <name> <source> [--global] · enable/disable/remove <name>",
   "                   open accept reject next prev stop clear",
@@ -995,6 +997,10 @@ M.skills = function(args)
   return require("plurnk.skills").run(args, resolve_workspace_then)
 end
 
+M.agents = function(args)
+  return require("plurnk.agents").run(args, resolve_workspace_then)
+end
+
 -- `/` subcommand routing — rummy's full surface, plurnk verbs. Wrapped
 -- as functions so the M.* lookups resolve at call time.
 local SLASH = {
@@ -1025,6 +1031,7 @@ local SLASH = {
   script   = function(args) M.script({ args = args }) end,
   mcp      = function(args) M.mcp(args) end,
   skills   = function(args) M.skills(args) end,
+  agents   = function(args) M.agents(args) end,
   yolo     = function() M.yolo() end,
   ping     = function() M.ping() end,
   open     = function() M.toggle() end,
@@ -1078,6 +1085,8 @@ M.ai_complete = function(_arglead, cmdline, _)
   if mcp_completion then return mcp_completion end
   local skills_completion = require("plurnk.skills").complete(cmdline)
   if skills_completion then return skills_completion end
+  local agents_completion = require("plurnk.agents").complete(cmdline)
+  if agents_completion then return agents_completion end
   local verb_partial = cmdline:match("/(%S*)$")
   if verb_partial and not cmdline:match("/%S+%s") then
     local out = {}

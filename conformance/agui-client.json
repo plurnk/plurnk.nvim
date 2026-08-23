@@ -505,6 +505,90 @@
         "durability"
       ]
     },
+    "worker.agents.list": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/50_agents.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "composition"
+      ]
+    },
+    "worker.agents.discover": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/50_agents.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "composition"
+      ]
+    },
+    "worker.agents.add": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/50_agents.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.agents.enable": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/50_agents.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.agents.disable": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/50_agents.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.agents.remove": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/50_agents.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
     "worker.mcp.list": {
       "posture": "native",
       "evidence": [

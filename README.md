@@ -34,6 +34,8 @@ Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:A
 `/reasoning` reports the worker's durable policy and supported choices;
 `/reasoning <policy>` persists a daemon-validated selection.
 
+`:AI/agents` lists this Worker's outbound A2A agents; `discover <url>`, `add <alias> <url> [options.json]`, `enable`, `disable`, and `remove` are the daemon's common Functionality actions; an enabled agent is `a2a://<alias>` to the model.
+
 `:AI/skills` lists this Worker's Agent Skills; `discover`, `add <name> <source> [--global]`, `enable`, `disable`, and `remove` are the daemon's common Functionality actions — the client runs no package manager. Project skills live in `.agents/skills`; global skills use `~/.agents/skills`.
 
 ## Layout
