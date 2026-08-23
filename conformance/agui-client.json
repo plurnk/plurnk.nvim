@@ -536,7 +536,8 @@
     "worker.agents.add": {
       "posture": "native",
       "evidence": [
-        "tests/specs/50_agents.lua"
+        "tests/specs/50_agents.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
       ],
       "dimensions": [
         "admission",
@@ -550,7 +551,8 @@
     "worker.agents.enable": {
       "posture": "native",
       "evidence": [
-        "tests/specs/50_agents.lua"
+        "tests/specs/50_agents.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
       ],
       "dimensions": [
         "admission",
@@ -564,7 +566,8 @@
     "worker.agents.disable": {
       "posture": "native",
       "evidence": [
-        "tests/specs/50_agents.lua"
+        "tests/specs/50_agents.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
       ],
       "dimensions": [
         "admission",
@@ -578,7 +581,8 @@
     "worker.agents.remove": {
       "posture": "native",
       "evidence": [
-        "tests/specs/50_agents.lua"
+        "tests/specs/50_agents.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
       ],
       "dimensions": [
         "admission",

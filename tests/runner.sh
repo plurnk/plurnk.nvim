@@ -33,10 +33,15 @@ fi
 
 DAEMON_PID=""
 DAEMON_DIR=""
+AGENT_PID=""
 cleanup() {
   if [ -n "$DAEMON_PID" ]; then
     pkill -P "$DAEMON_PID" 2>/dev/null || true
     kill "$DAEMON_PID" 2>/dev/null || true
+  fi
+  if [ -n "$AGENT_PID" ]; then
+    pkill -P "$AGENT_PID" 2>/dev/null || true
+    kill "$AGENT_PID" 2>/dev/null || true
   fi
   [ -n "$DAEMON_DIR" ] && rm -rf "$DAEMON_DIR"
   return 0  # never let the trap's last falsy test leak into the exit code
@@ -61,11 +66,26 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   DAEMON_DIR="$(mktemp -d)"
   # Specs that seed the private daemon's universal Agent Skills root read this.
   export PLURNK_NVIM_DAEMON_HOME="$DAEMON_DIR/home"
+  # An independent A2A agent process gives the daemon one configured outbound
+  # agent (`demo`); specs that exercise :AI/agents against the daemon read its URL.
+  AGENT_CLI="$SERVICE_DIR/../plurnk-a2a/test/fixtures/demo-agent-cli.ts"
+  AGENT_ENV=""
+  if [ -f "$AGENT_CLI" ]; then
+    AGENT_FIFO="$DAEMON_DIR/agent.url"
+    mkfifo "$AGENT_FIFO"
+    ( cd "$SERVICE_DIR" && node --conditions=plurnk-dev "$AGENT_CLI" > "$AGENT_FIFO" 2>"$DAEMON_DIR/agent.log" < /dev/null ) &
+    AGENT_PID=$!
+    read -r PLURNK_NVIM_A2A_URL < "$AGENT_FIFO"
+    export PLURNK_NVIM_A2A_URL
+    AGENT_ENV="PLURNK_A2A_DEMO=$PLURNK_NVIM_A2A_URL
+PLURNK_A2A_ENABLED=[\"demo\"]
+"
+  fi
   PLURNK_PORT="$(node -e 'const s=require("net").createServer();s.listen(0,()=>{console.log(s.address().port);s.close()})')"
   export PLURNK_PORT
   (
     cd "$SERVICE_DIR"
-    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\nPLURNK_MODEL=%s\nPLURNK_MODEL_nvimtest=lmstudio/nvim-family/selected\nPLURNK_PROVIDERS_CONTEXT_WINDOW_nvimtest=32768\nPLURNK_PROVIDERS_REASONING_nvimtest=off\nPLURNK_MCP_ENABLED=[]\nLMSTUDIO_API_KEY=nvim-test\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" "${PLURNK_MODEL:-}" > "$DAEMON_DIR/test.env"
+    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\nPLURNK_MODEL=%s\nPLURNK_MODEL_nvimtest=lmstudio/nvim-family/selected\nPLURNK_PROVIDERS_CONTEXT_WINDOW_nvimtest=32768\nPLURNK_PROVIDERS_REASONING_nvimtest=off\nPLURNK_MCP_ENABLED=[]\nLMSTUDIO_API_KEY=nvim-test\n%s' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" "${PLURNK_MODEL:-}" "${AGENT_ENV:-}" > "$DAEMON_DIR/test.env"
     # Control-plane specs stay modelless even when the operator config names a
     # default. Model-driven specs deliberately opt in by exporting PLURNK_MODEL;
     # alias declarations may still come from the operator environment.
@@ -129,7 +149,7 @@ reboot_daemon() {
   export PLURNK_PORT
   (
     cd "$SERVICE_DIR"
-    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\nPLURNK_MODEL=%s\nPLURNK_MODEL_nvimtest=lmstudio/nvim-family/selected\nPLURNK_PROVIDERS_CONTEXT_WINDOW_nvimtest=32768\nPLURNK_PROVIDERS_REASONING_nvimtest=off\nPLURNK_MCP_ENABLED=[]\nLMSTUDIO_API_KEY=nvim-test\n' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" "${PLURNK_MODEL:-}" > "$DAEMON_DIR/test.env"
+    printf 'PLURNK_SERVICE_DB_PATH=%s\nPLURNK_PORT=%s\nPLURNK_WS_PORT=0\nPLURNK_MODEL=%s\nPLURNK_MODEL_nvimtest=lmstudio/nvim-family/selected\nPLURNK_PROVIDERS_CONTEXT_WINDOW_nvimtest=32768\nPLURNK_PROVIDERS_REASONING_nvimtest=off\nPLURNK_MCP_ENABLED=[]\nLMSTUDIO_API_KEY=nvim-test\n%s' "$DAEMON_DIR/plurnk.db" "$PLURNK_PORT" "${PLURNK_MODEL:-}" "${AGENT_ENV:-}" > "$DAEMON_DIR/test.env"
     # Control-plane specs stay modelless even when the operator config names a
     # default. Model-driven specs deliberately opt in by exporting PLURNK_MODEL;
     # alias declarations may still come from the operator environment.

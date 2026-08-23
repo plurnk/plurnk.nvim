@@ -92,6 +92,21 @@ local ok, err = pcall(function()
     H.assert_eq(skill_state(), "active", "separate connection observes skill enable")
   end
 
+  local agent_url = os.getenv("PLURNK_NVIM_A2A_URL")
+  if agent_url ~= nil and agent_url ~= "" then
+    local function agent_state()
+      for _, entry in ipairs(observe("worker.agents.list").definitions) do
+        if entry.alias == "demo" then return entry.state end
+      end
+      return nil
+    end
+    H.assert_eq(agent_state(), "active", "separate connection observes the configured outbound agent")
+    H.call("worker.agents.disable", { alias = "demo" }, 20000)
+    H.assert_eq(agent_state(), "disabled", "separate connection observes agent disable")
+    H.call("worker.agents.enable", { alias = "demo" }, 20000)
+    H.assert_eq(agent_state(), "active", "separate connection observes agent enable")
+  end
+
   local renamed = workspace .. "-renamed"
   H.call("workspace.rename", { name = renamed })
   H.assert_truthy(vim.iter(observe("workspace.list").workspaces):any(function(item)
