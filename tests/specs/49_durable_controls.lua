@@ -56,20 +56,19 @@ local ok, err = pcall(function()
   local fixture = service_root .. "/plurnk-mcp/src/fixtures/echo-server.mjs"
   H.call("worker.mcp.add", {
     alias = "durable",
-    target = vim.fn.exepath("node"),
-    options = { args = { fixture }, tools = { "echo" }, read = { "echo" } },
+    definition = { name = "durable", transport = "stdio", command = vim.fn.exepath("node"), args = { fixture }, tools = { "echo" }, read = { "echo" } },
   }, 20000)
   local function server_state()
-    for _, server in ipairs(observe("worker.mcp.list").servers) do
-      if server.alias == "durable" then return server.state end
+    for _, entry in ipairs(observe("worker.mcp.list").definitions) do
+      if entry.alias == "durable" then return entry.state end
     end
     return nil
   end
-  H.assert_eq(server_state(), "connected", "separate connection observes MCP add")
+  H.assert_eq(server_state(), "active", "separate connection observes MCP add")
   H.call("worker.mcp.disable", { alias = "durable" }, 20000)
   H.assert_eq(server_state(), "disabled", "separate connection observes MCP disable")
   H.call("worker.mcp.enable", { alias = "durable" }, 20000)
-  H.assert_eq(server_state(), "connected", "separate connection observes MCP enable")
+  H.assert_eq(server_state(), "active", "separate connection observes MCP enable")
   H.call("worker.mcp.remove", { alias = "durable" }, 20000)
   H.assert_eq(server_state(), nil, "separate connection observes MCP remove")
 

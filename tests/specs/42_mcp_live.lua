@@ -48,21 +48,21 @@ local ok, err = pcall(function()
 
   local ai = require("plurnk.commands").ai
   ai({ args = "/mcp add current " .. node .. " \"" .. current_definition .. "\"", range = 0 })
-  wait_note("added: current %(connected%)", "current add")
+  wait_note("added: current %(active%)", "current add")
 
   ai({ args = "/mcp", range = 0 })
-  wait_note("current%s+connected%s+stdio.*1/2 tools", "current list")
+  wait_note("current%s+active%s+stdio.*1/2 tools", "current list")
 
   ai({ args = "/mcp disable current", range = 0 })
   wait_note("disabled: current %(disabled%)", "current disable")
 
   ai({ args = "/mcp enable current", range = 0 })
-  wait_note("enabled: current %(connected%)", "current enable")
+  wait_note("enabled: current %(active%)", "current enable")
 
   -- {§mcp-authority} — negotiate-and-degrade: a pre-discover legacy peer connects
   -- at its negotiated revision instead of being rejected.
   ai({ args = "/mcp add legacy " .. node .. " \"" .. legacy_definition .. "\"", range = 0 })
-  wait_note("added: legacy %(connected%)", "legacy connects at its negotiated revision")
+  wait_note("added: legacy %(active%)", "legacy connects at its negotiated revision")
 
   ai({ args = "/mcp remove current", range = 0 })
   wait_note("removed: current", "current remove")

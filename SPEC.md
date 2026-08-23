@@ -100,8 +100,9 @@ what this client guarantees. Tests are organized by observable behavior under
 
   | Input | AG-UI+ action |
   |---|---|
-  | `:AI/mcp` | `worker.mcp.list` |
-  | `:AI/mcp add <alias> <target> [options.json]` | `worker.mcp.add {alias, target, options?}` |
+  | `:AI/mcp` | `worker.mcp.list {}` |
+  | `:AI/mcp discover <url\|command>` | `worker.mcp.discover {source}` |
+  | `:AI/mcp add <alias> <target> [options.json]` | `worker.mcp.add {alias, definition}` — the client composes the exact `McpServerDefinition`: `name = alias`; an absolute `http(s)://` target is `{transport: "http", url}`, anything else `{transport: "stdio", command, args: {}}`; `options.json` supplies the remaining definition members |
   | `:AI/mcp enable <alias>` | `worker.mcp.enable {alias}` |
   | `:AI/mcp disable <alias>` | `worker.mcp.disable {alias}` |
   | `:AI/mcp remove <alias>` | `worker.mcp.remove {alias}` |
