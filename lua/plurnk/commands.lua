@@ -942,8 +942,8 @@ local HELP = table.concat({
   "                   mcp (list available workspace MCP servers)",
   "                       add <alias> <target> [options.json] · enable/disable/remove <alias>",
   "                       oauth <alias> <callback-url>",
-  "                   skills (list universal Agent Skills)",
-  "                       add/remove/find/update via npx skills",
+  "                   skills (list this Worker's Agent Skills)",
+  "                       discover <query|source> · add <name> <source> [--global] · enable/disable/remove <name>",
   "                   open accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
   "input buffer       ? ask · : act · ! exec · # PLAN0 / ## OP0 raw PLURNK · <CR> submits",
@@ -992,7 +992,7 @@ M.mcp = function(args)
 end
 
 M.skills = function(args)
-  return require("plurnk.skills").run(args)
+  return require("plurnk.skills").run(args, resolve_workspace_then)
 end
 
 -- `/` subcommand routing — rummy's full surface, plurnk verbs. Wrapped

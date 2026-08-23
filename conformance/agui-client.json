@@ -417,6 +417,94 @@
         "composition"
       ]
     },
+    "worker.skills.list": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/43_skills.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "composition"
+      ]
+    },
+    "worker.skills.discover": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/43_skills.lua"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "composition"
+      ]
+    },
+    "worker.skills.add": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/43_skills.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.skills.enable": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/43_skills.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.skills.disable": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/43_skills.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.skills.remove": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/43_skills.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
     "worker.mcp.list": {
       "posture": "native",
       "evidence": [

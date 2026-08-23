@@ -1,134 +1,168 @@
--- Neovim projection of the universal Agent Skills package manager. This
--- client invokes the standard CLI directly; it does not route through the
--- terminal client or maintain a second registry/install implementation.
+-- Thin client projection of the daemon-owned Agent Skills Functionality
+-- family: the common lifecycle (list | discover | add | enable | disable |
+-- remove) over the Worker's `skills` actions. The client composes exact
+-- definitions and renders the daemon's states; it runs no package manager,
+-- reads no registry, and keeps no parallel package metadata.
 
 local M = {}
 local arguments_of = require("plurnk.arguments").parse
 
-local function notify(message, level)
-  require("plurnk.client").notify(message, level)
+-- A package reference (owner/repo, URL, or path) is a source; anything else
+-- is a registry query.
+M.is_source = function(term)
+  return term:find("[/\\:]") ~= nil or vim.startswith(term, ".") or vim.startswith(term, "~")
 end
 
-local function project_root()
-  local project = require("plurnk.client").get_project_path()
-  if project == nil or project == "" then
-    notify("skills require a workspace project root", vim.log.levels.WARN)
-    return nil
-  end
-  return vim.fn.fnamemodify(vim.fn.expand(project), ":p"):gsub("/+$", "")
+local function definition_line(entry)
+  entry = type(entry) == "table" and entry or {}
+  local definition = type(entry.definition) == "table" and entry.definition or {}
+  local detail = type(entry.detail) == "table" and entry.detail or {}
+  local alias = type(entry.alias) == "string" and entry.alias or "(unnamed)"
+  local state = type(entry.state) == "string" and entry.state or "unknown"
+  local scope = type(definition.scope) == "string" and definition.scope or "unknown"
+  local problem = type(entry.problem) == "table" and type(entry.problem.detail) == "string" and ("  — " .. entry.problem.detail) or ""
+  return string.format(
+    "%s  %s  %s%s%s%s%s",
+    alias,
+    state,
+    scope,
+    type(definition.source) == "string" and ("  " .. definition.source) or "",
+    type(detail.description) == "string" and ("  " .. detail.description) or "",
+    entry.origin == "worker" and "  (worker)" or "",
+    problem
+  )
 end
 
-local function includes_any(values, choices)
-  for _, value in ipairs(values) do
-    for _, choice in ipairs(choices) do
-      if value == choice then return true end
-    end
-  end
-  return false
+local function candidate_line(candidate)
+  candidate = type(candidate) == "table" and candidate or {}
+  local definition = type(candidate.definition) == "table" and candidate.definition or {}
+  local provenance = type(candidate.provenance) == "table" and candidate.provenance or {}
+  return string.format(
+    "%s  candidate%s%s%s",
+    type(candidate.alias) == "string" and candidate.alias or "(unnamed)",
+    type(definition.source) == "string" and ("  " .. definition.source) or "",
+    type(candidate.summary) == "string" and ("  " .. candidate.summary) or "",
+    type(provenance.reference) == "string" and ("  " .. provenance.reference) or ""
+  )
+end
+
+local function notify_mutation(result, verb, alias_hint)
+  if type(result) ~= "table" then return end
+  local client = require("plurnk.client")
+  local alias = type(result.alias) == "string" and result.alias or alias_hint
+  local definition = type(result.definition) == "table" and result.definition or {}
+  local state = type(definition.state) == "string" and (" (" .. definition.state .. ")") or ""
+  local problem = type(definition.problem) == "table" and type(definition.problem.detail) == "string" and ("  — " .. definition.problem.detail) or ""
+  client.notify(verb .. ": " .. alias .. state .. problem, vim.log.levels.INFO)
 end
 
 local function usage()
-  notify(table.concat({
-    "usage: :AI/skills [list [--global]]",
-    "       :AI/skills add <source> [--skill <name> ...] [--global]",
-    "       :AI/skills remove <name> ... [--global]",
-    "       :AI/skills find <query>",
-    "       :AI/skills update [name ...] [--global]",
-  }, "\n"), vim.log.levels.WARN)
+  require("plurnk.client").notify(
+    "usage: :AI/skills [discover <query|source> | add <name> <source> [--global] | enable|disable|remove <name>]",
+    vim.log.levels.WARN
+  )
 end
 
-local function append(target, values)
-  for _, value in ipairs(values) do target[#target + 1] = value end
-end
+M.run = function(args, with_workspace)
+  local raw = vim.fn.trim(args or "")
+  local client = require("plurnk.client")
 
-local function plain(value)
-  return (value:gsub("\27%[[0-?]*[ -/]*[@-~]", ""))
-end
-
-local function command_arguments(parts)
-  if #parts == 0 then return { "list", "--agent", "universal" } end
-  for _, part in ipairs(parts) do
-    if part == "--agent" or part == "-a" or vim.startswith(part, "--agent=") then return nil end
+  if raw == "" then
+    return with_workspace(function()
+      client.send("worker.skills.list", {}, false, function(result)
+        if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
+        if #result.definitions == 0 then
+          client.notify("Agent Skills: none", vim.log.levels.INFO)
+          return
+        end
+        local lines = {}
+        for _, entry in ipairs(result.definitions) do lines[#lines + 1] = definition_line(entry) end
+        client.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+      end)
+    end)
   end
 
-  local command = parts[1]
-  local rest = {}
-  for index = 2, #parts do rest[#rest + 1] = parts[index] end
-  local out = {}
-  if command == "list" or command == "ls" then
-    out = { "list" }
-    append(out, rest)
-    append(out, { "--agent", "universal" })
-  elseif command == "add" or command == "install" then
-    if #rest == 0 or includes_any(rest, { "--all" }) then return nil end
-    out = { "add" }
-    append(out, rest)
-    append(out, { "--agent", "universal", "--yes" })
-  elseif command == "remove" or command == "rm" then
-    if #rest == 0 then return nil end
-    out = { "remove" }
-    append(out, rest)
-    append(out, { "--agent", "universal", "--yes" })
-  elseif command == "find" or command == "search" then
-    if #rest == 0 then return nil end
-    out = { "find" }
-    append(out, rest)
-  elseif command == "update" or command == "upgrade" then
-    out = { "update" }
-    append(out, rest)
-    if not includes_any(rest, { "--global", "-g", "--project", "-p" }) then
-      out[#out + 1] = "--project"
+  local argv = arguments_of(raw)
+  if argv == nil or #argv == 0 then usage(); return end
+  local command, name = argv[1], argv[2]
+
+  if command == "discover" or command == "find" then
+    local terms = {}
+    for index = 2, #argv do terms[#terms + 1] = argv[index] end
+    local term = vim.fn.trim(table.concat(terms, " "))
+    if term == "" then
+      client.notify("usage: :AI/skills discover <query|source>", vim.log.levels.WARN)
+      return
     end
-    out[#out + 1] = "--yes"
-  else
-    return nil
+    local query = (#argv == 2 and M.is_source(term)) and { source = term } or { query = term }
+    return with_workspace(function()
+      client.send("worker.skills.discover", query, false, function(result)
+        if type(result) ~= "table" or type(result.candidates) ~= "table" then return end
+        if #result.candidates == 0 then
+          client.notify("Skill candidates: none", vim.log.levels.INFO)
+          return
+        end
+        local lines = {}
+        for _, candidate in ipairs(result.candidates) do lines[#lines + 1] = candidate_line(candidate) end
+        client.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+      end)
+    end)
   end
-  return out
-end
 
-local function report(result)
-  local sections = {}
-  if type(result.stdout) == "string" and vim.trim(result.stdout) ~= "" then
-    sections[#sections + 1] = vim.trim(plain(result.stdout))
+  if command == "add" then
+    local positional, global = {}, false
+    for index = 2, #argv do
+      if argv[index] == "--global" then global = true else positional[#positional + 1] = argv[index] end
+    end
+    if #positional ~= 2 or positional[1] == "" or positional[2] == "" then
+      client.notify("usage: :AI/skills add <name> <source> [--global]", vim.log.levels.WARN)
+      return
+    end
+    local alias, source = positional[1], positional[2]
+    local params = { alias = alias, definition = { name = alias, scope = global and "global" or "project", source = source } }
+    return with_workspace(function()
+      client.send("worker.skills.add", params, false, function(result)
+        notify_mutation(result, "added", alias)
+      end)
+    end)
   end
-  if type(result.stderr) == "string" and vim.trim(result.stderr) ~= "" then
-    sections[#sections + 1] = vim.trim(plain(result.stderr))
+
+  if command == "enable" or command == "disable" then
+    if #argv ~= 2 or name == "" then
+      client.notify("usage: :AI/skills " .. command .. " <name>", vim.log.levels.WARN)
+      return
+    end
+    return with_workspace(function()
+      client.send("worker.skills." .. command, { alias = name }, false, function(result)
+        notify_mutation(result, command == "enable" and "enabled" or "disabled", name)
+      end)
+    end)
   end
-  local output = table.concat(sections, "\n")
-  if result.code == 0 then
-    notify(output ~= "" and output or "skills: done", vim.log.levels.INFO)
-  else
-    local message = "Agent Skills command failed (exit " .. tostring(result.code) .. ")"
-    notify(output == "" and message or (message .. "\n" .. output), vim.log.levels.WARN)
+
+  if command == "remove" then
+    if #argv ~= 2 or name == "" then
+      client.notify("usage: :AI/skills remove <name>", vim.log.levels.WARN)
+      return
+    end
+    return with_workspace(function()
+      client.send("worker.skills.remove", { alias = name }, false, function(result)
+        if type(result) == "table" then client.notify("removed: " .. name, vim.log.levels.INFO) end
+      end)
+    end)
   end
+
+  usage()
 end
 
 M.complete = function(cmdline)
   local partial = cmdline:match("/skills%s+(%S*)$")
   if not partial then return nil end
   local out = {}
-  for _, subcommand in ipairs({ "add", "find", "list", "remove", "update" }) do
+  for _, subcommand in ipairs({ "add", "discover", "enable", "disable", "remove" }) do
     if vim.startswith(subcommand, partial) then out[#out + 1] = subcommand end
   end
   table.sort(out)
   return out
-end
-
-M.run = function(args)
-  local root = project_root()
-  if root == nil then return nil end
-  local parts = arguments_of(vim.fn.trim(args or ""))
-  local command = parts ~= nil and command_arguments(parts) or nil
-  if command == nil then
-    usage()
-    return nil
-  end
-
-  local argv = { "npx", "--yes", "skills" }
-  append(argv, command)
-  return vim.system(argv, { cwd = root, text = true, env = { NO_COLOR = "1" } }, function(result)
-    vim.schedule(function() report(result) end)
-  end)
 end
 
 return M

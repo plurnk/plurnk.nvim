@@ -6,6 +6,12 @@ local H = dofile(root .. "/tests/helpers.lua")
 H.setup()
 
 local ok, err = pcall(function()
+  -- A standard global Agent Skill present before the Worker's first Functionality demand.
+  local daemon_home = os.getenv("PLURNK_NVIM_DAEMON_HOME")
+  if daemon_home ~= nil and daemon_home ~= "" then
+    vim.fn.mkdir(daemon_home .. "/.agents/skills/durable-skill", "p")
+    vim.fn.writefile({ "---", "name: durable-skill", "description: Durable skill", "---", "Use it." }, daemon_home .. "/.agents/skills/durable-skill/SKILL.md")
+  end
   local workspace = "nvim-durable-" .. tostring(vim.uv.hrtime())
   local created = H.call("workspace.create", { name = workspace, projectRoot = vim.NIL })
   local state = require("plurnk.state")
@@ -71,6 +77,20 @@ local ok, err = pcall(function()
   H.assert_eq(server_state(), "active", "separate connection observes MCP enable")
   H.call("worker.mcp.remove", { alias = "durable" }, 20000)
   H.assert_eq(server_state(), nil, "separate connection observes MCP remove")
+
+  if daemon_home ~= nil and daemon_home ~= "" then
+    local function skill_state()
+      for _, entry in ipairs(observe("worker.skills.list").definitions) do
+        if entry.alias == "durable-skill" then return entry.state end
+      end
+      return nil
+    end
+    H.assert_eq(skill_state(), "active", "separate connection observes the installed skill")
+    H.call("worker.skills.disable", { alias = "durable-skill" }, 20000)
+    H.assert_eq(skill_state(), "disabled", "separate connection observes skill disable")
+    H.call("worker.skills.enable", { alias = "durable-skill" }, 20000)
+    H.assert_eq(skill_state(), "active", "separate connection observes skill enable")
+  end
 
   local renamed = workspace .. "-renamed"
   H.call("workspace.rename", { name = renamed })

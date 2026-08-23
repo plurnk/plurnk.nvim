@@ -59,6 +59,8 @@ if [ -z "${PLURNK_PORT:-}" ]; then
   fi
   SERVICE_DIR="$(cd "$(dirname "$SERVICE_BIN")/.." && pwd -P)"
   DAEMON_DIR="$(mktemp -d)"
+  # Specs that seed the private daemon's universal Agent Skills root read this.
+  export PLURNK_NVIM_DAEMON_HOME="$DAEMON_DIR/home"
   PLURNK_PORT="$(node -e 'const s=require("net").createServer();s.listen(0,()=>{console.log(s.address().port);s.close()})')"
   export PLURNK_PORT
   (
@@ -122,6 +124,7 @@ reboot_daemon() {
   [ -n "${DAEMON_PID:-}" ] || return 0
   kill -9 "$DAEMON_PID" 2>/dev/null || true
   DAEMON_DIR="$(mktemp -d)"
+  export PLURNK_NVIM_DAEMON_HOME="$DAEMON_DIR/home"
   PLURNK_PORT="$(node -e 'const s=require("net").createServer();s.listen(0,()=>{console.log(s.address().port);s.close()})')"
   export PLURNK_PORT
   (

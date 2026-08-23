@@ -113,20 +113,28 @@ what this client guarantees. Tests are organized by observable behavior under
   including unsupported protocol revisions, use the existing lossless Problem
   path and are neither rewritten nor retried.
 
-- §nvim-universal-agent-skills **Agent Skills use the universal standard** —
-  `:AI/skills` invokes `npx skills` directly in the workspace project root,
-  fixing add/remove/list operations to its `universal` target. Project skills
-  therefore live in `.agents/skills`; global skills live in
-  `~/.agents/skills`. The client owns no registry,
-  source resolver, frontmatter parser, copy routine, or package metadata.
+- §nvim-universal-agent-skills **Agent Skills are daemon actions** —
+  `:AI/skills` is a thin projection of the Worker's `skills` Functionality
+  family, the same common lifecycle as `:AI/mcp`. The client composes one
+  exact `SkillDefinition` and renders the daemon's states; it runs no package
+  manager, reads no registry, parses no frontmatter, and keeps no package
+  metadata. The universal roots (`.agents/skills` in the project,
+  `~/.agents/skills` globally) stay interoperable with every other agent; a
+  skill installed there by any other tool is admitted by the daemon at the
+  next turn.
 
-  | Input | Standard CLI invocation |
+  | Input | AG-UI+ action |
   |---|---|
-  | `:AI/skills` or `:AI/skills list [--global]` | `skills list … --agent universal` |
-  | `:AI/skills add <source> …` | `skills add <source> … --agent universal --yes` |
-  | `:AI/skills remove <name> …` | `skills remove <name> … --agent universal --yes` |
-  | `:AI/skills find <query>` | `skills find <query>` |
-  | `:AI/skills update [name …] [--global]` | `skills update … --project\|--global --yes` |
+  | `:AI/skills` | `worker.skills.list {}` |
+  | `:AI/skills discover <query>` | `worker.skills.discover {query}` — registry search |
+  | `:AI/skills discover <source>` | `worker.skills.discover {source}` — a single term holding `/`, `:`, or `\\`, or starting with `.` or `~`, is a package reference |
+  | `:AI/skills add <name> <source> [--global]` | `worker.skills.add {alias, definition: {name, scope, source}}` with `scope` `project` unless `--global` |
+  | `:AI/skills enable <name>` | `worker.skills.enable {alias}` |
+  | `:AI/skills disable <name>` | `worker.skills.disable {alias}` |
+  | `:AI/skills remove <name>` | `worker.skills.remove {alias}` |
+
+  Daemon Problems use the existing lossless Problem path and are neither
+  rewritten nor retried.
 
 ## §4 Workspaces and workers
 

@@ -34,7 +34,7 @@ Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:A
 `/reasoning` reports the worker's durable policy and supported choices;
 `/reasoning <policy>` persists a daemon-validated selection.
 
-`:AI/skills` lists project skills; `add`, `remove`, `find`, and `update` invoke the standard `npx skills` CLI directly with its `universal` target. Project skills live in `.agents/skills`; global skills use `~/.agents/skills`.
+`:AI/skills` lists this Worker's Agent Skills; `discover`, `add <name> <source> [--global]`, `enable`, `disable`, and `remove` are the daemon's common Functionality actions — the client runs no package manager. Project skills live in `.agents/skills`; global skills use `~/.agents/skills`.
 
 ## Layout
 
