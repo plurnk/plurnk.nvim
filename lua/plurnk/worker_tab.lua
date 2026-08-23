@@ -58,7 +58,7 @@ local function gauge(label, used, capacity)
   return string.format("%s %d%%/%s", label, math.floor(used / capacity * 100 + 0.5), compact)
 end
 
-local function create_reasoning_fold(rec, first, last)
+local function create_block_fold(rec, first, last)
   if first >= last or not rec.waterfall_win or not vim.api.nvim_win_is_valid(rec.waterfall_win) then return end
   vim.api.nvim_win_call(rec.waterfall_win, function()
     pcall(vim.cmd, string.format("%d,%dfold", first, last))
@@ -135,10 +135,10 @@ local function decorate_waterfall_win(win, workspace, key)
   vim.wo[win].foldenable = true
   vim.wo[win].foldlevel = 0
   local rec = workspace_records(workspace)[key]
-  if rec and rec.reasoning_fold_win ~= win then
-    rec.reasoning_fold_win = win
-    for _, fold in ipairs(rec.reasoning_folds or {}) do
-      create_reasoning_fold(rec, fold.first, fold.last)
+  if rec and rec.block_fold_win ~= win then
+    rec.block_fold_win = win
+    for _, fold in ipairs(rec.block_folds or {}) do
+      create_block_fold(rec, fold.first, fold.last)
     end
   end
   pcall(vim.api.nvim_set_option_value, "winbar", build_winbar(workspace, key), { win = win })
@@ -178,7 +178,7 @@ local function ensure_record(workspace, key)
   rec.waterfall_buf = buf
   rec.worker_id = type(key) == "number" and key or nil
   rec.reasoning_ids = rec.reasoning_ids or {}
-  rec.reasoning_folds = rec.reasoning_folds or {}
+  rec.block_folds = rec.block_folds or {}
   rec.reasoning_live = rec.reasoning_live or {}
   recs[key] = rec
   return rec
@@ -378,7 +378,22 @@ M.append_history = function(workspace, entries)
     table.insert(by_rec[rec], entry)
   end
   for rec, run_entries in pairs(by_rec) do
-    write_lines(rec.waterfall_buf, render_entries(run_entries))
+    -- Auto-folding (plurnk#21): every multi-line block folds closed on
+    -- arrival — except the model's broadcast answer, which stays open as the
+    -- conversation's payoff. Folds persist per record and are recreated when
+    -- the window re-decorates; the user reopens any block with ordinary
+    -- fold motions (za / zR).
+    for _, entry in ipairs(run_entries) do
+      local lines = render_entries({ entry })
+      local first, last = write_lines(rec.waterfall_buf, lines)
+      local answer = entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil
+        and entry.origin == "model" and (entry.signal == 200 or entry.signal == 499)
+      if first ~= nil and last ~= nil and last > first and not answer then
+        rec.block_folds = rec.block_folds or {}
+        rec.block_folds[#rec.block_folds + 1] = { first = first, last = last }
+        create_block_fold(rec, first, last)
+      end
+    end
     autoscroll(rec)
   end
 end
@@ -426,9 +441,9 @@ M.end_reasoning = function(workspace, worker_id, message_id)
   rec.reasoning_ids = rec.reasoning_ids or {}
   rec.reasoning_ids[message_id] = true
   if live.first == nil or live.last == nil then return end
-  rec.reasoning_folds = rec.reasoning_folds or {}
-  if live.first < live.last then rec.reasoning_folds[#rec.reasoning_folds + 1] = { first = live.first, last = live.last } end
-  create_reasoning_fold(rec, live.first, live.last)
+  rec.block_folds = rec.block_folds or {}
+  if live.first < live.last then rec.block_folds[#rec.block_folds + 1] = { first = live.first, last = live.last } end
+  create_block_fold(rec, live.first, live.last)
   autoscroll(rec)
 end
 
@@ -450,7 +465,7 @@ M.hydrate = function(workspace, worker_id, entries)
   if not workspace or not worker_id then return end
   local rec = record_for_run(workspace, worker_id)
   rec.reasoning_ids = {}
-  rec.reasoning_folds = {}
+  rec.block_folds = {}
   rec.reasoning_live = {}
   if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
     vim.api.nvim_win_call(rec.waterfall_win, function() pcall(vim.cmd, "silent! normal! zE") end)

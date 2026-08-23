@@ -181,12 +181,22 @@ what this client guarantees. Tests are organized by observable behavior under
   focus on the input; an actionless `prompt` row renders as 🐹 speech from `rx.content`.
 - **Two glyph lanes** — every waterfall row carries identity ·
   status (🐹 client; the model SEND lane is status-flavored: 💭 102, 💡 200, 💤 202,
-  🤔 300), the status code in one column; width-stable glyphs only.
+  🤔 300); width-stable glyphs only. The human waterfall is quiet
+  (plurnk#21): no log coordinates and no status codes except SENDs (the
+  conversation's protocol truth) and errors (>=400); coordinates and every
+  status stay exact on the wire.
+
+- §nvim-waterfall-folding **Multi-line blocks auto-fold** — every multi-line
+  waterfall block (reasoning, PLAN, prompt bodies, non-terminal broadcast
+  bodies) is created as a closed manual fold except the model's broadcast
+  answer, which stays open. Folds persist per worker record and are recreated
+  when a waterfall window re-decorates; ordinary fold motions (za, zR) reopen
+  them.
 - **Plan entries remain structured** — PLAN consumes the ACP Plan projection and
   renders its complete entry list in source order, one line each: ✅ `completed`,
   🚧 `in_progress`, and ⬜ `pending`; `completed` content beginning "Memory: "
   renders as 💾 without the projection prefix.
-  The first line carries the durable row coordinate and dispatch status; later lines
+  The first line carries a failed PLAN's glyph and code (a routine PLAN carries neither); later lines
   align beneath it. Entry whitespace collapses to one line, neutral `medium` priority
   is implicit, and non-neutral priority renders as `[high]` or `[low]`. An empty Plan
   renders `📭 no entries`.

@@ -18,14 +18,14 @@ local ok, err = pcall(function()
   H.assert_eq(reasoning[1], "💭 first line", "reasoning has its own compact identity")
   H.assert_eq(reasoning[2], "   second line", "continuation aligns below reasoning content")
 
-  -- READ with content extra + universal status sub-glyph (✅ on 200).
+  -- READ with content extra; routine 200 carries no code (plurnk#21).
   local read_lines = R({
     op = "READ", origin = "model", scheme = "known", pathname = "/x",
     status_rx = 200, rx = { content = "Paris" },
   })
   H.assert_eq(#read_lines, 1, "READ single line")
   H.assert_match(read_lines[1], "📖", "READ glyph")
-  H.assert_match(read_lines[1], "📖    200", "routine 200 holds a reserved-blank status lane")
+  H.assert_truthy(not read_lines[1]:match("200"), "a routine non-SEND success shows no status code (plurnk#21)")
   H.assert_match(read_lines[1], "Paris", "READ content")
   -- No leading indent
   H.assert_truthy(read_lines[1]:sub(1, 1) ~= " ", "no leading indent")
@@ -69,10 +69,10 @@ local ok, err = pcall(function()
     } } },
   })
   H.assert_eq(#plan_lines, 4, "PLAN has one line per entry")
-  H.assert_eq(plan_lines[1], "01/01/01 ✅    200 Contract settled.", "completed entry owns the first line")
-  H.assert_eq(plan_lines[2], "         💾        One baseline owns the schema.", "memory entry aligns below it")
-  H.assert_eq(plan_lines[3], "         🚧        [high] Update clients.", "in-progress entry aligns below it")
-  H.assert_eq(plan_lines[4], "         ⬜        [low] Run drills.", "pending entry aligns below it")
+  H.assert_eq(plan_lines[1], "✅ Contract settled.", "completed entry owns the first line — no coordinate, no routine code (plurnk#21)")
+  H.assert_eq(plan_lines[2], "💾 One baseline owns the schema.", "memory entry aligns below it")
+  H.assert_eq(plan_lines[3], "🚧 [high] Update clients.", "in-progress entry aligns below it")
+  H.assert_eq(plan_lines[4], "⬜ [low] Run drills.", "pending entry aligns below it")
   H.assert_truthy(not table.concat(plan_lines, "\n"):match("🧠"), "structured PLAN has no opaque brain glyph")
   H.assert_eq(vim.fn.strdisplaywidth("✅"), 2, "completed glyph is width-stable")
   H.assert_eq(vim.fn.strdisplaywidth("🚧"), 2, "in-progress glyph is width-stable")
@@ -86,7 +86,7 @@ local ok, err = pcall(function()
       { content = "Memory: One baseline owns the schema.", priority = "medium", status = "completed" },
     } } },
   })
-  H.assert_eq(projected_memory[1], "01/01/01 💾    200 One baseline owns the schema.",
+  H.assert_eq(projected_memory[1], "💾 One baseline owns the schema.",
     "ACP-projected memory retains its Plurnk presentation")
 
   H.assert_truthy(not pcall(R, {
@@ -101,7 +101,7 @@ local ok, err = pcall(function()
     op = "PLAN", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, tx = { body = { entries = {} } },
   })
-  H.assert_eq(empty_plan[1], "01/01/01 📭    200 no entries", "empty PLAN remains visible")
+  H.assert_eq(empty_plan[1], "📭 no entries", "empty PLAN remains visible without coordinate or routine code")
 
   local bare_lines = R({
     op = "BARE", origin = "model", scheme = nil, pathname = nil,
@@ -190,14 +190,14 @@ local ok, err = pcall(function()
   })
   H.assert_match(manifest[1], "📝", "a non-prompt worker:/// EDIT keeps the EDIT glyph")
 
-  -- Coordinate prefix (svc#208): rendered from the wire ordinals
-  -- (loop_seq/turn_seq), padded; DB ids (loop_id/turn_id) never used.
+  -- The human waterfall carries no coordinates (plurnk#21); ordinals and DB
+  -- ids alike stay off the row.
   local coorded = R({
     op = "READ", origin = "model", scheme = "known", pathname = "/x",
     status_rx = 200, loop_seq = 1, turn_seq = 2, sequence = 3,
     loop_id = 38, turn_id = 412, tx = {}, rx = {},
   })
-  H.assert_match(coorded[1], "01/02/03 ", "coordinate prefix renders padded ordinals")
+  H.assert_truthy(not coorded[1]:match("01/02/03"), "no coordinate gutter on human rows")
   H.assert_truthy(not coorded[1]:match("38/412"), "DB ids never masquerade as coordinates")
 
   -- Summary

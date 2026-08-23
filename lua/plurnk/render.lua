@@ -159,16 +159,10 @@ M.render_reasoning = function(content)
   return lines
 end
 
--- `01/02/03 ` coordinate prefix — the model's log://L/T/S address,
--- zero-padded min-2 for alignment. Empty until the wire carries the
--- seqs (plurnk-service#208); DB ids are NOT the user's loop/turn
--- numbers and are never substituted.
--- Every wire log entry carries the coordinate (loops⋈turns JOIN, #208);
--- render it directly — a missing ordinal is a contract violation that
--- should surface, not be masked with a blank.
-local function coord_prefix(entry)
-  return string.format("%02d/%02d/%02d ", entry.loop_seq, entry.turn_seq, entry.sequence)
-end
+-- The human waterfall carries no log coordinates and no routine status
+-- codes (plurnk#21): every SEND keeps its code (the conversation's protocol
+-- truth), every error (>=400) keeps its code, everything else is quiet.
+-- Coordinates stay exact on the wire for forensics.
 
 local function plan_entry(entry)
   local projected_memory = entry.status == "completed"
@@ -194,9 +188,12 @@ local function render_plan(entry)
     error("PLAN row must carry its canonical Plan body")
   end
 
+  -- A routine PLAN carries no code; a failed one keeps its glyph + code on
+  -- the first row (plurnk#21).
   local status = tostring(entry.status_rx or "?")
-  local sub_glyph = M.status_glyph(entry.status_rx, entry.signal)
-  local blank_coord = string.rep(" ", #coord_prefix(entry))
+  local failed = type(entry.status_rx) == "number" and entry.status_rx >= 400
+  local first_slot = failed and (M.status_glyph(entry.status_rx, entry.signal) .. " " .. status .. " ") or ""
+  local later_slot = failed and string.rep(" ", 3 + #status + 1) or ""
   local rows = {}
   for _, item in ipairs(plan.entries) do
     local glyph, text = plan_entry(item)
@@ -208,9 +205,9 @@ local function render_plan(entry)
   for index, row in ipairs(rows) do
     local prefix
     if index == 1 then
-      prefix = coord_prefix(entry) .. row.glyph .. " " .. sub_glyph .. " " .. status .. " "
+      prefix = row.glyph .. " " .. first_slot
     else
-      prefix = blank_coord .. row.glyph .. string.rep(" ", 5 + #status)
+      prefix = row.glyph .. " " .. later_slot
     end
     lines[index] = prefix .. row.text
   end
@@ -237,7 +234,7 @@ M.render_broadcast = function(entry)
   end
   local status = tostring(entry.status_rx or "?")
   local note = annotation(entry)
-  local header = coord_prefix(entry) .. lane1 .. " " .. lane2 .. " " .. status
+  local header = lane1 .. " " .. lane2 .. " " .. status
   if note ~= "" then header = header .. "  — " .. note end
 
   local body_text = ""
@@ -272,7 +269,7 @@ end
 M.render_prompt = function(entry)
   local body = type(entry.rx) == "table" and type(entry.rx.content) == "string" and entry.rx.content or ""
   -- Two lanes: 🐹 + reserved blank (a prompt record carries no live status).
-  local header = coord_prefix(entry) .. M.ORIGIN_GLYPHS.client .. "   "
+  local header = M.ORIGIN_GLYPHS.client .. "   "
   if body == "" then return { header } end
   if not body:find("\n", 1, true) and #body <= BROADCAST_INLINE_LIMIT then
     return { header .. "  " .. body }
@@ -323,9 +320,12 @@ M.render_log_entry = function(entry)
 
   local extra = build_extra(entry)
 
-  -- Layout: OP SUB STATUS PATH  EXTRA — two lanes, status lane always present
-  -- (glyph or reserved blank) so the code column never drifts.
-  local parts = { coord_prefix(entry), op_glyph, " ", sub_glyph, " ", status }
+  -- Layout: OP SUB [STATUS] PATH  EXTRA — two lanes always; the code renders
+  -- only for SENDs and errors (plurnk#21).
+  local parts = { op_glyph, " ", sub_glyph }
+  if entry.op == "SEND" or (type(entry.status_rx) == "number" and entry.status_rx >= 400) then
+    table.insert(parts, " " .. status)
+  end
   if path ~= "" then table.insert(parts, " " .. path) end
   if extra ~= "" then table.insert(parts, "  " .. extra) end
   local note = annotation(entry)
