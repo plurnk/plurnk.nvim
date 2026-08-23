@@ -12,6 +12,21 @@ require("plurnk").setup({ host = "127.0.0.1", port = 3044 })
 require("plurnk").apply_default_keymaps()  -- optional; only fills unmapped keys
 ```
 
+## Install & releases
+
+A source-consumed plugin — no build step, no package registry. Canonical
+source lives on Gitea; `github.com/plurnk/plurnk.nvim` is the public mirror.
+Two supported ways to consume it:
+
+- **Track `main`** — rolling accepted source. Every commit on public `main`
+  has passed the private daemon-backed suite.
+- **Pin the newest `vX.Y.Z` tag** — a vetted point release. From `v0.28.0`
+  onward every release tag is a GPG-signed annotated tag; older tags are
+  historic lightweight markers and not release artifacts.
+
+Versioning is semver `0.MINOR.PATCH`: each accepted release bumps the minor;
+while pre-1.0, a minor bump may carry breaking changes (see the tag message).
+
 ## The `:AI` language
 
 `:AI/` prints this table in-editor.
