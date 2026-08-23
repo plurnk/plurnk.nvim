@@ -417,7 +417,7 @@
         "composition"
       ]
     },
-    "workspace.mcp.list": {
+    "worker.mcp.list": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -432,7 +432,7 @@
         "composition"
       ]
     },
-    "workspace.mcp.add": {
+    "worker.mcp.add": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -447,7 +447,7 @@
         "durability"
       ]
     },
-    "workspace.mcp.enable": {
+    "worker.mcp.enable": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -462,7 +462,7 @@
         "durability"
       ]
     },
-    "workspace.mcp.disable": {
+    "worker.mcp.disable": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -477,7 +477,7 @@
         "durability"
       ]
     },
-    "workspace.mcp.remove": {
+    "worker.mcp.remove": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -492,7 +492,7 @@
         "durability"
       ]
     },
-    "workspace.mcp.oauth.complete": {
+    "worker.mcp.oauth.complete": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -507,7 +507,7 @@
         "durability"
       ]
     },
-    "workspace.mcp.complete": {
+    "worker.mcp.complete": {
       "posture": "generic",
       "evidence": [
         "tests/specs/35_agui.lua — generic action transport"

@@ -48,7 +48,7 @@ local ok, err = pcall(function()
 
   for name, contract in pairs(discovery.actions) do
     H.assert_type(contract, "table", "action " .. name)
-    H.assert_truthy(contract.scope == "worldless" or contract.scope == "workspace", "action " .. name .. " scope")
+    H.assert_truthy(contract.scope == "worldless" or contract.scope == "workspace" or contract.scope == "worker", "action " .. name .. " scope")
     H.assert_type(contract.inputSchema, "table", "action " .. name .. " input schema")
     H.assert_type(contract.outputSchema, "table", "action " .. name .. " output schema")
     disposition("action", name, manifest.actions[name])

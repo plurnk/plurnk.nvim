@@ -6,17 +6,17 @@ H.setup()
 local ok, err = pcall(function()
   local sent, notices = {}, {}
   local results = {
-    ["workspace.mcp.list"] = {
+    ["worker.mcp.list"] = {
       servers = {
         { alias = "gitea", state = "connected", transport = "http", target = "https://example.test/mcp", enabledTools = { "issue_read" }, tools = { "issue_read", "issue_search" } },
         { alias = "local", state = "disabled", transport = "stdio", target = "local-mcp", tools = {} },
       },
     },
-    ["workspace.mcp.add"] = { status = 201, server = { alias = "echo", state = "connected" } },
-    ["workspace.mcp.enable"] = { status = 200, server = { alias = "echo", state = "connected" } },
-    ["workspace.mcp.disable"] = { status = 200, server = { alias = "echo", state = "disabled" } },
-    ["workspace.mcp.remove"] = { status = 200, alias = "echo", removed = true },
-    ["workspace.mcp.oauth.complete"] = { status = 200, server = { alias = "gitea", state = "connected" } },
+    ["worker.mcp.add"] = { status = 201, server = { alias = "echo", state = "connected" } },
+    ["worker.mcp.enable"] = { status = 200, server = { alias = "echo", state = "connected" } },
+    ["worker.mcp.disable"] = { status = 200, server = { alias = "echo", state = "disabled" } },
+    ["worker.mcp.remove"] = { status = 200, alias = "echo", removed = true },
+    ["worker.mcp.oauth.complete"] = { status = 200, server = { alias = "gitea", state = "connected" } },
   }
   local client = require("plurnk.client")
   client.check_daemon_once = function() end
@@ -33,7 +33,7 @@ local ok, err = pcall(function()
   local ai = commands.ai
 
   ai({ args = "/mcp", range = 0 })
-  H.assert_eq(sent[1].method, "workspace.mcp.list", ":AI/mcp lists workspace servers")
+  H.assert_eq(sent[1].method, "worker.mcp.list", ":AI/mcp lists workspace servers")
   H.assert_match(notices[#notices], "gitea%s+connected%s+http%s+https://example%.test/mcp%s+1/2 tools", "list renders enabled/catalog tool counts")
   H.assert_match(notices[#notices], "local%s+disabled%s+stdio%s+local%-mcp%s+0 tools", "list renders cold-disabled servers")
 
@@ -43,7 +43,7 @@ local ok, err = pcall(function()
 
   sent, notices = {}, {}
   ai({ args = "/mcp add echo \"/opt/MCP Servers/echo\" \"" .. path .. "\"", range = 0 })
-  H.assert_eq(sent[1].method, "workspace.mcp.add", "add maps to the alias-first action")
+  H.assert_eq(sent[1].method, "worker.mcp.add", "add maps to the alias-first action")
   H.assert_truthy(vim.deep_equal(sent[1].params, {
     alias = "echo",
     target = "/opt/MCP Servers/echo",
@@ -55,15 +55,15 @@ local ok, err = pcall(function()
   ai({ args = "/mcp disable echo", range = 0 })
   ai({ args = "/mcp remove echo", range = 0 })
   ai({ args = "/mcp oauth gitea https://client.example/callback?code=x&state=y", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.mcp.enable", params = { alias = "echo" } }), "enable action shape")
-  H.assert_truthy(vim.deep_equal(sent[2], { method = "workspace.mcp.disable", params = { alias = "echo" } }), "disable action shape")
-  H.assert_truthy(vim.deep_equal(sent[3], { method = "workspace.mcp.remove", params = { alias = "echo" } }), "remove action shape")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.mcp.enable", params = { alias = "echo" } }), "enable action shape")
+  H.assert_truthy(vim.deep_equal(sent[2], { method = "worker.mcp.disable", params = { alias = "echo" } }), "disable action shape")
+  H.assert_truthy(vim.deep_equal(sent[3], { method = "worker.mcp.remove", params = { alias = "echo" } }), "remove action shape")
   H.assert_truthy(vim.deep_equal(sent[4], {
-    method = "workspace.mcp.oauth.complete",
+    method = "worker.mcp.oauth.complete",
     params = { alias = "gitea", callbackUrl = "https://client.example/callback?code=x&state=y" },
   }), "OAuth completion action shape")
 
-  results["workspace.mcp.add"] = {
+  results["worker.mcp.add"] = {
     status = 202,
     authorization = { url = "https://gitea.example/authorize?state=abc" },
   }
@@ -83,7 +83,7 @@ local ok, err = pcall(function()
   H.assert_eq(#sent, 0, "malformed local JSON never dispatches")
   H.assert_match(notices[#notices], "not valid JSON", "malformed JSON is diagnosed locally")
   ai({ args = "/mcp add echo echo-mcp " .. structurally_invalid, range = 0 })
-  H.assert_eq(sent[1].method, "workspace.mcp.add", "option semantics reach daemon authority")
+  H.assert_eq(sent[1].method, "worker.mcp.add", "option semantics reach daemon authority")
   H.assert_truthy(vim.deep_equal(sent[1].params.options, {}), "client does not imitate MCP schema validation")
 
   sent, notices = {}, {}

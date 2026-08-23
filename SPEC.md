@@ -100,12 +100,12 @@ what this client guarantees. Tests are organized by observable behavior under
 
   | Input | AG-UI+ action |
   |---|---|
-  | `:AI/mcp` | `workspace.mcp.list` |
-  | `:AI/mcp add <alias> <target> [options.json]` | `workspace.mcp.add {alias, target, options?}` |
-  | `:AI/mcp enable <alias>` | `workspace.mcp.enable {alias}` |
-  | `:AI/mcp disable <alias>` | `workspace.mcp.disable {alias}` |
-  | `:AI/mcp remove <alias>` | `workspace.mcp.remove {alias}` |
-  | `:AI/mcp oauth <alias> <callback-url>` | `workspace.mcp.oauth.complete {alias, callbackUrl}` |
+  | `:AI/mcp` | `worker.mcp.list` |
+  | `:AI/mcp add <alias> <target> [options.json]` | `worker.mcp.add {alias, target, options?}` |
+  | `:AI/mcp enable <alias>` | `worker.mcp.enable {alias}` |
+  | `:AI/mcp disable <alias>` | `worker.mcp.disable {alias}` |
+  | `:AI/mcp remove <alias>` | `worker.mcp.remove {alias}` |
+  | `:AI/mcp oauth <alias> <callback-url>` | `worker.mcp.oauth.complete {alias, callbackUrl}` |
 
   Interactive authorization prints the URL and exact completion command.
   Unreadable or invalid local JSON stops before dispatch. Daemon Problems,

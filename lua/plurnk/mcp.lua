@@ -76,7 +76,7 @@ M.run = function(args, with_workspace)
 
   if raw == "" then
     return with_workspace(function()
-      client.send("workspace.mcp.list", {}, false, function(result)
+      client.send("worker.mcp.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.servers) ~= "table" then return end
         if #result.servers == 0 then
           client.notify("MCP servers: none", vim.log.levels.INFO)
@@ -103,7 +103,7 @@ M.run = function(args, with_workspace)
     local params = { alias = alias, target = argv[3] }
     if options ~= nil then params.options = options end
     return with_workspace(function()
-      client.send("workspace.mcp.add", params, false, function(result)
+      client.send("worker.mcp.add", params, false, function(result)
         notify_mutation(result, "added", alias)
       end)
     end)
@@ -115,7 +115,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function()
-      client.send("workspace.mcp." .. command, { alias = alias }, false, function(result)
+      client.send("worker.mcp." .. command, { alias = alias }, false, function(result)
         notify_mutation(result, command == "enable" and "enabled" or "disabled", alias)
       end)
     end)
@@ -127,7 +127,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function()
-      client.send("workspace.mcp.remove", { alias = alias }, false, function(result)
+      client.send("worker.mcp.remove", { alias = alias }, false, function(result)
         if type(result) == "table" then client.notify("removed: " .. alias, vim.log.levels.INFO) end
       end)
     end)
@@ -139,7 +139,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function()
-      client.send("workspace.mcp.oauth.complete", { alias = alias, callbackUrl = argv[3] }, false, function(result)
+      client.send("worker.mcp.oauth.complete", { alias = alias, callbackUrl = argv[3] }, false, function(result)
         notify_mutation(result, "authorized", alias)
       end)
     end)
