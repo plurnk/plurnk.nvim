@@ -186,6 +186,14 @@ what this client guarantees. Tests are organized by observable behavior under
   conversation's protocol truth) and errors (>=400); coordinates and every
   status stay exact on the wire.
 
+- §nvim-markdown-buffer-native **Markdown renders buffer-native** — the
+  waterfall keeps its semantic/raw Markdown text and borrows the editor's
+  `markdown` syntax (syntax only, no ftplugin side effects) for emphasis,
+  fences, and tables; the wire carries no pre-rendered channel (plurnk#15).
+  A ```mermaid fence body is piped through `mermaid-ascii` when that
+  executable is on PATH and its ASCII projection replaces the source lines;
+  otherwise the verbatim source stays, folded like any multi-line block.
+
 - §nvim-waterfall-folding **Multi-line blocks auto-fold** — every multi-line
   waterfall block (reasoning, PLAN, prompt bodies, non-terminal broadcast
   bodies) is created as a closed manual fold except the model's broadcast

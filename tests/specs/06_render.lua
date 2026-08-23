@@ -200,6 +200,16 @@ local ok, err = pcall(function()
   H.assert_truthy(not coorded[1]:match("01/02/03"), "no coordinate gutter on human rows")
   H.assert_truthy(not coorded[1]:match("38/412"), "DB ids never masquerade as coordinates")
 
+  -- Mermaid projection (plurnk#15): without mermaid-ascii on PATH the fence
+  -- stays verbatim source; the block auto-fold owns its ergonomics.
+  local mermaid_body = { "before", "```mermaid", "graph TD", "  a --> b", "```", "after" }
+  local projected = r.project_mermaid(mermaid_body)
+  if vim.fn.executable("mermaid-ascii") == 1 then
+    H.assert_truthy(#projected >= 2, "mermaid-ascii projected the fence")
+  else
+    H.assert_truthy(vim.deep_equal(projected, mermaid_body), "absent projector leaves the verbatim source")
+  end
+
   -- Summary
   H.assert_match(r.render_summary(3, 850, 200, 200, false), "done", "summary tag")
   H.assert_match(r.render_summary(3, 1500, 200, 200, false), "1.50s", "summary seconds")

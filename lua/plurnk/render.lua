@@ -219,6 +219,41 @@ end
 -- Render the broadcast SEND (op=SEND, no path). For short single-line
 -- bodies, inline after the status. For multi-line or long bodies, header
 -- line + body lines indented under the speaker.
+-- Mermaid stays source in the buffer-native model (plurnk#15) unless the
+-- operator has `mermaid-ascii` on PATH — then each ```mermaid fence body is
+-- piped through it and its ASCII projection replaces the source lines. A
+-- failed or absent projector leaves the verbatim source; the block auto-fold
+-- applies either way.
+local function project_mermaid(lines)
+  if vim.fn.executable("mermaid-ascii") ~= 1 then return lines end
+  local out, fence, body = {}, false, {}
+  for _, line in ipairs(lines) do
+    if not fence and line:match("^%s*```mermaid%s*$") then
+      fence, body = true, {}
+    elseif fence and line:match("^%s*```%s*$") then
+      fence = false
+      local ok, drawn = pcall(vim.fn.systemlist, { "mermaid-ascii" }, table.concat(body, "\n"))
+      if ok and vim.v.shell_error == 0 and type(drawn) == "table" and #drawn > 0 then
+        for _, drawn_line in ipairs(drawn) do out[#out + 1] = drawn_line end
+      else
+        out[#out + 1] = "```mermaid"
+        for _, src in ipairs(body) do out[#out + 1] = src end
+        out[#out + 1] = "```"
+      end
+    elseif fence then
+      body[#body + 1] = line
+    else
+      out[#out + 1] = line
+    end
+  end
+  if fence then
+    out[#out + 1] = "```mermaid"
+    for _, src in ipairs(body) do out[#out + 1] = src end
+  end
+  return out
+end
+M.project_mermaid = project_mermaid
+
 M.render_broadcast = function(entry)
   -- TWO lanes (identity · status), converged with the TUI: the MODEL speaking
   -- carries its state AS lane 1 (💭/💡/💤/🤔) with lane 2 reserved-blank; the
@@ -252,8 +287,12 @@ M.render_broadcast = function(entry)
     return { header .. "  " .. body_text }
   end
 
-  local lines = { header }
+  local raw_lines = {}
   for chunk in (body_text .. "\n"):gmatch("([^\n]*)\n") do
+    raw_lines[#raw_lines + 1] = chunk
+  end
+  local lines = { header }
+  for _, chunk in ipairs(project_mermaid(raw_lines)) do
     lines[#lines+1] = "   " .. chunk
   end
   if lines[#lines] == "   " then table.remove(lines) end

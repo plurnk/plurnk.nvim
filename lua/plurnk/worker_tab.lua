@@ -172,6 +172,11 @@ local function ensure_record(workspace, key)
   vim.bo[buf].buftype = "nofile"
   vim.bo[buf].bufhidden = "hide"
   vim.bo[buf].swapfile = false
+  -- Buffer-native Markdown rendering (plurnk#15): the waterfall keeps its
+  -- semantic/raw text and borrows the editor's markdown syntax for emphasis,
+  -- fences, and tables. Syntax only — no ftplugin side effects, and the
+  -- manual block folds stay authoritative.
+  pcall(function() vim.bo[buf].syntax = "markdown" end)
   vim.b[buf].plurnk_workspace = workspace
   if type(key) == "number" then vim.b[buf].plurnk_worker_id = key end
   rec = rec or {}
