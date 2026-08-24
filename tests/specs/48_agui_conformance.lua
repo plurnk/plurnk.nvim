@@ -85,7 +85,7 @@ local ok, err = pcall(function()
     H.wait_for(function() return segment ~= nil end, 10000, name .. " invalid action")
     H.assert_eq(segment.state, "failed", name .. " rejects fields absent from discovery")
     H.assert_eq(segment.problem.type,
-      "https://problems.plurnk.dev/agui/action/invalid-action-parameters",
+      "https://problems.plurnk.xyz/agui/action/invalid-action-parameters",
       name .. " preserves the shared admission Problem")
     H.assert_eq(segment.problem.status, 400, name .. " admission status")
   end

@@ -225,7 +225,7 @@ end
 
 function M.client_problem(owner, kind, title, status, detail, stage, retryable, extensions)
   return vim.tbl_extend("force", {
-    type = "https://problems.plurnk.dev/client/" .. owner .. "/" .. kind,
+    type = "https://problems.plurnk.xyz/client/" .. owner .. "/" .. kind,
     title = title,
     status = status,
     detail = detail,

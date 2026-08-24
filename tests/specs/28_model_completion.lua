@@ -44,7 +44,7 @@ local ok, err = pcall(function()
     elseif method == "worker.model.set" then
       if params.selector == "broken/model" then
         callback(nil, {
-          type = "https://problems.plurnk.dev/daemon/provider/unavailable",
+          type = "https://problems.plurnk.xyz/daemon/provider/unavailable",
           title = "Provider unavailable",
           status = 503,
           detail = "The selected provider is unavailable.",

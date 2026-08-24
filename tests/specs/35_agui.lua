@@ -102,7 +102,7 @@ local ok, err = pcall(function()
     http_problem = transport_error
   end)
   stdout(nil, vim.json.encode({
-    type = "https://problems.plurnk.dev/agui/http/bearer-token-required",
+    type = "https://problems.plurnk.xyz/agui/http/bearer-token-required",
     title = "Bearer token required",
     status = 401,
     detail = "A bearer token is required.",
@@ -224,7 +224,7 @@ local ok, err = pcall(function()
   H.assert_eq(row.method, "log/entry", "plurnk.row → log/entry")
   H.assert_eq(row.params.entry.id, 7, "row value wrapped as {entry}")
   H.assert_eq(agui.unproject({ type = "CUSTOM", name = "plurnk.terminated", value = { result = { status = 200 } } }, tool).method, "loop/terminated", "terminated")
-  local problem = { type = "https://problems.plurnk.dev/test", title = "Test", status = 409, detail = "Conflict.", recovery = "Change the input." }
+  local problem = { type = "https://problems.plurnk.xyz/test", title = "Test", status = 409, detail = "Conflict.", recovery = "Change the input." }
   local problem_event = agui.unproject({ type = "CUSTOM", name = "plurnk.problem", value = problem }, tool)
   H.assert_eq(problem_event.method, "problem/event", "Problem custom is preserved")
   H.assert_eq(problem_event.params.problem, problem, "Problem table is not flattened")
@@ -275,7 +275,7 @@ local ok, err = pcall(function()
   end
   agui.run = function(_, _, on_event, on_done)
     local terminal_problem = {
-      type = "https://problems.plurnk.dev/lifecycle/cancel/loop-cancelled",
+      type = "https://problems.plurnk.xyz/lifecycle/cancel/loop-cancelled",
       title = "Loop cancelled",
       status = 499,
       detail = "The loop was cancelled.",
@@ -419,7 +419,7 @@ local ok, err = pcall(function()
   vim.notify = function() action_notifies = action_notifies + 1 end
   agui.rpc = function(_, _, _, _, cb, on_event)
     local failure = {
-      type = "https://problems.plurnk.dev/daemon/action/refused",
+      type = "https://problems.plurnk.xyz/daemon/action/refused",
       title = "Action refused",
       status = 409,
       detail = "The action was refused.",
