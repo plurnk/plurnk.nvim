@@ -844,7 +844,7 @@
     "loop/packet": {
       "posture": "native",
       "evidence": [
-        "plurnk-service#366 — exact packet chronology (rendering: plurnk.nvim#19)"
+        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus (status rendering: plurnk.nvim#19)"
       ],
       "dimensions": [
         "admission",
