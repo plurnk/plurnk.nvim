@@ -7,6 +7,21 @@ H.setup()
 
 local ok, err = pcall(function()
   local dispatch = require("plurnk.dispatch")
+  local render = require("plurnk.render")
+
+  H.assert_eq(render.render_diagnostic({
+    source = "grammar", kind = "parse_advisory", level = "warn", message = "boom",
+    position = { type = "content-offset", line = 2, column = 4 },
+    snippet = "bad line", hints = { "repair it" },
+  }), '📡 grammar:parse_advisory L2 col4 "boom"\n   bad line\n   repair it',
+    "Notice projection matches the terminal client")
+  H.assert_eq(render.render_diagnostic({
+    type = "https://problems.plurnk.xyz/client/render/failure",
+    title = "render failure", status = 500, detail = "could not render",
+    source = "client:render", kind = "failure", recovery = "inspect the source",
+  }), '📡 client:render:failure "could not render"\n   inspect the source',
+    "Problem projection matches the terminal client")
+
   -- Capture the highlight group safe_echo hands nvim_echo.
   local captured
   vim.api.nvim_echo = function(chunks) captured = chunks and chunks[1] end

@@ -20,19 +20,20 @@ local ok, err = pcall(function()
     batchId = 4, state = "queued", completed = 0, total = 2,
   }, workspace)
   H.assert_eq(#appended, 0, "queued progress does not spam the waterfall")
-  H.assert_match(require("plurnk.statusline").text(), "🌿 0%%", "queued progress appears in statusline")
+  H.assert_eq(require("plurnk.statusline").text(), "0%", "queued progress uses the shared activity slot")
 
   dispatch.handle_branch_batch({
     batchId = 4, state = "running", branch = "feature/two", completed = 1, total = 2,
   }, workspace)
   H.assert_eq(#appended, 0, "running progress does not spam the waterfall")
-  H.assert_match(require("plurnk.statusline").text(), "🌿 50%%", "running progress advances")
+  H.assert_eq(require("plurnk.statusline").text(), "50%", "running progress advances")
 
   dispatch.handle_branch_batch({
     batchId = 4, state = "completed", completed = 2, total = 2,
   }, workspace)
   vim.wait(300, function() return #appended == 1 end)
   H.assert_match(appended[1], "branch batch 4 complete %(2/2%)", "completion appends one summary")
+  H.assert_match(appended[1], "^🌿", "terminal branch summary begins at the shared left edge")
   H.assert_eq(state.get_branch_batch(workspace), nil, "completion clears compact state")
 
   dispatch.handle_branch_batch({
@@ -41,7 +42,8 @@ local ok, err = pcall(function()
   }, workspace)
   vim.wait(300, function() return #appended == 2 end)
   H.assert_match(appended[2], "requires recovery: checkout is dirty", "recovery condition is explicit")
-  H.assert_match(require("plurnk.statusline").text(), "🌿 ❌", "recovery state remains visible")
+  H.assert_match(appended[2], "^❌", "recovery condition begins at the shared left edge")
+  H.assert_eq(require("plurnk.statusline").text(), "", "durable recovery diagnostic releases the activity slot")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

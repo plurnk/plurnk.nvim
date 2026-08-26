@@ -141,7 +141,7 @@ end
 M.handle_loop_terminated = function(params, workspace_name)
   if not params or not workspace_name then return end
   state.set_loop_inflight(workspace_name, false)
-  state.set_embedding(workspace_name, false)  -- the abacus never outlives the loop
+  state.set_embedding(workspace_name, false)
   state.record_loop_usage(workspace_name, params.usage)  -- exact last-loop envelope; never a client tally
   if type(params.result) == "table" and type(params.result.status) == "number" then
     state.set_final_status(workspace_name, params.result.status)
@@ -159,8 +159,7 @@ end
 M.handle_problem_event = function(params, workspace_name)
   if type(params) ~= "table" or type(params.problem) ~= "table" then return end
   local problem = params.problem
-  local line = "  Problem: " .. tostring(problem.detail or problem.title or "operation failed")
-  if type(problem.recovery) == "string" then line = line .. "\n     " .. problem.recovery end
+  local line = require("plurnk.render").render_diagnostic(problem)
   vim.schedule(function()
     if workspace_name then
       local ok, worker_tab = pcall(require, "plurnk.worker_tab")
@@ -187,14 +186,18 @@ end
 M.handle_notice_event = function(params, workspace_name)
   if not params or type(params.notice) ~= "table" then return end
   local notice = params.notice
-  -- engine:turn liveness is the ⏳ gutter, not a waterfall line (mirrors the TUI).
+  -- engine:turn liveness is the activity slot, not a waterfall line.
   if notice.source == "engine:turn" then return end
-  -- embed_progress toggles the 🧮 abacus on the EDGE — never a per-tick line.
+  -- Derivation progress occupies the same compact edge slot as the TUI prompt.
   if notice.source == "engine:derivation" and notice.kind == "embed_progress" then
-    local active = tonumber(notice.completed) ~= nil and tonumber(notice.total) ~= nil
-      and tonumber(notice.completed) < tonumber(notice.total)
-    if workspace_name and active ~= state.is_embedding(workspace_name) then
-      state.set_embedding(workspace_name, active)
+    local completed, total = tonumber(notice.completed), tonumber(notice.total)
+    local phase = type(notice.phase) == "string" and notice.phase or nil
+    local active = phase == "preparing" or (phase ~= "complete" and phase ~= "failed"
+      and completed ~= nil and total ~= nil and completed < total)
+    local percent = active and completed ~= nil and total ~= nil and total > 0
+      and math.floor((completed / total) * 100) or nil
+    if workspace_name then
+      state.set_embedding(workspace_name, active, percent)
       redraw_statusline()
     end
     return
@@ -211,11 +214,7 @@ M.handle_notice_event = function(params, workspace_name)
     return
   end
   vim.schedule(function()
-    local tag = tostring(notice.source or "?") .. ":" .. tostring(notice.kind or "?")
-    local headline = "  📡 " .. tag
-    if type(notice.message) == "string" and #notice.message > 0 then
-      headline = headline .. ' "' .. notice.message .. '"'
-    end
+    local headline = require("plurnk.render").render_diagnostic(notice)
     if workspace_name then
       local ok, worker_tab = pcall(require, "plurnk.worker_tab")
       if ok then worker_tab.append_line(workspace_name, headline) end
@@ -249,14 +248,14 @@ M.handle_branch_batch = function(params, workspace_name)
       local problem = type(params.problem) == "table" and params.problem.detail or nil
       local line
       if params.state == "completed" then
-        line = string.format("  🌿 branch batch %s complete (%s/%s)",
+        line = string.format("🌿 branch batch %s complete (%s/%s)",
           tostring(params.batchId or "?"), tostring(params.completed or params.total or 0),
           tostring(params.total or params.completed or 0))
       elseif params.state == "failed" then
-        line = string.format("  ❌ branch batch %s failed: %s",
+        line = string.format("❌ branch batch %s failed: %s",
           tostring(params.batchId or "?"), tostring(problem or "branch preflight failed"))
       else
-        line = string.format("  ❌ branch batch %s requires recovery: %s",
+        line = string.format("❌ branch batch %s requires recovery: %s",
           tostring(params.batchId or "?"), tostring(problem or "inspect the workspace Git state"))
       end
       if ok then worker_tab.append_line(workspace_name, line) end

@@ -39,6 +39,7 @@ local function ensure_workspace(name)
       status_text = nil,
       last_seen_log_id = 0,
       pending_proposals = {},  -- keyed by logEntryId
+      embedding = nil,         -- active derivation progress; table even when percent is unknown
       search_progress = nil,   -- aggregate page acquisition percent; nil when idle
       branch_batch = nil,      -- active serialized branch-batch lifecycle
     }
@@ -186,11 +187,22 @@ end
 M.is_loop_inflight = function(name) local s = ensure_workspace(name); return s and s.loop_inflight or false end
 M.set_loop_inflight = function(name, v) local s = ensure_workspace(name); if s then s.loop_inflight = not not v end end
 
--- The abacus: engine:derivation embed_progress toggles this while re-embedding
--- (token recount). The statusline shows 🧮 on the edge — never a waterfall line,
--- mirroring the TUI (which toggles a 🧮 prompt slot instead of spamming progress).
-M.is_embedding = function(name) local s = ensure_workspace(name); return s and s.embedding or false end
-M.set_embedding = function(name, v) local s = ensure_workspace(name); if s then s.embedding = not not v end end
+-- Derivation progress is compact edge state, never a waterfall line. Store its
+-- optional producer-derived percentage with its liveness so both clients can
+-- present the same progress-or-hourglass contract.
+M.is_embedding = function(name) local s = ensure_workspace(name); return s and s.embedding ~= nil or false end
+M.get_embedding_progress = function(name)
+  local s = ensure_workspace(name)
+  return s and type(s.embedding) == "table" and s.embedding.percent or nil
+end
+M.set_embedding = function(name, active, percent)
+  local s = ensure_workspace(name)
+  if not s then return end
+  if not active then s.embedding = nil; return end
+  s.embedding = {
+    percent = type(percent) == "number" and math.max(0, math.min(100, math.floor(percent))) or nil,
+  }
+end
 M.get_search_progress = function(name) local s = ensure_workspace(name); return s and s.search_progress or nil end
 M.set_search_progress = function(name, percent)
   local s = ensure_workspace(name)

@@ -52,10 +52,10 @@ local ok, err = pcall(function()
   -- FIND with count
   local find_lines = R({
     op = "FIND", origin = "model", scheme = "known", pathname = "/**",
-    status_rx = 200, rx = { results = "a\nb\nc" },
+    status_rx = 200, rx = { results = { { pathname = "/a" }, { pathname = "/b" }, { pathname = "/c" } } },
   })
   H.assert_match(find_lines[1], "🔍", "FIND glyph")
-  H.assert_match(find_lines[1], "→ 3 results", "FIND count")
+  H.assert_match(find_lines[1], "→ 3 results", "FIND counts the current array result shape")
 
   -- PLAN → one ordered status-glyph line per canonical entry.
   local plan_lines = R({
@@ -111,23 +111,31 @@ local ok, err = pcall(function()
   H.assert_match(bare_lines[1], "🔮", "BARE has an isolated-inference glyph")
   H.assert_truthy(not bare_lines[1]:match("%?"), "BARE is not the unknown-op fallback")
 
-  -- Broadcast SEND carrying signal 200, short body — inline.
+  -- Broadcast SEND lifecycle is one glyph with no repeated protocol code.
   local bc_short = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "Paris" } },
   })
   H.assert_eq(#bc_short, 1, "short broadcast inline")
-  H.assert_match(bc_short[1], "💡", "model SEND 200: the answer state IS the identity")
-  H.assert_match(bc_short[1], "200", "SEND ✅ sub-glyph")
-  H.assert_match(bc_short[1], "200  Paris", "200 then 2sp then body")
+  H.assert_eq(bc_short[1], "⏹️ Paris", "model SEND 200 uses one lifecycle glyph and one body separator")
+  H.assert_truthy(not bc_short[1]:match("200"), "wire status is not repeated in the human waterfall")
 
   local bc_annotated = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { annotation = "Answer ready", body = { raw = "Paris" } },
   })
-  H.assert_match(bc_annotated[1], "200  — Answer ready  Paris", "broadcast annotation stays on its header")
+  H.assert_eq(bc_annotated[1], "⏹️ — Answer ready Paris", "broadcast annotation stays on its header")
+
+  local bc_continuing = R({
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 102, signal = 102,
+    tx = { body = { raw = "Continuing." } },
+  })
+  H.assert_eq(bc_continuing[1], "▶️ Continuing.", "102 uses the continuing lifecycle glyph without its code")
+  H.assert_eq(vim.fn.strdisplaywidth("▶️"), 2, "continuing lifecycle sequence is width-stable in Neovim")
+  H.assert_eq(vim.fn.strdisplaywidth("⏹️"), 2, "completion lifecycle sequence is width-stable in Neovim")
 
   local bc_arrow = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,
@@ -144,6 +152,7 @@ local ok, err = pcall(function()
     tx = { body = { raw = "hi\nthere" } },
   })
   H.assert_eq(#bc_multi, 3, "multi broadcast header + 2 body lines")
+  H.assert_eq(bc_multi[1], "⏹️", "multi broadcast header is one lifecycle glyph")
   H.assert_eq(bc_multi[2], "   hi", "body line 1 indented 3")
   H.assert_eq(bc_multi[3], "   there", "body line 2 indented 3")
 
@@ -153,6 +162,7 @@ local ok, err = pcall(function()
     status_rx = 200, signal = 200,
   })
   H.assert_eq(#empty, 1, "empty broadcast = header only")
+  H.assert_eq(empty[1], "⏹️", "empty broadcast repeats no protocol code")
 
   -- Two lanes: the OP is the identity (the origin lane is gone — converged 2026-07-10)
   local client_line = R({
@@ -164,16 +174,33 @@ local ok, err = pcall(function()
 
   local R2 = require("plurnk.render").status_glyph
   H.assert_eq(R2(202), "💤", "202 → 💤 parked")
+  H.assert_eq(R2(300), "🤔", "300 → 🤔 decision")
   H.assert_eq(R2(499), "✋", "499 → ✋ abort")
+
+  local scoped = R({
+    op = "READ", origin = "model", scheme = "worker", pathname = "/notes.md",
+    lineMarker = { marks = { "@fHtjK", 42 } }, status_rx = 200,
+  })
+  H.assert_match(scoped[1], "<@fHtjK,42>", "operation scope renders in canonical wire order")
+
+  local directed = R({
+    op = "SEND", origin = "model", scheme = "worker", pathname = "/child",
+    status_rx = 200, signal = 200, tx = { body = { raw = "Continue." } },
+  })
+  H.assert_match(directed[1], "^⏹️", "directed SEND shares the lifecycle primary glyph")
+  H.assert_truthy(not directed[1]:match("200"), "routine directed SEND suppresses its numeric status")
+  local directed_failure = R({
+    op = "SEND", origin = "model", scheme = "worker", pathname = "/gone",
+    status_rx = 410, signal = 410, tx = { body = { raw = "Gone." } },
+  })
+  H.assert_match(directed_failure[1], "^❌ 410", "failed directed SEND retains its diagnostic status")
 
   -- The service's actionless prompt row renders as user speech, not an op trace.
   local prompt_block = R({
     op = "prompt", origin = "plurnk", scheme = "prompt", pathname = "/3/1",
     status_rx = 200, rx = { content = "What is the capital of France?" },
   })
-  H.assert_match(prompt_block[1], "🐹", "prompt speaks as the user (converged brand head)")
-  H.assert_match(prompt_block[1], "🐹", "prompt is speech, not an op record")
-  H.assert_match(prompt_block[1], "What is the capital", "short prompt inlines")
+  H.assert_eq(prompt_block[1], "🐹 What is the capital of France?", "durable prompt uses the shared actor/body layout")
   H.assert_truthy(not prompt_block[1]:match("📝"), "no EDIT glyph on prompts")
 
   local long_prompt = R({

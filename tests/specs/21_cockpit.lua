@@ -52,7 +52,7 @@ local ok, err = pcall(function()
   H.assert_eq(state.get_usage("gauge").accounting.costUsd, "0.003", "the exact last-loop decimal is not accumulated or converted")
   H.assert_eq(#state.get_usage("gauge").accounting.requests, 1, "physical request evidence remains cardinal")
   local sl = require("plurnk.statusline").text()
-  H.assert_match(sl, "🐹", "statusline shows the brand")
+  H.assert_eq(sl, "", "idle statusline spends no shared editor real estate")
   H.assert_truthy(not sl:match("↑"), "statusline does NOT squat tokens (winbar's job)")
 
   -- A workspace with no loop yet shows NO gauge (no fake zeros).
