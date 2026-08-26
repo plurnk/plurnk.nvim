@@ -1,8 +1,7 @@
 -- Streaming-channel rendering for plurnk's stream/event + stream/concluded
--- events projected through AG-UI+. #16 phase 2: rummy
--- stream-window parity, daemon-owned.
+-- events projected through AG-UI+.
 --
--- One scratch buffer per entry. Channels interleave with rummy's column
+-- One scratch buffer per entry. Channels interleave with stable column
 -- prefixes (`1│` stdout, `2│` stderr, `·│` anything else); stderr lines
 -- highlight DiagnosticError. stream/event ticks coalesce through a 100ms
 -- flush timer into one entry.read per entry (the daemon's notification is

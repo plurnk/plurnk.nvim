@@ -1,11 +1,7 @@
 -- Pure state container. No side effects, no requires of plurnk modules.
 -- Every accessor requires an explicit workspace name.
 --
--- Concept mapping from rummy → plurnk:
---   rummy "run alias" → plurnk "workspace name" (long-lived agent state).
---   rummy "turn"      → plurnk loop turn (within current loop).
---
--- Provider accounting has no rummy analogue. The terminal accounting envelope
+-- The terminal provider-accounting envelope
 -- is cardinal daemon evidence and remains one opaque, read-only snapshot here.
 
 local M = {}
