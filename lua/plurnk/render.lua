@@ -33,18 +33,19 @@ M.ORIGIN_GLYPHS = {
   plugin = "🔌",
 }
 
--- Model-SEND lane 1: the state is the identity.
--- Converged with @plurnk/plurnk modelSendGlyph.
+-- A model SEND's lifecycle is its one human-facing identity. Numeric SEND
+-- codes remain wire truth but do not repeat beside these glyphs.
 M.model_send_glyph = function(status)
-  if status == 102 then return "💭" end
+  if status == 102 then return "▶️" end
   if status == 202 then return "💤" end
+  if status == 300 then return "🤔" end
   if status == 499 then return "✋" end
-  if type(status) == "number" and status >= 200 and status < 300 then return "💡" end
+  if type(status) == "number" and status >= 200 and status < 300 then return "⏹️" end
   if type(status) == "number" and status >= 400 and status < 600 then return "❌" end
-  return "💡"
+  return "⏹️"
 end
 
--- Aligned to the grammar's terminal SEND set [102, 200, 202, 499]
+-- Aligned to the grammar's terminal SEND set [102, 200, 202, 300, 499]
 -- (plurnk-grammar plurnk.md) + directed-SEND/error families. The glyph carries
 -- the state, the color carries the class. Converged with @plurnk/plurnk
 -- sendSubGlyph. All EAW width-2, VS16-free (column-stable).
@@ -54,6 +55,7 @@ local STATUS_GLYPHS = {
   [200] = "  ",   -- routine success badges NOTHING — reserved blank keeps the column
   [201] = "  ",
   [202] = "💤",   -- parked/waiting on an external event (NOT generic 2xx)
+  [300] = "🤔",   -- needs a decision
   [410] = "💥",   -- directed SEND to a gone resource
   [499] = "✋",   -- failed / aborted / cancelled
 }
@@ -87,6 +89,50 @@ local function annotation(entry)
   return plain:gsub("^%s+", ""):gsub("%s+$", "")
 end
 
+local function diagnostic_position(position)
+  if type(position) ~= "table" then return "" end
+  if position.type == "content-offset" then
+    return "L" .. tostring(position.line) .. " col" .. tostring(position.column)
+  end
+  if position.type == "log-coordinate" then
+    local coordinate = tostring(position.coordinate or "")
+    return type(position.op) == "string" and coordinate .. " (" .. position.op .. ")" or coordinate
+  end
+  return ""
+end
+
+-- RFC 9457 Problems and Notices retain distinct contracts while sharing the
+-- terminal client's exact human projection.
+M.render_diagnostic = function(diagnostic)
+  if type(diagnostic) ~= "table" then error("diagnostic must be a table") end
+  local problem = type(diagnostic.type) == "string"
+    and type(diagnostic.title) == "string"
+    and type(diagnostic.status) == "number"
+    and type(diagnostic.detail) == "string"
+  local source = type(diagnostic.source) == "string" and diagnostic.source or "problem"
+  local kind = type(diagnostic.kind) == "string" and diagnostic.kind
+    or (problem and diagnostic.title or "notice")
+  local message = problem and diagnostic.detail
+    or (type(diagnostic.message) == "string" and diagnostic.message or "")
+  local parts = { "📡", source .. ":" .. kind }
+  local position = diagnostic_position(diagnostic.position)
+  if position ~= "" then parts[#parts + 1] = position end
+  if message ~= "" then parts[#parts + 1] = '"' .. message .. '"' end
+  local lines = { table.concat(parts, " ") }
+  if type(diagnostic.snippet) == "string" and diagnostic.snippet ~= "" then
+    for line in (diagnostic.snippet .. "\n"):gmatch("(.-)\n") do lines[#lines + 1] = "   " .. line end
+  end
+  if problem and type(diagnostic.recovery) == "string" then
+    lines[#lines + 1] = "   " .. diagnostic.recovery
+  end
+  if type(diagnostic.hints) == "table" then
+    for _, hint in ipairs(diagnostic.hints) do
+      if type(hint) == "string" then lines[#lines + 1] = "   " .. hint end
+    end
+  end
+  return table.concat(lines, "\n")
+end
+
 -- Extract the trailing context for an entry, op-specific.
 local function build_extra(entry)
   local tx = type(entry.tx) == "table" and entry.tx or nil
@@ -107,9 +153,11 @@ local function build_extra(entry)
 
   if entry.op == "FIND" then
     local rx = entry.rx
-    local results = type(rx) == "table" and type(rx.results) == "string" and rx.results or ""
+    local results = type(rx) == "table" and rx.results or nil
     local count = 0
-    if results ~= "" then
+    if type(results) == "table" then
+      count = #results
+    elseif type(results) == "string" and results ~= "" then
       for line in results:gmatch("[^\n]+") do
         if line ~= "" then count = count + 1 end
       end
@@ -137,11 +185,6 @@ local function build_extra(entry)
   return ""
 end
 
--- BROADCAST_INLINE_LIMIT: short single-line bodies inline after the status;
--- anything longer or multi-line falls through to the indented block form.
--- Picked to comfortably fit "Paris", "4", "yes", short markdown phrases.
-local BROADCAST_INLINE_LIMIT = 80
-
 -- A common model-authored inline-math spelling with an exact editor glyph.
 -- This is typographic normalization, not a claim of general LaTeX support.
 local function normalize_prose(text)
@@ -159,10 +202,9 @@ M.render_reasoning = function(content)
   return lines
 end
 
--- The human waterfall carries no log coordinates and no routine status
--- codes (plurnk#21): every SEND keeps its code (the conversation's protocol
--- truth), every error (>=400) keeps its code, everything else is quiet.
--- Coordinates stay exact on the wire for forensics.
+-- The human waterfall carries no log coordinates or routine status codes
+-- (plurnk#21). Failed operations retain diagnostic codes; SEND lifecycle
+-- codes remain exact on the wire without repeating in human output.
 
 local function plan_entry(entry)
   local projected_memory = entry.status == "completed"
@@ -212,13 +254,12 @@ local function render_plan(entry)
     lines[index] = prefix .. row.text
   end
   local note = annotation(entry)
-  if note ~= "" then lines[1] = lines[1] .. "  — " .. note end
+  if note ~= "" then lines[1] = lines[1] .. " — " .. note end
   return lines
 end
 
--- Render the broadcast SEND (op=SEND, no path). For short single-line
--- bodies, inline after the status. For multi-line or long bodies, header
--- line + body lines indented under the speaker.
+-- Render the broadcast SEND (op=SEND, no path). Source-level single-line
+-- bodies inline; multi-line bodies nest beneath the speaker.
 -- Mermaid stays source in the buffer-native model (plurnk#15) unless the
 -- operator has `mermaid-ascii` on PATH — then each ```mermaid fence body is
 -- piped through it and its ASCII projection replaces the source lines. A
@@ -255,22 +296,15 @@ end
 M.project_mermaid = project_mermaid
 
 M.render_broadcast = function(entry)
-  -- TWO lanes (identity · status), converged with the TUI: the MODEL speaking
-  -- carries its state AS lane 1 (💭/💡/💤/🤔) with lane 2 reserved-blank; the
-  -- user keeps 🐹 + the status lane.
+  -- One actor or lifecycle glyph, converged with the TUI. The exact status
+  -- remains on the wire; repeating it beside the lifecycle glyph is noise.
   local signal = type(entry.signal) == "number" and entry.signal or entry.status_rx
-  local lane1, lane2
-  if entry.origin == "model" then
-    lane1 = M.model_send_glyph(signal)
-    lane2 = "  "
-  else
-    lane1 = M.ORIGIN_GLYPHS[entry.origin] or "?"
-    lane2 = M.status_glyph(entry.status_rx, entry.signal)
-  end
-  local status = tostring(entry.status_rx or "?")
+  local glyph = entry.origin == "model"
+    and M.model_send_glyph(signal)
+    or (M.ORIGIN_GLYPHS[entry.origin] or "?")
   local note = annotation(entry)
-  local header = lane1 .. " " .. lane2 .. " " .. status
-  if note ~= "" then header = header .. "  — " .. note end
+  local header = glyph
+  if note ~= "" then header = header .. " — " .. note end
 
   local body_text = ""
   local tx = entry.tx
@@ -282,9 +316,10 @@ M.render_broadcast = function(entry)
   body_text = normalize_prose(body_text)
   if body_text == "" then return { header } end
 
-  -- Short and single-line: inline.
-  if not body_text:find("\n", 1, true) and #body_text <= BROADCAST_INLINE_LIMIT then
-    return { header .. "  " .. body_text }
+  -- Neovim owns wrapping at the live window width, so every source-level
+  -- single line stays inline and soft-wraps natively when necessary.
+  if not body_text:find("\n", 1, true) then
+    return { header .. " " .. body_text }
   end
 
   local raw_lines = {}
@@ -307,11 +342,10 @@ end
 
 M.render_prompt = function(entry)
   local body = type(entry.rx) == "table" and type(entry.rx.content) == "string" and entry.rx.content or ""
-  -- Two lanes: 🐹 + reserved blank (a prompt record carries no live status).
-  local header = M.ORIGIN_GLYPHS.client .. "   "
+  local header = M.ORIGIN_GLYPHS.client
   if body == "" then return { header } end
-  if not body:find("\n", 1, true) and #body <= BROADCAST_INLINE_LIMIT then
-    return { header .. "  " .. body }
+  if not body:find("\n", 1, true) then
+    return { header .. " " .. body }
   end
   local lines = { header }
   for chunk in (body .. "\n"):gmatch("([^\n]*)\n") do
@@ -333,10 +367,14 @@ M.render_log_entry = function(entry)
     return render_plan(entry)
   end
 
-  -- TWO lanes: the OP is the identity (the origin column is gone — converged with
-  -- the TUI); the status lane holds a glyph or a reserved blank.
+  -- Operation rows retain an outcome slot. SEND rows use only their actor or
+  -- lifecycle glyph: adding a second state repeats one fact.
   local op_glyph = M.OP_GLYPHS[entry.op] or "?"
-  local sub_glyph = M.status_glyph(entry.status_rx, entry.signal)
+  local signal = type(entry.signal) == "number" and entry.signal or entry.status_rx
+  local primary_glyph = entry.op == "SEND"
+    and (entry.origin == "model" and M.model_send_glyph(signal) or (M.ORIGIN_GLYPHS[entry.origin] or "?"))
+    or op_glyph
+  local sub_glyph = M.status_glyph(entry.status_rx)
   local status = tostring(entry.status_rx or "?")
 
   -- EXEC: signal carries the executor name per grammar SPEC §3 — show it
@@ -357,20 +395,29 @@ M.render_log_entry = function(entry)
     end
   end
 
+  local scope = ""
+  if type(entry.lineMarker) == "table" and type(entry.lineMarker.marks) == "table" then
+    local marks = {}
+    for index, mark in ipairs(entry.lineMarker.marks) do marks[index] = tostring(mark) end
+    scope = "<" .. table.concat(marks, ",") .. ">"
+  end
+
   local extra = build_extra(entry)
 
-  -- Layout: OP SUB [STATUS] PATH  EXTRA — two lanes always; the code renders
-  -- only for SENDs and errors (plurnk#21).
-  local parts = { op_glyph, " ", sub_glyph }
-  if entry.op == "SEND" or (type(entry.status_rx) == "number" and entry.status_rx >= 400) then
-    table.insert(parts, " " .. status)
-  end
-  if path ~= "" then table.insert(parts, " " .. path) end
-  if extra ~= "" then table.insert(parts, "  " .. extra) end
+  -- SEND lifecycle glyphs suppress routine protocol codes. A failed directed
+  -- SEND retains its code like any other failed operation.
+  local directed_send = entry.op == "SEND" and entry.pathname ~= nil
+  local show_status = type(entry.status_rx) == "number" and entry.status_rx >= 400
+    and (entry.op ~= "SEND" or directed_send)
+  local parts = entry.op == "SEND" and { primary_glyph } or { primary_glyph, sub_glyph }
+  if show_status then table.insert(parts, status) end
+  if path ~= "" then table.insert(parts, path) end
+  if scope ~= "" then table.insert(parts, scope) end
+  if extra ~= "" then table.insert(parts, extra) end
   local note = annotation(entry)
-  if note ~= "" then table.insert(parts, "  — " .. note) end
+  if note ~= "" then table.insert(parts, "— " .. note) end
 
-  return { table.concat(parts) }
+  return { table.concat(parts, " ") }
 end
 
 -- Per-loop summary line (still used by callers; the worker_tab waterfall no

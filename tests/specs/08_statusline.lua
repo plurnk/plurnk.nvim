@@ -1,5 +1,5 @@
--- -- The statusline is LEAN (🐹 + status emoji + 🔥yolo); the rich detail
--- (workspace/model/L·T/tokens/loop cost) lives in the winbar — worker_tab.winbar_text.
+-- -- The statusline mirrors the TUI's one activity slot; rich identity and
+-- accounting live in the winbar — worker_tab.winbar_text.
 local NAME = "08_statusline"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
@@ -46,8 +46,9 @@ local ok, err = pcall(function()
 
   -- ── lean statusline: a glance, not a squat on shared real estate ──
   local sl = require("plurnk.statusline").text()
-  H.assert_match(sl, "🐹", "hamster brand")
-  H.assert_match(sl, "⏳", "in-flight glyph")
+  H.assert_eq(sl, "⌛︎", "active loop uses the exact shared hourglass")
+  H.assert_truthy(not sl:match("🐹"), "the activity slot carries no redundant brand")
+  H.assert_truthy(not sl:match("🔥"), "active lifecycle supersedes idle YOLO state")
   H.assert_truthy(not sl:match("s1"), "statusline does NOT show the workspace name (winbar's job)")
   H.assert_truthy(not sl:match("claude"), "statusline does NOT show the model (winbar's job)")
   H.assert_truthy(not sl:match("loop:"), "statusline does NOT show money (winbar's job)")
@@ -59,14 +60,19 @@ local ok, err = pcall(function()
   H.assert_match(wb, "claude", "model")
   H.assert_match(wb, "L7", "loop")
   H.assert_match(wb, "T2", "turn")
-  H.assert_match(wb, "⏳", "in-flight glyph in winbar")
+  H.assert_match(wb, "⌛︎", "in-flight glyph in winbar")
   H.assert_match(wb, "loop: %$0%.0700", "per-loop cost, labelled 'loop:'")
 
   state.set_loop_inflight("s1", false)
   state.set_final_status("s1", 200)
-  H.assert_match(worker_tab.winbar_text("s1", 7), "✅", "done glyph")
+  H.assert_match(worker_tab.winbar_text("s1", 7), "⏹️", "completion lifecycle glyph")
+  H.assert_truthy(not worker_tab.winbar_text("s1", 7):match("200"), "routine final code is not repeated")
   state.set_final_status("s1", 504)
-  H.assert_match(worker_tab.winbar_text("s1", 7), "❌", "error glyph")
+  H.assert_match(worker_tab.winbar_text("s1", 7), "❌ 504", "error glyph retains diagnostic code")
+
+  require("plurnk.diff").set_yolo(true)
+  H.assert_eq(require("plurnk.statusline").text(), "🔥", "idle YOLO uses the same fire as the TUI")
+  require("plurnk.diff").set_yolo(false)
 
   -- record_loop_usage is a SNAPSHOT, not a tally: a second loop's cost REPLACES.
   state.record_loop_usage("s1", loop_usage(0, 0, "0.05"))

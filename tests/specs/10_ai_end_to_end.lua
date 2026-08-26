@@ -32,8 +32,8 @@ local ok, err = pcall(function()
   end
   H.assert_truthy(workspace_buf, "worker_tab workspace buffer exists")
   local content = table.concat(vim.api.nvim_buf_get_lines(workspace_buf, 0, -1, false), "\n")
-  H.assert_match(content, "💡", "waterfall has the answer glyph")
-  H.assert_match(content, "💡    200", "waterfall has terminal SEND status")
+  H.assert_match(content, "⏹️", "waterfall has the completion lifecycle glyph")
+  H.assert_truthy(not content:match("⏹️[^\n]*200"), "terminal SEND does not repeat its wire status")
   -- The leading line is the terminal SEND header itself, not a blank.
   H.assert_truthy(content:sub(1, 1) ~= "\n", "no leading blank line")
 end)

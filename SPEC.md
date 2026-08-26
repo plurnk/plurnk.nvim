@@ -179,12 +179,19 @@ what this client guarantees. Tests are organized by observable behavior under
 - **The run tab** — `:AI` opens a workspace tabpage with two windows:
   waterfall on top, input at the bottom; submitting populates the waterfall and leaves
   focus on the input; an actionless `prompt` row renders as 🐹 speech from `rx.content`.
-- **Two glyph lanes** — every waterfall row carries identity ·
-  status (🐹 client; the model SEND lane is status-flavored: 💭 102, 💡 200, 💤 202,
-  🤔 300); width-stable glyphs only. The human waterfall is quiet
-  (plurnk#21): no log coordinates and no status codes except SENDs (the
-  conversation's protocol truth) and errors (>=400); coordinates and every
-  status stay exact on the wire.
+- **The waterfall shares one visual language with the terminal client** — every
+  glyph-bearing row begins at column zero. Non-SEND operations carry their operation
+  glyph and a secondary-status slot; SENDs carry one actor or lifecycle glyph. Model
+  SEND lifecycle glyphs are `▶️` (102), `⏹️` (200), 💤 (202), 🤔 (300), and ✋
+  (499). Broadcast and routine directed SEND codes remain wire truth without
+  repeating in human output; a failed directed SEND and any other failed operation
+  retain their diagnostic code.
+  Targets, scopes, previews, and literal annotations use one-space separators.
+- **Editor-native presentation is the only deliberate client divergence** — the
+  durable prompt row remains visible because submission clears the input buffer;
+  Markdown stays source-editable and uses Neovim's live-window wrapping, syntax, and
+  folds rather than the terminal's GFM-to-ANSI projection. The operation vocabulary,
+  lifecycle states, and row grammar do not diverge.
 
 - §nvim-markdown-buffer-native **Markdown renders buffer-native** — the
   waterfall keeps its semantic/raw Markdown text and borrows the editor's
@@ -222,22 +229,19 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Stream windows** — channel prefixes + interleave, batched
   flush (one `entry.read` per tick burst), partial-line hold, a conclusion footer, and
   `BufWipeout` → an `op.send` cancellation carrying status 499.
-- **Notice severity is producer-set** — required `notice.level`
-  maps error → ErrorMsg, warn → WarningMsg, info → Comment; no kind heuristic.
-- **The abacus** — `engine:derivation embed_progress` collapses to an
-  edge-toggled 🧮 on the statusline, never a waterfall line; `engine:turn` liveness is
-  the ⏳ gutter, dropped from the waterfall; the abacus never outlives the loop.
-- **Search acquisition progress** — `exec:* search_progress`
-  collapses to `🔎 N%` on the statusline and clears on its terminal phase. Milestones
-  never append to the waterfall; materialized pages remain available in durable history.
-- **Serialized branch progress** — `CUSTOM plurnk.branch_batch` un-projects to
-  `workspace/branch-batch`; queued/running state collapses to `🌿 N%` on the
-  statusline. Completion or failure appends one summary and clears it;
-  `recovery_required` appends one error and remains visible as `🌿 ❌`.
+- **Diagnostics share the terminal projection** — Problems and Notices render
+  `📡 source:kind [position] ["message"]` at column zero, with snippet, recovery,
+  and hint lines nested by three spaces. Required `notice.level` maps error →
+  ErrorMsg, warn → WarningMsg, info → Comment; no kind heuristic.
+- **Compact activity mirrors the TUI prompt** — derivation, search acquisition, and
+  serialized branch progress share one plain `N%` statusline slot and never append
+  progress ticks to the waterfall. Below-completion progress supersedes exact `⌛︎`
+  while a loop is active; completion clears the slot, exposing idle 🔥 only when YOLO
+  is armed. Branch completion, failure, and recovery still append one durable summary.
 - **Membership signs mark exceptions only** — view 🔒 and
   hidden 🚫 get a line-1 extmark; plain members and non-members get no sign.
-- **The statusline is lean** — 🐹 + one status glyph + 🔥 when
-  YOLO is armed (+ compact 🧮, 🔎, or 🌿 work state); the rich detail lives in the winbar.
+- **The statusline is lean** — one activity slot only; the rich identity, terminal
+  lifecycle, and accounting detail live in the winbar.
 - **The cockpit gauge preserves cardinal accounting** — the winbar reads the LAST
   loop's `plurnk.terminated.usage` envelope without rewriting it: conventional
   aggregate `inputTokens`/`outputTokens`, independent curation
@@ -251,7 +255,7 @@ what this client guarantees. Tests are organized by observable behavior under
 
 - **The conversation answers end to end** — the exact command
   a user types drives a live loop to `loop/terminated` 200 and the waterfall carries
-  the terminal 💡 200 SEND.
+  the terminal `⏹️` SEND without repeating its numeric wire status.
 - **Exec streams live** — `:AI!` dispatches `op.exec` through the
   engine; stdout arrives over `stream/event` and renders prefixed.
 - **Stop is real** — `/stop` and `:PlurnkStop` fire the `loop.cancel`

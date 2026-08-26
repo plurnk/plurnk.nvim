@@ -65,7 +65,8 @@ Side-effecting ops pause for review. EDIT opens a diffsplit (left disk, right pr
 
 ```lua
 vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
--- plurnk[workspace·worker] · 🤖 provider/model · 🧠 adaptive · L3·T2 · ✅ 200 · $0.0042
+-- active slot: 42% / ⌛︎ / 🔥 (progress / running / idle YOLO)
+-- waterfall winbar: 🐹 workspace · worker · 🤖 provider/model · 🧠 adaptive · L3·T2 · ⏹️ · loop: $0.0042
 ```
 
 ## Internals (for agents)

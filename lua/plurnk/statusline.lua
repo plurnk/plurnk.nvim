@@ -1,20 +1,18 @@
--- Statusline component — deliberately LEAN (operator, 2026-06-20). The
--- statusline is shared ecosystem real estate (the user's own bar, next to
--- file/git/LSP), so plurnk spends exactly one glance here: 🐹 + a live status
--- emoji (⏳ running, else the last final's glyph) + a 🔥 when YOLO is armed.
--- The rich detail — identity, model, L·T, tokens, and loop cost
--- trio — lives in the winbar (plurnk's OWN window header; see worker_tab.lua).
+-- Statusline component — the Neovim-native counterpart of the TUI's input
+-- prompt slot. It presents one current activity: progress, active loop, or
+-- idle YOLO. Rich identity and accounting remain in the waterfall winbar.
 local M = {}
 local state = require("plurnk.state")
 
--- ⏳ while a loop is in flight; else render.lua's aligned final-status glyph
--- (matches the waterfall and the TUI), falling back to · for an unmapped code.
-local function status_glyph(workspace)
-  if state.is_loop_inflight(workspace) then return "⏳" end
-  local final = state.get_final_status(workspace)
-  if not final then return nil end
-  local g = require("plurnk.render").status_glyph(final)
-  return (g ~= "" and g) or "·"
+local function active_percent(workspace)
+  if state.is_embedding(workspace) then return state.get_embedding_progress(workspace) end
+  local search = state.get_search_progress(workspace)
+  if search ~= nil then return search end
+  local branch = state.get_branch_batch(workspace)
+  if type(branch) ~= "table" then return nil end
+  local completed, total = tonumber(branch.completed), tonumber(branch.total)
+  if completed == nil or total == nil or total <= 0 then return nil end
+  return math.floor((completed / total) * 100)
 end
 
 M.text = function()
@@ -22,30 +20,11 @@ M.text = function()
   local workspace = vim.b[buf].plurnk_workspace
   if not workspace then return "" end
 
-  local parts = { "🐹" }
-  local glyph = status_glyph(workspace)
-  if glyph then parts[#parts + 1] = glyph end
-
-  -- The abacus: re-embedding in progress (token recount) — one glyph, edge-toggled.
-  if state.is_embedding(workspace) then parts[#parts + 1] = "🧮" end
-  local search_progress = state.get_search_progress(workspace)
-  if search_progress ~= nil then parts[#parts + 1] = "🔎 " .. tostring(search_progress) .. "%" end
-  local branch = state.get_branch_batch(workspace)
-  if branch ~= nil then
-    if branch.state == "recovery_required" then
-      parts[#parts + 1] = "🌿 ❌"
-    else
-      local completed, total = tonumber(branch.completed), tonumber(branch.total)
-      local percent = completed ~= nil and total ~= nil and total > 0
-        and math.floor((completed / total) * 100) or nil
-      parts[#parts + 1] = percent ~= nil and ("🌿 " .. tostring(percent) .. "%") or "🌿"
-    end
-  end
-
+  local percent = active_percent(workspace)
+  if type(percent) == "number" and percent < 100 then return tostring(percent) .. "%" end
+  if state.is_loop_inflight(workspace) or state.is_embedding(workspace) then return "⌛︎" end
   local ok_diff, diff = pcall(require, "plurnk.diff")
-  if ok_diff and diff.is_yolo and diff.is_yolo() then parts[#parts + 1] = "🔥" end
-
-  return table.concat(parts, " ")
+  return ok_diff and diff.is_yolo and diff.is_yolo() and "🔥" or ""
 end
 
 M.setup_highlights = function() end

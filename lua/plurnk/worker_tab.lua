@@ -83,17 +83,15 @@ local function build_winbar(workspace, key)
       or ("L" .. tostring(loop_id))
   end
 
-  -- ⏳ while a loop is in flight; else the last final's glyph + number.
+  -- The winbar persists the lifecycle state that the TUI leaves in scrollback.
   if state.is_loop_inflight(workspace) then
-    parts[#parts + 1] = "⏳"
+    parts[#parts + 1] = "⌛︎"
   else
     local final = state.get_final_status(workspace)
     if final then
-      -- The winbar is a ONE-SLOT summary, not a column ladder: a done state needs a
-      -- visible mark (the waterfall's reserved-blank 2xx convention doesn't apply).
-      local g = require("plurnk.render").status_glyph(final)
-      if g == "" or g == "  " then g = (final >= 200 and final < 300) and "✅" or "·" end
-      parts[#parts + 1] = g .. " " .. tostring(final)
+      local g = require("plurnk.render").model_send_glyph(final)
+      parts[#parts + 1] = final >= 400 and final ~= 499
+        and (g .. " " .. tostring(final)) or g
     end
   end
 
