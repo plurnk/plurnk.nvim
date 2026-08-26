@@ -1,11 +1,9 @@
--- User-facing commands. Plurnk doesn't have rummy's mode taxonomy
--- (ask/act/run) — the model decides which ops to emit based on the
--- prompt and sysprompt. So instead of three commands we have one:
+-- User-facing commands. One prompt command carries the optional ask, act,
+-- and exec prefixes:
 -- :PlurnkPrompt {text}. Visual selection is prepended automatically.
 --
 -- Picker commands wrap models.list / providers.list / workspace.list / workspace.workers
--- via vim.ui.select; the buffer/tab association from rummy is kept
--- (`vim.b.plurnk_workspace` instead of `vim.b.plurnk_run`).
+-- via vim.ui.select; `vim.b.plurnk_workspace` owns the buffer/tab association.
 
 local M = {}
 
@@ -59,8 +57,8 @@ end
 -- ── Buffer helpers ──────────────────────────────────────────────────
 
 -- This buffer's workspace name, or nil. The buffer-local variable is the
--- one source of truth; rummy's URL-parse fallback (`plurnk-nvim://input/<x>`)
--- is unsafe here because `:AI` with no args opens `plurnk-nvim://input/scratch`
+-- one source of truth. Parsing `plurnk-nvim://input/<x>` is unsafe because
+-- `:AI` with no args opens `plurnk-nvim://input/scratch`
 -- where "scratch" is a sentinel, not a real workspace.
 local function active_workspace()
   local tab = require("plurnk.worker_tab").current_alias()
@@ -255,7 +253,7 @@ end
 
 -- Create a workspace (optionally named / headless) and bind it to the
 -- calling buffer. The connection rebinds in place if one is already
--- bound. headless = no projectRoot → file ops 400; rummy's "no repo".
+-- bound. headless = no projectRoot → file ops 400.
 local function create_workspace_then(copts, callback)
   local client = require("plurnk.client")
   -- v1 model (operator-ratified 2026-06-11): ONE live workspace per nvim
@@ -396,7 +394,7 @@ end
 
 -- Run a shell command through the engine (§6.8): the exec scheme spawns
 -- it, output streams over stream/event into the stream split, and the
--- model learns the outcome over the wire — rummy's Run mode, daemon-owned.
+-- model learns the outcome over the wire.
 local function send_exec(command)
   -- Workspace-scoped like every op: resolve (or create) the workspace FIRST so the
   -- stream/entry events the exec emits have an active workspace to render under.
@@ -901,7 +899,7 @@ M.clear = function()
 end
 
 -- :AI (no args) — toggle between the workspace tab and wherever you came
--- from. One-level memory, rummy's RummyToggle semantics.
+-- from. The client remembers one previous tab.
 local return_tabpage = nil
 M.toggle = function()
   local worker_tab = require("plurnk.worker_tab")
@@ -1001,7 +999,7 @@ M.agents = function(args)
   return require("plurnk.agents").run(args, resolve_workspace_then)
 end
 
--- `/` subcommand routing — rummy's full surface, plurnk verbs. Wrapped
+-- `/` subcommand routing. Wrapped
 -- as functions so the M.* lookups resolve at call time.
 local SLASH = {
   stop     = function() M.stop() end,
@@ -1099,8 +1097,7 @@ M.ai_complete = function(_arglead, cmdline, _)
   return {}
 end
 
--- :AI — the central user command. Rummy's metacommand language, adapted
--- to the daemon-owned loop (no client-side mode taxonomy):
+-- :AI — the central user command over the daemon-owned loop:
 --
 --   :AI                 → toggle: workspace tab ⇄ where you came from
 --   :AI <text>          → loop.run with prompt (visual selection prepended)
@@ -1245,14 +1242,13 @@ M.setup = function()
   cmd("PlurnkNext",        M.next,         {})
   cmd("PlurnkPrev",        M.prev,         {})
 
-  -- :AI — central user command (rummy-style surface; plurnk semantics).
+  -- :AI — central user command.
   cmd("AI", M.ai, { nargs = "*", range = true, bang = true, complete = M.ai_complete })
 
   -- Cmdline abbreviations so the no-space forms work (`:AI?? hi` would
   -- otherwise be E492 — `?` can't be part of a command name). Rewrites
   -- `AI<prefix>` → `AI <prefix>` only when it IS the whole command line,
-  -- so `PlurnkAI?` or search patterns are untouched. Ported from rummy's
-  -- RummyAIAbbrev (rummy.nvim commands.lua).
+  -- so `PlurnkAI?` or search patterns are untouched.
   vim.cmd([[
     function! PlurnkAIAbbrev(chars)
       if getcmdtype() == ':' && getcmdline() ==# 'AI' . a:chars

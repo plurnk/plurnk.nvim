@@ -1,7 +1,6 @@
--- HUD: transient floating toast, bottom-right, auto-dismissing. Ported
--- from rummy.nvim hud.lua (part of the addictive feel — exec exits, yolo
--- applies, and mode toggles land here without stealing focus or piling
--- up in :messages the way vim.notify does). Headless falls back to
+-- HUD: transient floating toast, bottom-right, auto-dismissing. Exec exits,
+-- yolo changes, and mode toggles land here without stealing focus or piling
+-- up in :messages the way vim.notify does. Headless falls back to
 -- vim.notify so pipelines and specs still observe the message.
 local M = {}
 

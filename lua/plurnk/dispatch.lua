@@ -2,9 +2,7 @@
 --
 -- Plurnk is push-driven: log/entry / loop/proposal / loop/terminated /
 -- notice/event notifications arrive with full payloads as state
--- changes — no pulse-and-pull reconciliation step is needed. (Contrast
--- with rummy, which sent content-free `run/changed` pulses and required
--- a `getEntries` round-trip to actually learn what happened.)
+-- changes; no pulse-and-pull reconciliation step is needed.
 --
 -- Per plurnk SPEC §5.1 (log/entry), §6.1 (loop/proposal), §8.6
 -- (notice/event).

@@ -1,4 +1,4 @@
--- -- :1,2 AI?? recap — double-prefix form (rummy ?? = new workspace) wraps the
+-- -- :1,2 AI?? recap — the double-prefix new-workspace form wraps the
 -- visual selection into the loop.run prompt. Regression coverage for the
 -- :AI?? path that bypassed wrap_with_selection in v0.3.0.
 local NAME = "12_visual_selection_new_workspace"

@@ -1,11 +1,4 @@
--- Default keymaps. The layout mirrors rummy.nvim/main/lua/rummy/keymaps.lua
--- so muscle memory carries over. Plurnk-only differences:
---   * The `?` / `:` / `!` mode prefixes have no mode semantics (the model
---     decides what ops to emit) — they are stripped and the rest is sent
---     as a plain prompt. Users still get to type `<leader>a?` and have
---     things work.
---   * Skills, temperature, context-mgmt, fork, file-attribute commands are
---     dropped per AGENTS.md.
+-- Default keymaps for prompt entry, settings, membership, and proposal review.
 
 local M = {}
 
@@ -18,14 +11,14 @@ local function map_if_empty(modes, lhs, rhs, desc)
 end
 
 M.setup = function()
-  -- ── Prompt entry (rummy mode-prefix layout, plurnk strips the prefix) ──
+  -- ── Prompt entry ──
   -- <leader>aa is normal-mode only: in visual mode it would drop the
   -- selection silently because `:AI` with no args opens the input buffer.
   -- Selection-aware prompts go through <leader>a? / a: / a! instead.
   map_if_empty("n",          "<leader>aa", ":AI<CR>",     "Plurnk: chat (open input)")
-  map_if_empty({ "n", "x" }, "<leader>a?", ":AI? ",      "Plurnk: prompt (rummy: ask)")
-  map_if_empty({ "n", "x" }, "<leader>a:", ":AI: ",      "Plurnk: prompt (rummy: act)")
-  map_if_empty({ "n", "x" }, "<leader>a!", ":AI! ",      "Plurnk: prompt (rummy: run)")
+  map_if_empty({ "n", "x" }, "<leader>a?", ":AI? ",      "Plurnk: ask prompt")
+  map_if_empty({ "n", "x" }, "<leader>a:", ":AI: ",      "Plurnk: act prompt")
+  map_if_empty({ "n", "x" }, "<leader>a!", ":AI! ",      "Plurnk: exec command")
   map_if_empty("n",          "<leader>aN", ":AI?? ",     "Plurnk: new workspace + prompt")
   map_if_empty("n",          "<leader>af", ":PlurnkFork<CR>", "Plurnk: fork — new worker (workspace>worker>loop>turn>op)")
   map_if_empty("n",          "<leader>ax", ":AI/stop<CR>",  "Plurnk: cancel pending")
@@ -47,7 +40,7 @@ M.setup = function()
   map_if_empty("n", "<leader>ad", ":PlurnkDrop<CR>",        "Plurnk: drop this file's constraints")
   map_if_empty("n", "<leader>aM", ":PlurnkMembers<CR>",     "Plurnk: list members")
 
-  -- ── Proposal review (matches rummy a-y / a-e / a-n / a-] / a-[) ──
+  -- ── Proposal review ──
   map_if_empty("n", "<leader>ay", ":PlurnkAccept<CR>",       "Plurnk: Accept proposal")
   map_if_empty("n", "<leader>ae", ":PlurnkAcceptEdits<CR>",  "Plurnk: Accept with edits")
   map_if_empty("n", "<leader>an", ":PlurnkReject<CR>",       "Plurnk: Reject proposal")
