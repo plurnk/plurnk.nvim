@@ -187,11 +187,12 @@ what this client guarantees. Tests are organized by observable behavior under
   repeating in human output; a failed directed SEND and any other failed operation
   retain their diagnostic code.
   Targets, scopes, previews, and literal annotations use one-space separators.
-- **Editor-native presentation is the only deliberate client divergence** — the
+- **Deliberate divergences are editor-native presentation only** — the
   durable prompt row remains visible because submission clears the input buffer;
   Markdown stays source-editable and uses Neovim's live-window wrapping, syntax, and
-  folds rather than the terminal's GFM-to-ANSI projection. The operation vocabulary,
-  lifecycle states, and row grammar do not diverge.
+  folds rather than the terminal's GFM-to-ANSI projection; live streams use dedicated
+  buffers and splits. The operation vocabulary, lifecycle states, and row grammar do
+  not diverge.
 
 - §nvim-markdown-buffer-native **Markdown renders buffer-native** — the
   waterfall keeps its semantic/raw Markdown text and borrows the editor's
