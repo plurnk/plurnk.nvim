@@ -840,6 +840,19 @@
         "lifecycle",
         "presentation"
       ]
+    },
+    "loop/packet": {
+      "posture": "native",
+      "evidence": [
+        "plurnk-service#366 — exact packet chronology (rendering: plurnk.nvim#19)"
+      ],
+      "dimensions": [
+        "admission",
+        "framing",
+        "projection",
+        "lifecycle",
+        "presentation"
+      ]
     }
   }
 }
