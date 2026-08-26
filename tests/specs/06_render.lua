@@ -18,14 +18,14 @@ local ok, err = pcall(function()
   H.assert_eq(reasoning[1], "💭 first line", "reasoning has its own compact identity")
   H.assert_eq(reasoning[2], "   second line", "continuation aligns below reasoning content")
 
-  -- READ with content extra; routine 200 carries no code (plurnk#21).
+  -- READ with content extra; routine 200 carries no code.
   local read_lines = R({
     op = "READ", origin = "model", scheme = "known", pathname = "/x",
     status_rx = 200, rx = { content = "Paris" },
   })
   H.assert_eq(#read_lines, 1, "READ single line")
   H.assert_match(read_lines[1], "📖", "READ glyph")
-  H.assert_truthy(not read_lines[1]:match("200"), "a routine non-SEND success shows no status code (plurnk#21)")
+  H.assert_truthy(not read_lines[1]:match("200"), "a routine non-SEND success shows no status code")
   H.assert_match(read_lines[1], "Paris", "READ content")
   -- No leading indent
   H.assert_truthy(read_lines[1]:sub(1, 1) ~= " ", "no leading indent")
@@ -69,7 +69,7 @@ local ok, err = pcall(function()
     } } },
   })
   H.assert_eq(#plan_lines, 4, "PLAN has one line per entry")
-  H.assert_eq(plan_lines[1], "✅ Contract settled.", "completed entry owns the first line — no coordinate, no routine code (plurnk#21)")
+  H.assert_eq(plan_lines[1], "✅ Contract settled.", "completed entry owns the first line — no coordinate, no routine code")
   H.assert_eq(plan_lines[2], "💾 One baseline owns the schema.", "memory entry aligns below it")
   H.assert_eq(plan_lines[3], "🚧 [high] Update clients.", "in-progress entry aligns below it")
   H.assert_eq(plan_lines[4], "⬜ [low] Run drills.", "pending entry aligns below it")
@@ -137,6 +137,14 @@ local ok, err = pcall(function()
   H.assert_eq(vim.fn.strdisplaywidth("▶️"), 2, "continuing lifecycle sequence is width-stable in Neovim")
   H.assert_eq(vim.fn.strdisplaywidth("⏹️"), 2, "completion lifecycle sequence is width-stable in Neovim")
 
+  local runtime_continuing = R({
+    op = "SEND", origin = "_plurnk", scheme = nil, pathname = nil,
+    status_rx = 102, signal = 102,
+    tx = { body = { raw = "Next: Address the prompt." } },
+  })
+  H.assert_eq(runtime_continuing[1], "▶️ Next: Address the prompt.",
+    "every SEND uses lifecycle regardless of producer")
+
   local bc_arrow = R({
     op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
@@ -197,14 +205,15 @@ local ok, err = pcall(function()
 
   -- The service's actionless prompt row renders as user speech, not an op trace.
   local prompt_block = R({
-    op = "prompt", origin = "plurnk", scheme = "prompt", pathname = "/3/1",
+    op = "prompt", origin = "_plurnk", scheme = "prompt", pathname = "/3/1",
     status_rx = 200, rx = { content = "What is the capital of France?" },
   })
-  H.assert_eq(prompt_block[1], "🐹 What is the capital of France?", "durable prompt uses the shared actor/body layout")
+  H.assert_eq(prompt_block[1], "❯ What is the capital of France?", "durable prompt uses a neutral user marker")
+  H.assert_truthy(not prompt_block[1]:match("🐹"), "the retired mascot never labels user speech")
   H.assert_truthy(not prompt_block[1]:match("📝"), "no EDIT glyph on prompts")
 
   local long_prompt = R({
-    op = "prompt", origin = "plurnk", scheme = "prompt", pathname = "/3/1",
+    op = "prompt", origin = "_plurnk", scheme = "prompt", pathname = "/3/1",
     status_rx = 200, rx = { content = "line one\nline two" },
   })
   H.assert_eq(#long_prompt, 3, "multi-line prompt = header + body lines")
@@ -217,7 +226,7 @@ local ok, err = pcall(function()
   })
   H.assert_match(manifest[1], "📝", "a non-prompt worker:/// EDIT keeps the EDIT glyph")
 
-  -- The human waterfall carries no coordinates (plurnk#21); ordinals and DB
+  -- The human waterfall carries no coordinates; ordinals and DB
   -- ids alike stay off the row.
   local coorded = R({
     op = "READ", origin = "model", scheme = "known", pathname = "/x",
@@ -227,15 +236,14 @@ local ok, err = pcall(function()
   H.assert_truthy(not coorded[1]:match("01/02/03"), "no coordinate gutter on human rows")
   H.assert_truthy(not coorded[1]:match("38/412"), "DB ids never masquerade as coordinates")
 
-  -- Mermaid projection (plurnk#15): without mermaid-ascii on PATH the fence
-  -- stays verbatim source; the block auto-fold owns its ergonomics.
-  local mermaid_body = { "before", "```mermaid", "graph TD", "  a --> b", "```", "after" }
-  local projected = r.project_mermaid(mermaid_body)
-  if vim.fn.executable("mermaid-ascii") == 1 then
-    H.assert_truthy(#projected >= 2, "mermaid-ascii projected the fence")
-  else
-    H.assert_truthy(vim.deep_equal(projected, mermaid_body), "absent projector leaves the verbatim source")
-  end
+  -- The pure renderer preserves authored Mermaid source. Width-aware visual
+  -- projection belongs to the worker-tab presentation, never the log row.
+  local mermaid_source = R({
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 200, signal = 200,
+    tx = { body = { raw = "before\n```mermaid\ngraph TD\n  a --> b\n```\nafter" } },
+  })
+  H.assert_match(table.concat(mermaid_source, "\n"), "```mermaid", "pure renderer retains Mermaid source")
 
   -- Summary
   H.assert_match(r.render_summary(3, 850, 200, 200, false), "done", "summary tag")

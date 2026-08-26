@@ -27,15 +27,15 @@ M.PLAN_STATUS_GLYPHS = {
 M.PLAN_MEMORY_GLYPH = "💾"
 
 M.ORIGIN_GLYPHS = {
-  model = "🤖",   -- retained for ambient/topology labels; SEND rows use send_glyph
-  client = "🐹",  -- converged with @plurnk/plurnk (the brand head)
-  plurnk = "🧰",   -- the runtime actor (§14.7)
+  model = "🤖",
+  client = "❯",
+  _plurnk = "🧰",
   plugin = "🔌",
 }
 
--- A model SEND's lifecycle is its one human-facing identity. Numeric SEND
+-- A SEND's lifecycle is its one human-facing identity. Numeric SEND
 -- codes remain wire truth but do not repeat beside these glyphs.
-M.model_send_glyph = function(status)
+M.send_lifecycle_glyph = function(status)
   if status == 102 then return "▶️" end
   if status == 202 then return "💤" end
   if status == 300 then return "🤔" end
@@ -202,8 +202,8 @@ M.render_reasoning = function(content)
   return lines
 end
 
--- The human waterfall carries no log coordinates or routine status codes
--- (plurnk#21). Failed operations retain diagnostic codes; SEND lifecycle
+-- The human waterfall carries no log coordinates or routine status codes.
+-- Failed operations retain diagnostic codes; SEND lifecycle
 -- codes remain exact on the wire without repeating in human output.
 
 local function plan_entry(entry)
@@ -231,7 +231,7 @@ local function render_plan(entry)
   end
 
   -- A routine PLAN carries no code; a failed one keeps its glyph + code on
-  -- the first row (plurnk#21).
+  -- the first row.
   local status = tostring(entry.status_rx or "?")
   local failed = type(entry.status_rx) == "number" and entry.status_rx >= 400
   local first_slot = failed and (M.status_glyph(entry.status_rx, entry.signal) .. " " .. status .. " ") or ""
@@ -258,50 +258,11 @@ local function render_plan(entry)
   return lines
 end
 
--- Render the broadcast SEND (op=SEND, no path). Source-level single-line
--- bodies inline; multi-line bodies nest beneath the speaker.
--- Mermaid stays source in the buffer-native model (plurnk#15) unless the
--- operator has `mermaid-ascii` on PATH — then each ```mermaid fence body is
--- piped through it and its ASCII projection replaces the source lines. A
--- failed or absent projector leaves the verbatim source; the block auto-fold
--- applies either way.
-local function project_mermaid(lines)
-  if vim.fn.executable("mermaid-ascii") ~= 1 then return lines end
-  local out, fence, body = {}, false, {}
-  for _, line in ipairs(lines) do
-    if not fence and line:match("^%s*```mermaid%s*$") then
-      fence, body = true, {}
-    elseif fence and line:match("^%s*```%s*$") then
-      fence = false
-      local ok, drawn = pcall(vim.fn.systemlist, { "mermaid-ascii" }, table.concat(body, "\n"))
-      if ok and vim.v.shell_error == 0 and type(drawn) == "table" and #drawn > 0 then
-        for _, drawn_line in ipairs(drawn) do out[#out + 1] = drawn_line end
-      else
-        out[#out + 1] = "```mermaid"
-        for _, src in ipairs(body) do out[#out + 1] = src end
-        out[#out + 1] = "```"
-      end
-    elseif fence then
-      body[#body + 1] = line
-    else
-      out[#out + 1] = line
-    end
-  end
-  if fence then
-    out[#out + 1] = "```mermaid"
-    for _, src in ipairs(body) do out[#out + 1] = src end
-  end
-  return out
-end
-M.project_mermaid = project_mermaid
-
-M.render_broadcast = function(entry)
+local function broadcast_content(entry)
   -- One actor or lifecycle glyph, converged with the TUI. The exact status
   -- remains on the wire; repeating it beside the lifecycle glyph is noise.
   local signal = type(entry.signal) == "number" and entry.signal or entry.status_rx
-  local glyph = entry.origin == "model"
-    and M.model_send_glyph(signal)
-    or (M.ORIGIN_GLYPHS[entry.origin] or "?")
+  local glyph = M.send_lifecycle_glyph(signal)
   local note = annotation(entry)
   local header = glyph
   if note ~= "" then header = header .. " — " .. note end
@@ -314,6 +275,14 @@ M.render_broadcast = function(entry)
     body_text = tx.body
   end
   body_text = normalize_prose(body_text)
+  return header, body_text
+end
+
+-- Pure source projection used by renderer tests and non-waterfall callers.
+-- The worker-tab presentation may replace a Markdown body with a width-aware
+-- projection, but the wire-derived source remains the block's authority.
+M.render_broadcast = function(entry)
+  local header, body_text = broadcast_content(entry)
   if body_text == "" then return { header } end
 
   -- Neovim owns wrapping at the live window width, so every source-level
@@ -327,7 +296,7 @@ M.render_broadcast = function(entry)
     raw_lines[#raw_lines + 1] = chunk
   end
   local lines = { header }
-  for _, chunk in ipairs(project_mermaid(raw_lines)) do
+  for _, chunk in ipairs(raw_lines) do
     lines[#lines+1] = "   " .. chunk
   end
   if lines[#lines] == "   " then table.remove(lines) end
@@ -342,7 +311,7 @@ end
 
 M.render_prompt = function(entry)
   local body = type(entry.rx) == "table" and type(entry.rx.content) == "string" and entry.rx.content or ""
-  local header = M.ORIGIN_GLYPHS.client
+  local header = "❯"
   if body == "" then return { header } end
   if not body:find("\n", 1, true) then
     return { header .. " " .. body }
@@ -372,7 +341,7 @@ M.render_log_entry = function(entry)
   local op_glyph = M.OP_GLYPHS[entry.op] or "?"
   local signal = type(entry.signal) == "number" and entry.signal or entry.status_rx
   local primary_glyph = entry.op == "SEND"
-    and (entry.origin == "model" and M.model_send_glyph(signal) or (M.ORIGIN_GLYPHS[entry.origin] or "?"))
+    and M.send_lifecycle_glyph(signal)
     or op_glyph
   local sub_glyph = M.status_glyph(entry.status_rx)
   local status = tostring(entry.status_rx or "?")
@@ -418,6 +387,27 @@ M.render_log_entry = function(entry)
   if note ~= "" then table.insert(parts, "— " .. note) end
 
   return { table.concat(parts, " ") }
+end
+
+-- A rendered waterfall block. Control rows remain literal Plurnk UI; only a
+-- broadcast SEND body is interpreted as Markdown, preventing one body's syntax
+-- state from styling later control rows. The caller owns the source entry and
+-- may project it again at a different live window width.
+M.render_log_block = function(entry, width, on_change)
+  if entry.op ~= "SEND" or entry.scheme ~= nil or entry.pathname ~= nil then
+    return { lines = M.render_log_entry(entry) }
+  end
+
+  local header, body = broadcast_content(entry)
+  local markdown = require("plurnk.markdown")
+  if body == "" or not markdown.looks_like_markdown(body) then
+    return { lines = M.render_broadcast(entry) }
+  end
+
+  local projected = markdown.render(body, math.max(20, (width or 80) - 3), "   ", on_change)
+  local content = { lines = { header } }
+  for _, line in ipairs(projected.lines or {}) do content.lines[#content.lines + 1] = line end
+  return content
 end
 
 -- Per-loop summary line (still used by callers; the worker_tab waterfall no

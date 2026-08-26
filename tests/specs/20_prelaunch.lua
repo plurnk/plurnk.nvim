@@ -50,7 +50,7 @@ local ok, err = pcall(function()
   -- not transport.send directly — stub the discover reply there.
   require("plurnk.client").send = function(method, _, _, cb)
     if method == "discover" and cb then
-      -- A manifest missing the AG-UI+ markers this client depends on (op.exec/op.look).
+      -- A discovery response missing the AG-UI+ markers this client depends on.
       cb({ actions = { ping = {}, ["workspace.list"] = {} }, notifications = {} })
     end
   end

@@ -14,8 +14,9 @@ CONTENTS                                                      *plurnk-contents*
 ==============================================================================
 1. Setup                                                         *plurnk-setup*
 
-Requires Neovim >= 0.10 and a running plurnk-service daemon
-(default 127.0.0.1:3044). >lua
+Requires Neovim >= 0.10 and a running plurnk-service daemon (default
+127.0.0.1:3044). An optional `plurnk` executable on PATH supplies shared GFM
+and Beautiful Mermaid presentation; without it, Markdown remains source. >lua
 
   require("plurnk").setup({ host = "127.0.0.1", port = 3044 })
   require("plurnk").apply_default_keymaps()  -- only fills unmapped keys
@@ -36,7 +37,7 @@ cmdline abbreviations.
   :AI?? / ::        new workspace, then prompt
   :AI???            new headless workspace (no project root)
   :AI????           new worker in the current workspace (fork)
-  :AI... {text}     inject into the running loop (pending service#193)
+  :AI... {text}     inject into the running loop
   :AI/{verb}        models model child reasoning workspaces workers
                     workspace worker rename log yolo ping
                     mcp; add {alias} {target} [options.json]
@@ -51,7 +52,7 @@ Visual mode prepends the selection: `'<,'>AI? explain this`.
 A WORKSPACE is the world (project root, entries, persona). A WORKER is a
 conversation within it; the waterfall is the worker's log — exactly what the
 model sees. One tab per worker by default; buffers are named
-`plurnk://<workspace>/<worker>` so any window arrangement works with vim's own
+`plurnk-nvim://<workspace>/<worker>` so any window arrangement works with vim's own
 machinery.
 
 One workspace is live per Neovim instance. Switching workspaces (or workers)
@@ -67,6 +68,12 @@ Readable provider reasoning appears before its SEND as a distinct `💭` block.
 Multiline reasoning begins in a native closed fold. PLAN remains the model's
 durable working-memory inventory: ✅ completed, 🚧 in progress, 💾 memory,
 ⬜ pending.
+
+Each model body is independent, so its Markdown never styles later Plurnk rows.
+When `plurnk render` is available, tables wrap with horizontal row separators,
+task markers render once, code fences retain a `💻 language` header, and Mermaid
+is projected through Beautiful Mermaid. The source entry stays authoritative;
+without the optional renderer, it remains visible verbatim.
 
 ==============================================================================
 4. Proposals                                                 *plurnk-proposals*
@@ -96,19 +103,21 @@ subscription with status 499.
 >lua
   vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 <
-The statusline remains a lean `🐹` plus live state glyph. The worker winbar owns
-the rich snapshot, for example `🐹 workspace · worker · 🤖 alias · 🧠 adaptive
-· L3·T2 · ✅ 200 · ↑12.3k ↓420 · ctx 15%/49k · loop: $0.0042`. Input/output, context, and the
+The statusline is one live state glyph. The worker winbar owns the rich
+snapshot, for example `plurnk · workspace · worker · 🤖 alias · 🧠 adaptive
+· L3·T2 · ⏹️ · ↑12.3k ↓420 · ctx 15%/49k · loop: $0.0042`. Input/output, context, and the
 exact decimal or unknown cost all come from the last loop's terminal accounting
 envelope; they are never a client-computed workspace total.
 
 ==============================================================================
 7. Architecture                                           *plurnk-architecture*
 
-  main nvim  <-stdio JSON-RPC->  background headless nvim  <-WS->  daemon
+  Neovim  -- AG-UI+ HTTP/SSE -->  plurnk-service
 
 Neovim consumes the daemon's AG-UI+ HTTP/SSE interface through curl. The
 external protocol contract lives in the plurnk-agui SPEC.
+Model Markdown may independently use the optional local `plurnk render`
+stdin/stdout filter; protocol traffic never does.
 One live workspace per instance; switches rebind the connection in place.
 Tests: `./tests/runner.sh` boots a private daemon (tmp DB, ephemeral port)
 from the sibling checkout; `PLURNK_SERVICE_DIR` overrides; `PLURNK_PORT`

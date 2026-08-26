@@ -34,8 +34,8 @@ local function workspace_settings()
   local s = { client = CLIENT_ID }
   local execs = M.collect_execs_policy()
   if execs then s.execs = execs end
-  -- svc#231/#286 — workspace-open files preview: -1 full / 0 off / N first-N items
-  -- of the workspace manifest at turn 0 (the CLI's --files-items, converged).
+  -- Workspace-open files preview: -1 full / 0 off / N first-N items
+  -- of the tracked-file set at turn 0 (the CLI's --files-items, converged).
   local fi = require("plurnk.config").get("files_items")
   if type(fi) == "number" then s.filesItems = fi end
   return s
@@ -248,7 +248,7 @@ note_model_worker = function(workspace_name, worker_id, worker_name)
     state.set_worker_name(workspace_name, worker_name)
     state.set_worker_label(workspace_name, worker_id, worker_name)
   end
-  require("plurnk.worker_tab").note_run_resolved(workspace_name)
+  require("plurnk.worker_tab").note_worker_resolved(workspace_name)
 end
 
 -- Create a workspace (optionally named / headless) and bind it to the
@@ -411,8 +411,8 @@ end
 -- ── loop.run helper ────────────────────────────────────────────────
 
 local function send_loop_run(workspace_name, prompt, flags)
-  -- Bridge mode: the run streams through the portal (agui.run → un-project →
-  -- dispatch, so the worker-tab renders identically to WS). {§worker-model-selection} —
+  -- The run streams through AG-UI+ (agui.run → un-project → dispatch).
+  -- {§worker-model-selection} —
   -- no model selector rides the run: the worker owns the model, /model and /child
   -- persisted it server-side. on_done clears inflight — the terminated event
   -- (dispatched) drives the rest.
@@ -502,7 +502,7 @@ M.workspace_new = function(opts)
 end
 
 -- :PlurnkWorkspaceRename <newname> — rename the active workspace (workspace.rename,
--- svc#248). A workspace's name is a mutable handle on the world; a worker's is
+-- A workspace's name is a mutable handle on the world; a worker's is
 -- immutable. Rekeys local state + the worker tab in place.
 M.workspace_rename = function(opts)
   local new_name = (opts.args or ""):gsub("^%s+", ""):gsub("%s+$", "")
@@ -726,8 +726,8 @@ M.set_child = function(args)
   end)
 end
 
--- Membership overlay (svc#200) — service vocabulary, converged with the TUI:
--- pick tracks file(s) in manifest, hide blocks them, view tracks
+-- Membership overlay — service vocabulary, converged with the TUI:
+-- pick tracks file(s), hide blocks them, view tracks
 -- read-only. Live via workspace.constrain (workspace-scoped, re-resolved now).
 -- Native vim file completion supplies an explicit glob (no bespoke completer).
 
@@ -785,7 +785,7 @@ M.drop = function(opts)
   end)
 end
 
--- :PlurnkMembers — the model's RESOLVED file universe (svc#243), daemon-
+-- :PlurnkMembers — the model's resolved file universe, daemon-
 -- resolved (ls-files ∪ pick) − hide. NOT the rule globs: showing the rules
 -- here would misinform — they're the deltas, not what the model sees. The
 -- constraint list rides along as a footer (it's what /drop targets).
@@ -1125,7 +1125,7 @@ M.ai = function(opts)
   if raw == "" then return M.toggle() end
 
   if raw:sub(1, 3) == "..." then
-    -- BTW inject (plurnk-service#193): speak into the running model loop.
+    -- BTW inject: speak into the running model loop.
     -- The daemon targets the workspace's model worker (ctx.workspace.modelWorkerId)
     -- — there must be one (start a loop first).
     local msg = raw:sub(4):gsub("^%s+", "")

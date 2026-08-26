@@ -1,11 +1,14 @@
 # plurnk.nvim
 
 Neovim client for [plurnk-service](https://github.com/plurnk/plurnk-service).
-It consumes the daemon's AG-UI+ HTTP/SSE interface directly; it never shells
-through the terminal client. The pitch: **use LLMs the vim way** — your
-buffers, your motions, your `:` line.
+It consumes the daemon's AG-UI+ HTTP/SSE interface directly; protocol traffic
+never passes through the terminal client. The pitch: **use LLMs the vim way** —
+your buffers, your motions, your `:` line.
 
-Requires: Neovim ≥ 0.10, a running plurnk-service daemon (default `127.0.0.1:3044`).
+Requires Neovim ≥ 0.10 and a running plurnk-service daemon (default
+`127.0.0.1:3044`). The optional `plurnk` terminal client on `PATH` provides the
+same width-aware GFM and Beautiful Mermaid presentation as its TUI; without it,
+model Markdown remains faithful source.
 
 ```lua
 require("plurnk").setup({ host = "127.0.0.1", port = 3044 })
@@ -14,8 +17,9 @@ require("plurnk").apply_default_keymaps()  -- optional; only fills unmapped keys
 
 ## Install & releases
 
-A source-consumed plugin — no build step, no package registry. Canonical
-source lives on Gitea; `github.com/plurnk/plurnk.nvim` is the public mirror.
+A source-consumed plugin — no build step, package registry, or compiled
+artifact. Canonical source lives on Gitea;
+`github.com/plurnk/plurnk.nvim` is the public mirror.
 Two supported ways to consume it:
 
 - **Track `main`** — rolling accepted source. Every commit on public `main`
@@ -55,7 +59,7 @@ Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:A
 
 ## Layout
 
-One tab per **worker** (a conversation); a **workspace** is the world containing workers. One workspace is live per Neovim instance; switching notifies. Each worker tab: glyph waterfall on top (the worker's log, exactly what the model sees), 3-line input below — `<CR>` in normal mode submits; `? `/`: `/`! ` prefixes and raw `# PLAN0` / `## OP0` PLURNK work there too. Readable provider reasoning appears before its SEND as a distinct `💭` block; multiline blocks begin folded. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.
+One tab per **worker** (a conversation); a **workspace** is the world containing workers. One workspace is live per Neovim instance; switching notifies. Each worker tab: glyph waterfall on top (the worker's log, exactly what the model sees), 3-line input below — `<CR>` in normal mode submits; `? `/`: `/`! ` prefixes and raw `# PLAN0` / `## OP0` PLURNK work there too. Readable provider reasoning appears before its SEND as a distinct streaming `💭` block; multiline blocks begin folded. Each model body is independent, so its Markdown cannot style later Plurnk rows. When `plurnk render` is available, tables wrap with row separators, task boxes render once, code fences retain their language, and Mermaid uses Beautiful Mermaid; otherwise the semantic source remains visible. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.
 
 ## Proposals
 
@@ -66,13 +70,14 @@ Side-effecting ops pause for review. EDIT opens a diffsplit (left disk, right pr
 ```lua
 vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 -- active slot: 42% / ⌛︎ / 🔥 (progress / running / idle YOLO)
--- waterfall winbar: 🐹 workspace · worker · 🤖 provider/model · 🧠 adaptive · L3·T2 · ⏹️ · loop: $0.0042
+-- waterfall winbar: plurnk · workspace · worker · 🤖 provider/model · 🧠 adaptive · L3·T2 · ⏹️ · loop: $0.0042
 ```
 
 ## Internals (for agents)
 
 - Transport: AG-UI+ over HTTP/SSE (`curl -N` under `vim.system`) against the daemon's in-process module; events un-project to the daemon shapes dispatch renders. The threadId is the workspace name, verbatim; the workspace (world) rides `forwardedProps.plurnk.workspace` on every run.
+- Presentation: optional `plurnk render --width <columns>` over stdin/stdout, cached by semantic source and live width. It is never used for transport.
 - Client contract: `SPEC.md` (this repo). External protocol: the plurnk-agui SPEC. Runtime model: the plurnk-service SPEC.
-- Notifications consumed: `log/entry` (routed per-run by `entry.worker_id`), `loop/proposal` (server-resolved `flags.yolo/noProposals` are skipped), `loop/terminated`, `notice/event`, `stream/event`, `stream/concluded`.
+- Notifications consumed: `log/entry` (routed per worker by `entry.worker_id`), `loop/proposal` (server-resolved `flags.yolo/noProposals` are skipped), `loop/terminated`, `notice/event`, `stream/event`, `stream/concluded`.
 - Tests: `./tests/runner.sh` — one headless nvim per spec; boots a private daemon from the sibling `../plurnk-service` checkout (tmp DB, ephemeral port) unless `PLURNK_PORT` is set. `PLURNK_SERVICE_DIR` overrides the daemon location. `node tests/composition.mjs` copies an installed-plugin layout and exercises it against the built service.
 - Project management: `AGENTS.md` (local). Audit + roadmap: [#16](https://github.com/plurnk/plurnk.nvim/issues/16).

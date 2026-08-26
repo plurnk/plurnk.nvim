@@ -55,7 +55,8 @@ local ok, err = pcall(function()
 
   -- ── rich winbar: identity + model + L·T + status + money ──
   local wb = worker_tab.winbar_text("s1", 7)
-  H.assert_match(wb, "🐹", "winbar brand")
+  H.assert_match(wb, "plurnk", "winbar names the client without a mascot")
+  H.assert_truthy(not wb:match("🐹"), "the retired mascot is absent from the winbar")
   H.assert_match(wb, "s1", "workspace")
   H.assert_match(wb, "claude", "model")
   H.assert_match(wb, "L7", "loop")

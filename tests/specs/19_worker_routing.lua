@@ -1,7 +1,7 @@
--- -- Run-keyed waterfalls (#16 topology): entries route to THEIR run's
--- buffer by entry.worker_id (no interleaving), the pending record (created
--- before the run id is known) is adopted by the first run seen, and
--- hydrate replaces a run's buffer with canonical history.
+-- Worker-keyed waterfalls: entries route to their worker's buffer by
+-- entry.worker_id (no interleaving), the pending record (created before the
+-- worker id is known) is adopted by the first worker seen, and hydrate replaces
+-- a worker's buffer with canonical history.
 -- Pure module path; no daemon round-trip.
 local NAME = "19_worker_routing"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
@@ -23,34 +23,34 @@ local ok, err = pcall(function()
   local state = require("plurnk.state")
   state.set_workspace_id("topo", 5)
 
-  -- Open before the run id is known → pending record.
+  -- Open before the worker id is known → pending record.
   rt.open("topo")
   local rec = rt.get_record("topo")
   H.assert_truthy(rec, "pending record exists")
   H.assert_match(vim.api.nvim_buf_get_name(rec.waterfall_buf), "plurnk%-nvim://topo/pending", "pending title")
 
   -- First entry carries worker_id 42 → pending adopted: rekeyed, renamed,
-  -- and 42 becomes the workspace's current run.
+  -- and 42 becomes the workspace's current worker.
   rt.append_history("topo", { entry(1, 42) })
-  H.assert_eq(state.get_worker_id("topo"), 42, "first run seen claims current")
+  H.assert_eq(state.get_worker_id("topo"), 42, "first worker seen claims current")
   local adopted = rt.get_record("topo")
   H.assert_eq(adopted.waterfall_buf, rec.waterfall_buf, "pending record adopted, not replaced")
   H.assert_match(vim.api.nvim_buf_get_name(adopted.waterfall_buf), "plurnk%-nvim://topo/worker#42", "renamed to worker key")
-  H.assert_eq(vim.b[adopted.waterfall_buf].plurnk_worker_id, 42, "buffer stamped with run id")
+  H.assert_eq(vim.b[adopted.waterfall_buf].plurnk_worker_id, 42, "buffer stamped with worker id")
 
-  -- A second run's entries land in a SEPARATE buffer — never interleaved.
+  -- A second worker's entries land in a separate buffer — never interleaved.
   rt.append_history("topo", { entry(2, 43, "/other-run") })
   local lines42 = vim.api.nvim_buf_get_lines(adopted.waterfall_buf, 0, -1, false)
-  H.assert_eq(#lines42, 1, "run 42 buffer has only its own entry")
+  H.assert_eq(#lines42, 1, "worker 42 buffer has only its own entry")
   local buf43
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_get_name(b):match("plurnk%-nvim://topo/worker#43") then buf43 = b end
   end
-  H.assert_truthy(buf43, "run 43 got its own buffer")
+  H.assert_truthy(buf43, "worker 43 got its own buffer")
   H.assert_match(table.concat(vim.api.nvim_buf_get_lines(buf43, 0, -1, false), "\n"),
-    "/other%-run", "run 43 entry landed in run 43 buffer")
+    "/other%-run", "worker 43 entry landed in worker 43 buffer")
 
-  -- Hydrate REPLACES a run's waterfall with canonical history.
+  -- Hydrate replaces a worker's waterfall with canonical history.
   rt.hydrate("topo", 43, { entry(7, 43, "/hydrated-a"), entry(8, 43, "/hydrated-b") })
   local hydrated = table.concat(vim.api.nvim_buf_get_lines(buf43, 0, -1, false), "\n")
   H.assert_match(hydrated, "/hydrated%-a", "hydrated entry present")
@@ -80,6 +80,12 @@ local ok, err = pcall(function()
     return vim.fn.foldclosed(fold_start)
   end)
   H.assert_eq(closed, fold_start, "multiline reasoning starts folded")
+  local fold_text = vim.api.nvim_win_call(adopted.waterfall_win, function()
+    return vim.fn.foldtextresult(fold_start)
+  end)
+  H.assert_match(fold_text, "💭 first line", "custom fold text preserves the block identity")
+  H.assert_match(fold_text, "3 lines", "custom fold text reports its extent")
+  H.assert_truthy(not fold_text:match("^%+%-%-"), "Neovim's default fold gutter is absent")
   local count = vim.api.nvim_buf_line_count(adopted.waterfall_buf)
   rt.append_reasoning("topo", 42, "1/1/2/SEND/reasoning", "duplicate")
   H.assert_eq(vim.api.nvim_buf_line_count(adopted.waterfall_buf), count, "message identity prevents duplicate reasoning")

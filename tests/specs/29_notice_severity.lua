@@ -1,5 +1,5 @@
 -- -- notice/event severity coloring off the producer-set notice.level (grammar
--- 0.74.29+ / svc#276): error → ErrorMsg (red), warn → WarningMsg (yellow),
+-- error → ErrorMsg (red), warn → WarningMsg (yellow),
 -- info → Comment (dim). Mirrors the npm client (#110) — no kind heuristic.
 local NAME = "29_notice_severity"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

@@ -1,4 +1,4 @@
--- Membership gutter signs (svc#243). On entering a project file (and after any
+-- Membership gutter signs. On entering a project file (and after any
 -- membership change), fetch workspace.members and place a line-1 gutter sign for
 -- its RESOLVED effect — daemon-resolved, ZERO client glob-matching (the daemon
 -- owns git + the overlay; the client only signs what it's told). Only the

@@ -32,7 +32,8 @@ vim.opt.termguicolors = true
 vim.opt.number = true
 vim.opt.signcolumn = "yes"
 
--- Load plurnk.nvim from the source tree.
+-- Load plurnk.nvim from the source tree. When `plurnk` is on PATH, model
+-- Markdown presentation delegates to its local daemon-free render filter.
 vim.opt.rtp:prepend("$REPO_DIR")
 
 require("plurnk").setup({
@@ -45,12 +46,12 @@ vim.opt.statusline = "%f %h%w%m%r %=%{v:lua.require('plurnk').statusline()} %y %
 
 -- Print a banner so the demo user sees what we connected to.
 vim.schedule(function()
-  vim.cmd("echom 'plurnk.nvim demo · ws://$PLURNK_HOST:$PLURNK_PORT · :PlurnkPing to verify'")
+  vim.cmd("echom 'plurnk.nvim demo · http://$PLURNK_HOST:$PLURNK_PORT · :PlurnkPing to verify'")
 end)
 EOF
 
 echo "demo XDG: $DEMO_ROOT"
-echo "daemon:   ws://$PLURNK_HOST:$PLURNK_PORT"
+echo "daemon:   http://$PLURNK_HOST:$PLURNK_PORT"
 echo "starting nvim..."
 echo
 

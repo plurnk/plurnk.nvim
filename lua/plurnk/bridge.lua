@@ -1,8 +1,6 @@
--- The nvim bridge transport mirrors the client's
--- BridgeTransport. When PLURNK_AGUI_URL is set, runs ride agui.run (curl -N SSE)
--- with each event un-projected into the SAME dispatch.handle_notification the WS
--- path feeds, so the worker-tab renders unchanged; verbs + resolve ride the
--- management + resolve endpoints. The threadId IS the workspace (workspace) name,
+-- The nvim bridge is the AG-UI+ transport. Runs ride HTTP/SSE and each event
+-- un-projects into dispatch.handle_notification; verbs and resolutions ride
+-- the action surface. The threadId IS the workspace (workspace) name,
 -- verbatim — no prefix, no forging (module §agui-thread-is-run: the workspace is the
 -- world, the thread binds its model worker); workspace options ride the first run's forwardedProps.
 local M = {}
@@ -31,8 +29,8 @@ end
 
 function M.enabled() return true end
 
--- Run a prompt through the bridge. Events un-project into the dispatcher (the
--- worker-tab renders identically to WS); on_done(finalStatus). Returns the vim.system
+-- Run a prompt through the bridge. Events un-project into the dispatcher;
+-- on_done(finalStatus). Returns the vim.system
 -- handle (handle:kill() = /stop, the bridge cancels on hangup).
 function M.run(thread_id, prompt, opts, on_done)
   local t = M.target()

@@ -9,8 +9,7 @@ what this client guarantees. Tests are organized by observable behavior under
 
 - **Use LLMs the vim way** — one `<CR>` normal-mode mapping in
   plugin buffers, no `startinsert`, no `<Esc><Esc>` remaps, no shortcuts that duplicate
-  vim built-ins. The default keymap set converges the verb vocabulary (fork > loop >
-  turn > op) without colonizing the user's namespace.
+  vim built-ins. The optional default keymap set fills only unmapped keys.
 - **Dumb client** — decisions about loop flow belong to the daemon; this client parses
   commands, holds the transport, marshals actions, renders. It never second-guesses a
   number or a status.
@@ -50,7 +49,7 @@ what this client guarantees. Tests are organized by observable behavior under
   port surfaces one WARN notify naming the condition with the quick-start (`npx
   @plurnk/plurnk-service start`) and install lines — one message with the CLI's
   `client:connection:refused` block; never a silent nil result.
-- **The stale-daemon probe** - `discover` runs once per instance; a manifest
+- **The stale-daemon probe** - `discover` runs once per instance; a response
   missing the schema-bearing AG-UI+ markers this client depends on (`op.exec`,
   `op.look`) warns bluntly that the daemon is older than the client.
 - §nvim-agui-conformance **The public surface is exhaustively accounted for** -
@@ -164,8 +163,8 @@ what this client guarantees. Tests are organized by observable behavior under
   worker renders in the workspace waterfall; client-worker rows (the connection's op.* scratch)
   stay out. The conversation worker is adopted from events arriving while a loop is in
   flight.
-- **Run-keyed routing** — entries route to their run's buffer by
-  `entry.worker_id`, no interleaving; a pending record is adopted by the first run seen.
+- **Worker-keyed routing** — entries route to their worker's buffer by
+  `entry.worker_id`, no interleaving; a pending record is adopted by the first worker seen.
 - **Fork branches the conversation** — `:PlurnkFork` / `:AI????` →
   `run.fork`, optionally named at instantiation (immutable after), then binds to the
   new worker.
@@ -176,38 +175,43 @@ what this client guarantees. Tests are organized by observable behavior under
 
 ## §5 Rendering
 
-- **The run tab** — `:AI` opens a workspace tabpage with two windows:
+- **The worker tab** — `:AI` opens a workspace tabpage with two windows:
   waterfall on top, input at the bottom; submitting populates the waterfall and leaves
-  focus on the input; an actionless `prompt` row renders as 🐹 speech from `rx.content`.
+  focus on the input; an actionless `prompt` row renders as `❯` speech from `rx.content`.
 - **The waterfall shares one visual language with the terminal client** — every
   glyph-bearing row begins at column zero. Non-SEND operations carry their operation
-  glyph and a secondary-status slot; SENDs carry one actor or lifecycle glyph. Model
-  SEND lifecycle glyphs are `▶️` (102), `⏹️` (200), 💤 (202), 🤔 (300), and ✋
+  glyph and a secondary-status slot; SENDs carry one lifecycle glyph regardless of
+  producer. SEND lifecycle glyphs are `▶️` (102), `⏹️` (200), 💤 (202), 🤔 (300), and ✋
   (499). Broadcast and routine directed SEND codes remain wire truth without
   repeating in human output; a failed directed SEND and any other failed operation
   retain their diagnostic code.
   Targets, scopes, previews, and literal annotations use one-space separators.
 - **Deliberate divergences are editor-native presentation only** — the
   durable prompt row remains visible because submission clears the input buffer;
-  Markdown stays source-editable and uses Neovim's live-window wrapping, syntax, and
-  folds rather than the terminal's GFM-to-ANSI projection; live streams use dedicated
-  buffers and splits. The operation vocabulary, lifecycle states, and row grammar do
-  not diverge.
+  live streams use dedicated buffers and splits. The operation vocabulary, lifecycle
+  states, GFM semantics, and row grammar do not diverge.
 
-- §nvim-markdown-buffer-native **Markdown renders buffer-native** — the
-  waterfall keeps its semantic/raw Markdown text and borrows the editor's
-  `markdown` syntax (syntax only, no ftplugin side effects) for emphasis,
-  fences, and tables; the wire carries no pre-rendered channel (plurnk#15).
-  A ```mermaid fence body is piped through `mermaid-ascii` when that
-  executable is on PATH and its ASCII projection replaces the source lines;
-  otherwise the verbatim source stays, folded like any multi-line block.
+- §nvim-markdown-projection **Markdown is projected per model body** — the
+  source entry remains authoritative while each body is independently projected at
+  the live waterfall width. Plurnk control rows are never parsed as Markdown and one
+  body's syntax state cannot style another block. If the public `plurnk` executable is
+  on `PATH`, the client first verifies the exact daemon-free filter through
+  `plurnk render --help`, then asynchronously invokes `render --width` over
+  stdin/stdout and caches plain-Unicode output by source and width. An executable that
+  does not advertise that capability never receives model content. That shared
+  renderer owns GFM, task lists, wrapping tables with row separators, code headers,
+  and Beautiful Mermaid. If discovery or projection fails, the body remains faithful
+  semantic source. The filter is optional presentation only: no install, network
+  access, provider call, or protocol traffic passes through it. Resize reprojects the
+  retained source at the new width.
 
 - §nvim-waterfall-folding **Multi-line blocks auto-fold** — every multi-line
   waterfall block (reasoning, PLAN, prompt bodies, non-terminal broadcast
   bodies) is created as a closed manual fold except the model's broadcast
   answer, which stays open. Folds persist per worker record and are recreated
-  when a waterfall window re-decorates; ordinary fold motions (za, zR) reopen
-  them.
+  when a waterfall window reprojects; fold text preserves the block's first row
+  without Neovim's default gutter decoration. Ordinary fold motions (za, zR) reopen
+  blocks.
 - **Plan entries remain structured** — PLAN consumes the ACP Plan projection and
   renders its complete entry list in source order, one line each: ✅ `completed`,
   🚧 `in_progress`, and ⬜ `pending`; `completed` content beginning "Memory: "

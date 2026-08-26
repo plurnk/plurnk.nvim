@@ -5,7 +5,10 @@ unavailable.
 
 This repository owns the open-source PLURNK Neovim client. Preserve the
 client boundary: it consumes `plurnk-service` through the public AG-UI+
-contract and does not depend on the terminal client as a subprocess.
+contract and never routes protocol traffic through the terminal client. It may
+discover the terminal client's public `plurnk render` Unix filter for optional
+local presentation; absence must preserve semantic source without degrading
+transport or controls.
 
 
 ## Releasing
@@ -13,8 +16,9 @@ contract and does not depend on the terminal client as a subprocess.
 The complete source-release gate and tag contract (nvim#5):
 
 1. **Gate**: clean, signed `main` on canonical Gitea; `./tests/runner.sh`
-   green against the sibling accepted `../plurnk-service` checkout. There is
-   no other artifact — no npm ceremony for a source-consumed plugin.
+   green against the sibling accepted `../plurnk-service` checkout, followed by
+   `node tests/composition.mjs` against the built daemon and terminal client.
+   There is no plugin artifact or npm ceremony for this source-consumed plugin.
 2. **Tag**: a GPG-signed annotated tag `vX.Y.0` created on the canonical
    Gitea source. First message line `PLURNK.nvim X.Y.0`; add one line naming
    the platform the suite exercised, e.g.

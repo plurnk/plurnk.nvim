@@ -9,7 +9,12 @@ local error = health.error or health.report_error
 M.check = function()
   start("plurnk.nvim")
   if vim.fn.has("nvim-0.10") == 1 then ok("Neovim >= 0.10") else error("Need Neovim >= 0.10") end
-  -- plenary was dropped in v0.1.2 (vim.system is built-in ≥ 0.10) — no dependency.
+  local renderer_ok, renderer_path, renderer_problem = require("plurnk.markdown").available()
+  if renderer_ok then
+    ok("Optional local renderer available: " .. renderer_path)
+  else
+    warn((renderer_problem or "plurnk render is unavailable") .. "; model Markdown remains faithful source")
+  end
   -- AG-UI+ is the sole transport. Neovim streams its HTTP/SSE response through curl.
   if vim.fn.executable("curl") == 1 then ok("curl present (AG-UI+ transport)") else error("curl is required for the AG-UI+ transport") end
   local cfg = require("plurnk.config")

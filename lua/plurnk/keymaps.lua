@@ -20,24 +20,24 @@ M.setup = function()
   map_if_empty({ "n", "x" }, "<leader>a:", ":AI: ",      "Plurnk: act prompt")
   map_if_empty({ "n", "x" }, "<leader>a!", ":AI! ",      "Plurnk: exec command")
   map_if_empty("n",          "<leader>aN", ":AI?? ",     "Plurnk: new workspace + prompt")
-  map_if_empty("n",          "<leader>af", ":PlurnkFork<CR>", "Plurnk: fork — new worker (workspace>worker>loop>turn>op)")
-  map_if_empty("n",          "<leader>ax", ":AI/stop<CR>",  "Plurnk: cancel pending")
-  map_if_empty("n",          "<leader>aX", ":AI/clear<CR>", "Plurnk: cancel pending")
+  map_if_empty("n",          "<leader>af", ":PlurnkFork<CR>", "Plurnk: fork — new worker")
+  map_if_empty("n",          "<leader>ax", ":AI/stop<CR>",  "Plurnk: stop — cancel running loop")
+  map_if_empty("n",          "<leader>aX", ":AI/clear<CR>", "Plurnk: clear — close workspace tab")
 
   -- ── Pickers / settings ──
   map_if_empty("n", "<leader>am", ":PlurnkModels<CR>",       "Plurnk: Models")
   map_if_empty("n", "<leader>as", ":PlurnkWorkspaces<CR>",     "Plurnk: Workspaces")
-  map_if_empty("n", "<leader>aR", ":PlurnkWorkspaceWorkers<CR>",  "Plurnk: Runs in workspace")
+  map_if_empty("n", "<leader>aR", ":PlurnkWorkspaceWorkers<CR>",  "Plurnk: workers in workspace")
   map_if_empty("n", "<leader>aL", ":PlurnkLog<CR>",          "Plurnk: Log")
   map_if_empty("n", "<leader>aO", ":PlurnkOpen<CR>",         "Plurnk: Open workspace tab")
   map_if_empty("n", "<leader>aY", ":PlurnkYolo<CR>",         "Plurnk: Toggle YOLO")
 
-  -- ── Membership overlay (svc#200) — keymap acts on the CURRENT file (one
+  -- ── Membership overlay — keymap acts on the CURRENT file (one
   -- keystroke); `:PlurnkPick <glob>` takes a glob (native file completion). ──
-  map_if_empty("n", "<leader>ap", ":PlurnkPick<CR>",        "Plurnk: pick — track file(s) in manifest")
-  map_if_empty("n", "<leader>ah", ":PlurnkHide<CR>",        "Plurnk: hide this file")
-  map_if_empty("n", "<leader>av", ":PlurnkView<CR>",        "Plurnk: view (read-only) this file")
-  map_if_empty("n", "<leader>ad", ":PlurnkDrop<CR>",        "Plurnk: drop this file's constraints")
+  map_if_empty("n", "<leader>ap", ":PlurnkPick<CR>",        "Plurnk: pick — track file(s)")
+  map_if_empty("n", "<leader>ah", ":PlurnkHide<CR>",        "Plurnk: hide — hide file(s)")
+  map_if_empty("n", "<leader>av", ":PlurnkView<CR>",        "Plurnk: view — track file(s) (read-only)")
+  map_if_empty("n", "<leader>ad", ":PlurnkDrop<CR>",        "Plurnk: drop — no longer pick file(s)")
   map_if_empty("n", "<leader>aM", ":PlurnkMembers<CR>",     "Plurnk: list members")
 
   -- ── Proposal review ──

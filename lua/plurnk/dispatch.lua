@@ -13,7 +13,7 @@ local state = require("plurnk.state")
 -- ── Helpers ─────────────────────────────────────────────────────────
 
 local function log(msg)
-  local _ = msg   -- transport log retired with the WS client
+  local _ = msg   -- transport logging is intentionally silent
 end
 
 local function redraw_statusline()
@@ -53,7 +53,7 @@ local function conversation_entry(workspace_name, entry)
   if conv then return entry.worker_id == conv end
   if state.is_loop_inflight(workspace_name) then
     state.set_worker_id(workspace_name, entry.worker_id)
-    pcall(function() require("plurnk.worker_tab").note_run_resolved(workspace_name) end)
+    pcall(function() require("plurnk.worker_tab").note_worker_resolved(workspace_name) end)
     return true
   end
   return false
@@ -169,7 +169,7 @@ M.handle_problem_event = function(params, workspace_name)
   end)
 end
 
--- Severity from the producer-set notice.level (grammar 0.74.29+ / svc#276) —
+-- Severity comes from the producer-set notice.level —
 -- mirrors the npm client (#110). The producer owns severity; the client colors
 -- straight off it, never re-deriving from the kind string. error → ErrorMsg
 -- (red), warn → WarningMsg (yellow), info → Comment (dim).

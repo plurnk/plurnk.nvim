@@ -47,7 +47,7 @@ local ok, err = pcall(function()
     usage = loop_usage(1000, 250, "0.003") }, "gauge")
   -- The rich gauge lives in the winbar now; the statusline is a lean glance.
   local wb = require("plurnk.worker_tab").winbar_text("gauge", nil)
-  H.assert_match(wb, "🐹 gauge", "winbar names the workspace")
+  H.assert_match(wb, "plurnk · gauge", "winbar names the workspace")
   H.assert_match(wb, "↑1%.0k ↓250", "shows the LAST loop's usage (snapshot), not the sum of both")
   H.assert_eq(state.get_usage("gauge").accounting.costUsd, "0.003", "the exact last-loop decimal is not accumulated or converted")
   H.assert_eq(#state.get_usage("gauge").accounting.requests, 1, "physical request evidence remains cardinal")

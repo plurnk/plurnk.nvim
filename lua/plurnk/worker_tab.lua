@@ -1,13 +1,13 @@
--- Worker-tab UI scaffold — WORKER-keyed (#16 topology, 2026-06-10).
+-- Worker-tab UI scaffold — worker-keyed.
 --
--- The log is the RUN's history (plurnk-service SPEC §0.6), so the
+-- The log is the worker's history, so the
 -- waterfall is a worker's buffer: `plurnk-nvim://<workspace>/<worker-label>`, with a
--- matching input split below. Tabs are the DEFAULT view (one per worker);
+-- matching input split below. Tabs are the default view (one per worker);
 -- buffers are the unit of content, so users can compose other layouts
 -- with vim's own window machinery.
 --
 -- workspace.create doesn't return the auto-created worker's id, so a fresh
--- workspace opens under a PENDING key; the worker id is learned from the
+-- workspace opens under a pending key; the worker id is learned from the
 -- first log/entry (entries carry worker_id) or a workspace.workers round-trip,
 -- and the record is adopted — rekeyed, buffer renamed, winbar refreshed.
 
@@ -17,6 +17,8 @@ local M = {}
 --   buf, worker_id?, tabpage?, waterfall_win?, input_win?, input_buf?,
 -- }  where key = worker_id (number) | "pending".
 local records = {}
+local reproject_record
+local waterfall_width
 
 local function workspace_records(workspace)
   records[workspace] = records[workspace] or {}
@@ -58,18 +60,20 @@ local function gauge(label, used, capacity)
   return string.format("%s %d%%/%s", label, math.floor(used / capacity * 100 + 0.5), compact)
 end
 
-local function create_block_fold(rec, first, last)
-  if first >= last or not rec.waterfall_win or not vim.api.nvim_win_is_valid(rec.waterfall_win) then return end
+local function create_block_fold(rec, block)
+  if not block or not block.fold or not block.first or not block.last or block.first >= block.last
+      or not rec.waterfall_win or not vim.api.nvim_win_is_valid(rec.waterfall_win) then return end
   vim.api.nvim_win_call(rec.waterfall_win, function()
-    pcall(vim.cmd, string.format("%d,%dfold", first, last))
-    pcall(vim.cmd, string.format("%dfoldclose", first))
+    pcall(vim.cmd, string.format("%d,%dfold", block.first, block.last))
+    pcall(vim.cmd, string.format("%dfoldclose", block.first))
+    if block.open then pcall(vim.cmd, string.format("%dfoldopen", block.first)) end
   end)
 end
 
 local function build_winbar(workspace, key)
   local state = require("plurnk.state")
   local rid = type(key) == "number" and key or nil
-  local parts = { "🐹 " .. workspace .. " · " .. worker_label(workspace, rid) }
+  local parts = { "plurnk · " .. workspace .. " · " .. worker_label(workspace, rid) }
 
   local model = state.get_active_model(workspace)
   if model then parts[#parts + 1] = "🤖 " .. model end
@@ -89,7 +93,7 @@ local function build_winbar(workspace, key)
   else
     local final = state.get_final_status(workspace)
     if final then
-      local g = require("plurnk.render").model_send_glyph(final)
+      local g = require("plurnk.render").send_lifecycle_glyph(final)
       parts[#parts + 1] = final >= 400 and final ~= 499
         and (g .. " " .. tostring(final)) or g
     end
@@ -132,11 +136,12 @@ local function decorate_waterfall_win(win, workspace, key)
   vim.wo[win].foldmethod = "manual"
   vim.wo[win].foldenable = true
   vim.wo[win].foldlevel = 0
+  vim.wo[win].foldtext = "v:lua.require'plurnk.worker_tab'.foldtext()"
   local rec = workspace_records(workspace)[key]
   if rec and rec.block_fold_win ~= win then
     rec.block_fold_win = win
-    for _, fold in ipairs(rec.block_folds or {}) do
-      create_block_fold(rec, fold.first, fold.last)
+    for _, block in ipairs(rec.blocks or {}) do
+      create_block_fold(rec, block)
     end
   end
   pcall(vim.api.nvim_set_option_value, "winbar", build_winbar(workspace, key), { win = win })
@@ -170,18 +175,16 @@ local function ensure_record(workspace, key)
   vim.bo[buf].buftype = "nofile"
   vim.bo[buf].bufhidden = "hide"
   vim.bo[buf].swapfile = false
-  -- Buffer-native Markdown rendering (plurnk#15): the waterfall keeps its
-  -- semantic/raw text and borrows the editor's markdown syntax for emphasis,
-  -- fences, and tables. Syntax only — no ftplugin side effects, and the
-  -- manual block folds stay authoritative.
-  pcall(function() vim.bo[buf].syntax = "markdown" end)
+  -- The waterfall is not one Markdown document. Model bodies are projected
+  -- independently so their syntax state can never style Plurnk control rows.
+  vim.bo[buf].syntax = ""
   vim.b[buf].plurnk_workspace = workspace
   if type(key) == "number" then vim.b[buf].plurnk_worker_id = key end
   rec = rec or {}
   rec.waterfall_buf = buf
   rec.worker_id = type(key) == "number" and key or nil
   rec.reasoning_ids = rec.reasoning_ids or {}
-  rec.block_folds = rec.block_folds or {}
+  rec.blocks = rec.blocks or {}
   rec.reasoning_live = rec.reasoning_live or {}
   recs[key] = rec
   return rec
@@ -189,7 +192,7 @@ end
 
 -- The record for a worker, adopting the workspace's pending record when this
 -- worker id is first seen (rekey + rename + restamp buffer vars + winbar).
-local function record_for_run(workspace, worker_id)
+local function record_for_worker(workspace, worker_id)
   local recs = workspace_records(workspace)
   -- First worker id seen claims "current" when the workspace has none — the
   -- earliest entries come from the worker this connection is bound to.
@@ -226,10 +229,10 @@ end
 -- Called when the workspace's current worker id resolves (workspace.workers after
 -- create, or an attach) so the pending record adopts without waiting
 -- for a log/entry.
-M.note_run_resolved = function(workspace)
+M.note_worker_resolved = function(workspace)
   local worker_id = require("plurnk.state").get_worker_id(workspace)
   if not worker_id then return end
-  if workspace_records(workspace).pending then record_for_run(workspace, worker_id) end
+  if workspace_records(workspace).pending then record_for_worker(workspace, worker_id) end
 end
 
 M.current_alias = function()
@@ -252,7 +255,7 @@ M.get_record = function(workspace)
   return rec
 end
 
--- Rekey a workspace's tab records to a new name (workspace.rename, svc#248) and
+-- Rekey a workspace's tab records to a new name and
 -- refresh buffer titles + winbars in place. The workspace is the world; its name
 -- is a mutable handle, so its open tab follows the rename rather than orphaning.
 M.rename = function(old_workspace, new_workspace)
@@ -303,7 +306,7 @@ M.open = function(workspace, worker_id)
   if not workspace then return end
   worker_id = worker_id or require("plurnk.state").get_worker_id(workspace)
   local key = worker_id or "pending"
-  if worker_id then record_for_run(workspace, worker_id) end
+  if worker_id then record_for_worker(workspace, worker_id) end
   local rec = ensure_record(workspace, key)
 
   if tab_valid(rec) then
@@ -319,6 +322,7 @@ M.open = function(workspace, worker_id)
   rec.waterfall_win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(rec.waterfall_win, rec.waterfall_buf)
   decorate_waterfall_win(rec.waterfall_win, workspace, key)
+  if rec.render_width ~= waterfall_width(rec) then reproject_record(rec) end
 
   local total = vim.api.nvim_buf_line_count(rec.waterfall_buf)
   pcall(vim.api.nvim_win_set_cursor, rec.waterfall_win, { math.max(total, 1), 0 })
@@ -353,15 +357,123 @@ local function write_lines(buf, lines, replace_all)
   return first, first + #lines - 1
 end
 
-local function render_entries(entries)
-  local render = require("plurnk.render")
-  local lines = {}
-  for _, entry in ipairs(entries) do
-    for _, ln in ipairs(render.render_log_entry(entry)) do
-      lines[#lines + 1] = ln
-    end
+waterfall_width = function(rec)
+  if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
+    return vim.api.nvim_win_get_width(rec.waterfall_win)
   end
-  return lines
+  return vim.o.columns
+end
+
+local function is_answer(entry)
+  return entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil
+    and entry.origin == "model" and (entry.signal == 200 or entry.signal == 499)
+end
+
+local function schedule_reproject(rec)
+  if rec.reproject_scheduled then return end
+  rec.reproject_scheduled = true
+  vim.schedule(function()
+    rec.reproject_scheduled = nil
+    if rec.waterfall_buf and vim.api.nvim_buf_is_valid(rec.waterfall_buf) then reproject_record(rec) end
+  end)
+end
+
+local function render_block(rec, block)
+  if block.kind == "entry" then
+    return require("plurnk.render").render_log_block(
+      block.entry,
+      waterfall_width(rec),
+      function() schedule_reproject(rec) end
+    )
+  end
+  if block.kind == "reasoning" then
+    return { lines = require("plurnk.render").render_reasoning(block.content) }
+  end
+  return { lines = vim.split(block.text or "", "\n", { plain = true }) }
+end
+
+local function block_foldable(block, content)
+  if #(content.lines or {}) < 2 then return false end
+  if block.kind == "entry" then return not is_answer(block.entry) end
+  return block.kind == "reasoning" and block.complete == true
+end
+
+local function append_block(rec, block)
+  rec.blocks = rec.blocks or {}
+  if not block.registered then
+    rec.blocks[#rec.blocks + 1] = block
+    block.registered = true
+  end
+  local content = render_block(rec, block)
+  if #content.lines == 0 then return end
+  block.first, block.last = write_lines(rec.waterfall_buf, content.lines)
+  block.fold = block_foldable(block, content)
+  block.open = false
+  create_block_fold(rec, block)
+end
+
+local function capture_fold_states(rec)
+  if not rec.waterfall_win or not vim.api.nvim_win_is_valid(rec.waterfall_win) then return end
+  vim.api.nvim_win_call(rec.waterfall_win, function()
+    for _, block in ipairs(rec.blocks or {}) do
+      if block.fold and block.first then block.open = vim.fn.foldclosed(block.first) == -1 end
+    end
+  end)
+end
+
+reproject_record = function(rec)
+  if not rec.waterfall_buf or not vim.api.nvim_buf_is_valid(rec.waterfall_buf) then return end
+  capture_fold_states(rec)
+  local view, at_bottom
+  if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
+    vim.api.nvim_win_call(rec.waterfall_win, function()
+      view = vim.fn.winsaveview()
+      at_bottom = view.lnum >= vim.api.nvim_buf_line_count(rec.waterfall_buf)
+      pcall(vim.cmd, "silent! normal! zE")
+    end)
+  end
+
+  local all_lines = {}
+  for _, block in ipairs(rec.blocks or {}) do
+    local content = render_block(rec, block)
+    block.first = #all_lines + 1
+    for _, line in ipairs(content.lines or {}) do all_lines[#all_lines + 1] = line end
+    block.last = #all_lines
+    block.fold = block_foldable(block, content)
+  end
+
+  write_lines(rec.waterfall_buf, #all_lines > 0 and all_lines or { "" }, true)
+  for _, block in ipairs(rec.blocks or {}) do create_block_fold(rec, block) end
+  rec.render_width = waterfall_width(rec)
+
+  if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
+    vim.api.nvim_win_call(rec.waterfall_win, function()
+      if at_bottom then
+        pcall(vim.api.nvim_win_set_cursor, rec.waterfall_win,
+          { math.max(vim.api.nvim_buf_line_count(rec.waterfall_buf), 1), 0 })
+      elseif view then
+        vim.fn.winrestview(view)
+      end
+    end)
+  end
+end
+
+local function replace_block(rec, block)
+  if rec.blocks[#rec.blocks] ~= block then
+    reproject_record(rec)
+    return
+  end
+  local content = render_block(rec, block)
+  local first = block.first
+  if not first then
+    append_block(rec, block)
+    return
+  end
+  vim.bo[rec.waterfall_buf].modifiable = true
+  vim.api.nvim_buf_set_lines(rec.waterfall_buf, first - 1, block.last, false, content.lines)
+  vim.bo[rec.waterfall_buf].modifiable = false
+  block.last = first + #content.lines - 1
+  block.fold = block_foldable(block, content)
 end
 
 -- Append entries, each routed to ITS worker's buffer by entry.worker_id —
@@ -373,36 +485,28 @@ M.append_history = function(workspace, entries)
   for _, entry in ipairs(entries) do
     local rec
     if type(entry.worker_id) == "number" then
-      rec = record_for_run(workspace, entry.worker_id)
+      rec = record_for_worker(workspace, entry.worker_id)
     else
       rec = M.get_record(workspace) or ensure_record(workspace, "pending")
     end
     by_rec[rec] = by_rec[rec] or {}
     table.insert(by_rec[rec], entry)
   end
-  for rec, run_entries in pairs(by_rec) do
-    -- Auto-folding (plurnk#21): every multi-line block folds closed on
+  for rec, worker_entries in pairs(by_rec) do
+    -- Auto-folding: every multi-line block folds closed on
     -- arrival — except the model's broadcast answer, which stays open as the
     -- conversation's payoff. Folds persist per record and are recreated when
     -- the window re-decorates; the user reopens any block with ordinary
     -- fold motions (za / zR).
-    for _, entry in ipairs(run_entries) do
-      local lines = render_entries({ entry })
-      local first, last = write_lines(rec.waterfall_buf, lines)
-      local answer = entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil
-        and entry.origin == "model" and (entry.signal == 200 or entry.signal == 499)
-      if first ~= nil and last ~= nil and last > first and not answer then
-        rec.block_folds = rec.block_folds or {}
-        rec.block_folds[#rec.block_folds + 1] = { first = first, last = last }
-        create_block_fold(rec, first, last)
-      end
+    for _, entry in ipairs(worker_entries) do
+      append_block(rec, { kind = "entry", entry = entry })
     end
     autoscroll(rec)
   end
 end
 
 local function reasoning_record(workspace, worker_id)
-  return type(worker_id) == "number" and record_for_run(workspace, worker_id)
+  return type(worker_id) == "number" and record_for_worker(workspace, worker_id)
     or M.get_record(workspace) or ensure_record(workspace, "pending")
 end
 
@@ -413,24 +517,24 @@ M.begin_reasoning = function(workspace, worker_id, message_id)
   rec.reasoning_live = rec.reasoning_live or {}
   if rec.reasoning_ids[message_id] then return end
   if rec.reasoning_live[message_id] ~= nil then error("reasoning message started twice: " .. message_id, 0) end
-  rec.reasoning_live[message_id] = { content = "" }
+  rec.reasoning_live[message_id] = {
+    content = "",
+    block = { kind = "reasoning", content = "", complete = false },
+  }
 end
 
 M.append_reasoning_delta = function(workspace, worker_id, message_id, delta)
   if not workspace or type(message_id) ~= "string" or type(delta) ~= "string" then return end
+  if delta == "" then return end
   local rec = reasoning_record(workspace, worker_id)
   local live = rec.reasoning_live and rec.reasoning_live[message_id]
   if live == nil then error("reasoning content arrived before its start: " .. message_id, 0) end
   live.content = live.content .. delta
-  local lines = require("plurnk.render").render_reasoning(live.content)
-  if #lines == 0 then return end
-  if live.first == nil then
-    live.first, live.last = write_lines(rec.waterfall_buf, lines)
+  live.block.content = live.content
+  if live.block.first == nil then
+    append_block(rec, live.block)
   else
-    vim.bo[rec.waterfall_buf].modifiable = true
-    vim.api.nvim_buf_set_lines(rec.waterfall_buf, live.first - 1, live.last, false, lines)
-    vim.bo[rec.waterfall_buf].modifiable = false
-    live.last = live.first + #lines - 1
+    replace_block(rec, live.block)
   end
   autoscroll(rec)
 end
@@ -443,17 +547,18 @@ M.end_reasoning = function(workspace, worker_id, message_id)
   rec.reasoning_live[message_id] = nil
   rec.reasoning_ids = rec.reasoning_ids or {}
   rec.reasoning_ids[message_id] = true
-  if live.first == nil or live.last == nil then return end
-  rec.block_folds = rec.block_folds or {}
-  if live.first < live.last then rec.block_folds[#rec.block_folds + 1] = { first = live.first, last = live.last } end
-  create_block_fold(rec, live.first, live.last)
+  if live.block.first == nil or live.block.last == nil then return end
+  live.block.complete = true
+  live.block.fold = live.block.first < live.block.last
+  live.block.open = false
+  create_block_fold(rec, live.block)
   autoscroll(rec)
 end
 
 -- Completed replay uses the same lifecycle as live delivery.
 M.append_reasoning = function(workspace, worker_id, message_id, content)
   if not workspace or type(message_id) ~= "string" or type(content) ~= "string" or content == "" then return end
-  local rec = type(worker_id) == "number" and record_for_run(workspace, worker_id)
+  local rec = type(worker_id) == "number" and record_for_worker(workspace, worker_id)
     or M.get_record(workspace) or ensure_record(workspace, "pending")
   rec.reasoning_ids = rec.reasoning_ids or {}
   if rec.reasoning_ids[message_id] then return end
@@ -466,14 +571,17 @@ end
 -- to a historical worker).
 M.hydrate = function(workspace, worker_id, entries)
   if not workspace or not worker_id then return end
-  local rec = record_for_run(workspace, worker_id)
+  local rec = record_for_worker(workspace, worker_id)
   rec.reasoning_ids = {}
-  rec.block_folds = {}
+  rec.blocks = {}
   rec.reasoning_live = {}
   if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
     vim.api.nvim_win_call(rec.waterfall_win, function() pcall(vim.cmd, "silent! normal! zE") end)
   end
-  write_lines(rec.waterfall_buf, render_entries(entries or {}), true)
+  for _, entry in ipairs(entries or {}) do
+    rec.blocks[#rec.blocks + 1] = { kind = "entry", entry = entry, registered = true }
+  end
+  reproject_record(rec)
   autoscroll(rec)
 end
 
@@ -481,7 +589,7 @@ end
 M.append_line = function(workspace, text)
   if not workspace or not text or text == "" then return end
   local rec = M.get_record(workspace) or ensure_record(workspace, "pending")
-  write_lines(rec.waterfall_buf, vim.split(text, "\n", { plain = true }))
+  append_block(rec, { kind = "text", text = text })
   autoscroll(rec)
 end
 
@@ -503,11 +611,35 @@ end
 
 M.close_document = function(_) end
 M.update_status = function(_) end
-M.setup = function() end
+
+M.foldtext = function()
+  local first = vim.fn.getline(vim.v.foldstart):gsub("%s+$", "")
+  local count = vim.v.foldend - vim.v.foldstart + 1
+  return string.format("%s … %d lines", first, count)
+end
+
+M.setup = function()
+  require("plurnk.markdown").setup()
+  local group = vim.api.nvim_create_augroup("plurnk_waterfall_projection", { clear = true })
+  vim.api.nvim_create_autocmd("WinResized", {
+    group = group,
+    callback = function()
+      for _, recs in pairs(records) do
+        for _, rec in pairs(recs) do
+          if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win)
+              and rec.render_width ~= waterfall_width(rec) then
+            reproject_record(rec)
+          end
+        end
+      end
+    end,
+  })
+end
 
 -- Test/teardown hook.
 M.reset = function()
   records = {}
+  require("plurnk.markdown").reset()
 end
 
 return M

@@ -16,7 +16,7 @@ local ok, err = pcall(function()
   require("plurnk.client").get_workspace_model = function() return nil end
   local rt = require("plurnk.worker_tab")
   rt.open = function() end
-  rt.note_run_resolved = function() end
+  rt.note_worker_resolved = function() end
   rt.current_alias = function() return nil end
 
   local state = require("plurnk.state")
