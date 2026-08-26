@@ -66,6 +66,12 @@ what this client guarantees. Tests are organized by observable behavior under
 - **The push pipeline** — a dispatched op (e.g. `op.parse`)
   produces a `log/entry` notification that advances client state; rendering is
   push-driven, never polled.
+- §nvim-worker-status **Worker status contains only client-owned facts** — the
+  client combines run lifecycle, the durable model control-plane result,
+  observed `log/entry` coordinates, ephemeral progress Notices, and the exact
+  terminal accounting envelope. It never relabels rows or turns as provider
+  packets. The winbar presents lifecycle → model → loop/turn before reasoning
+  and terminal accounting; the editor statusline owns transient activity.
 
 ## §3 The `:AI` language
 
@@ -238,11 +244,12 @@ what this client guarantees. Tests are organized by observable behavior under
   `📡 source:kind [position] ["message"]` at column zero, with snippet, recovery,
   and hint lines nested by three spaces. Required `notice.level` maps error →
   ErrorMsg, warn → WarningMsg, info → Comment; no kind heuristic.
-- **Compact activity mirrors the TUI prompt** — derivation, search acquisition, and
-  serialized branch progress share one plain `N%` statusline slot and never append
-  progress ticks to the waterfall. Below-completion progress supersedes exact `⌛︎`
-  while a loop is active; completion clears the slot, exposing idle 🔥 only when YOLO
-  is armed. Branch completion, failure, and recovery still append one durable summary.
+- **Compact activity mirrors the terminal clients** — derivation, search
+  acquisition, and serialized branch progress share one plain `N%` statusline
+  slot and never append progress ticks to the waterfall. Below-completion
+  progress supersedes exact `⌛︎` while a loop is active; completion clears the
+  slot, exposing idle 🔥 only when YOLO is armed. Branch completion, failure,
+  and recovery still append one durable summary.
 - **Membership signs mark exceptions only** — view 🔒 and
   hidden 🚫 get a line-1 extmark; plain members and non-members get no sign.
 - **The statusline is lean** — one activity slot only; the rich identity, terminal

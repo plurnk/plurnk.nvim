@@ -75,19 +75,8 @@ local function build_winbar(workspace, key)
   local rid = type(key) == "number" and key or nil
   local parts = { "plurnk · " .. workspace .. " · " .. worker_label(workspace, rid) }
 
-  local model = state.get_active_model(workspace)
-  if model then parts[#parts + 1] = "🤖 " .. model end
-  local reasoning = state.get_reasoning_policy(workspace)
-  if reasoning then parts[#parts + 1] = "🧠 " .. reasoning end
-
-  local loop_id = state.get_current_loop_id(workspace)
-  local turn = state.get_current_turn(workspace)
-  if loop_id then
-    parts[#parts + 1] = turn and string.format("L%s·T%s", tostring(loop_id), tostring(turn))
-      or ("L" .. tostring(loop_id))
-  end
-
-  -- The winbar persists the lifecycle state that the TUI leaves in scrollback.
+  -- Lifecycle leads every client-owned status surface; terminal truth comes
+  -- from the exact loop outcome already retained by this client.
   if state.is_loop_inflight(workspace) then
     parts[#parts + 1] = "⌛︎"
   else
@@ -98,6 +87,19 @@ local function build_winbar(workspace, key)
         and (g .. " " .. tostring(final)) or g
     end
   end
+
+  local model = state.get_active_model(workspace)
+  if model then parts[#parts + 1] = "🤖 " .. model end
+
+  local loop_id = state.get_current_loop_id(workspace)
+  local turn = state.get_current_turn(workspace)
+  if loop_id then
+    parts[#parts + 1] = turn and string.format("L%s·T%s", tostring(loop_id), tostring(turn))
+      or ("L" .. tostring(loop_id))
+  end
+
+  local reasoning = state.get_reasoning_policy(workspace)
+  if reasoning then parts[#parts + 1] = "🧠 " .. reasoning end
 
   -- The daemon's conventional aggregate for the LAST loop, not a client tally.
   local usage = state.get_usage(workspace)

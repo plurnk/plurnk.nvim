@@ -63,6 +63,8 @@ local ok, err = pcall(function()
   H.assert_match(wb, "T2", "turn")
   H.assert_match(wb, "⌛︎", "in-flight glyph in winbar")
   H.assert_match(wb, "loop: %$0%.0700", "per-loop cost, labelled 'loop:'")
+  local lifecycle_at, model_at, turn_at = wb:find("⌛︎"), wb:find("🤖 claude"), wb:find("L7·T2")
+  H.assert_truthy(lifecycle_at < model_at and model_at < turn_at, "winbar status order is lifecycle → model → loop/turn")
 
   state.set_loop_inflight("s1", false)
   state.set_final_status("s1", 200)
