@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Open a clean Neovim with ONLY plurnk.nvim installed, against the daemon
-# at $PLURNK_HOST:$PLURNK_PORT (default 127.0.0.1:3044). Isolated XDG
+# at $PLURNK_HOST:$PLURNK_PORT (default 127.0.0.1:1066). Isolated XDG
 # directories so your global config / cache / state stay untouched.
 #
 # Usage:
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 PLURNK_HOST="${PLURNK_HOST:-127.0.0.1}"
-PLURNK_PORT="${PLURNK_PORT:-3044}"
+PLURNK_PORT="${PLURNK_PORT:-1066}"
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 DEMO_ROOT="${PLURNK_DEMO_HOME:-/tmp/plurnk-nvim-demo}"

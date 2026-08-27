@@ -9,7 +9,7 @@
 # Daemon: with PLURNK_PORT set, the suite targets that daemon (yours to
 # manage). Without it, the runner boots a PRIVATE plurnk-service from the
 # metaproject checkout — tmp DB, ephemeral port, killed on exit — so the suite
-# never touches a developer's live daemon on 3044.
+# never touches a developer's live daemon on 1066.
 #
 # Model env: export PLURNK_MODEL=<selector> to admit the explicitly model-driven
 # specs and forward that selection into the private daemon, plus any alias-scoped

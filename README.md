@@ -6,12 +6,12 @@ never passes through the terminal client. The pitch: **use LLMs the vim way** â€
 your buffers, your motions, your `:` line.
 
 Requires Neovim â‰¥ 0.10 and a running plurnk-service daemon (default
-`127.0.0.1:3044`). The optional `plurnk` terminal client on `PATH` provides the
+`127.0.0.1:1066`). The optional `plurnk` terminal client on `PATH` provides the
 same width-aware GFM and Beautiful Mermaid presentation as its TUI; without it,
 model Markdown remains faithful source.
 
 ```lua
-require("plurnk").setup({ host = "127.0.0.1", port = 3044 })
+require("plurnk").setup({ host = "127.0.0.1", port = 1066 })
 require("plurnk").apply_default_keymaps()  -- optional; only fills unmapped keys
 ```
 

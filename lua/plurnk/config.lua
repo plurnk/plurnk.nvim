@@ -5,7 +5,7 @@ vim.fn.mkdir(log_dir, "p")
 
 local defaults = {
   host = "127.0.0.1",
-  port = 3044,
+  port = 1066,
   log_path = log_dir .. "/plurnk_client.log",
   background_log_path = log_dir .. "/plurnk_background.log",
   -- {§worker-settings} — nvim is an interactive client: the conversation worker

@@ -70,7 +70,7 @@ function M.target()
   local url = vim.env.PLURNK_AGUI_URL
   if url == nil or url == "" then
     local host = (vim.env.PLURNK_HOST ~= nil and vim.env.PLURNK_HOST ~= "") and vim.env.PLURNK_HOST or "127.0.0.1"
-    local port = (vim.env.PLURNK_PORT ~= nil and vim.env.PLURNK_PORT ~= "") and vim.env.PLURNK_PORT or "3044"
+    local port = (vim.env.PLURNK_PORT ~= nil and vim.env.PLURNK_PORT ~= "") and vim.env.PLURNK_PORT or "1066"
     url = "http://" .. host .. ":" .. port
   end
   return { url = url, token = vim.env.PLURNK_AGUI_TOKEN }

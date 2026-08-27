@@ -10,7 +10,7 @@ local target = {
   url = string.format(
     "http://%s:%s",
     os.getenv("PLURNK_HOST") or "127.0.0.1",
-    os.getenv("PLURNK_PORT") or "3044"
+    os.getenv("PLURNK_PORT") or "1066"
   ),
 }
 local last_detail = "the daemon did not answer"

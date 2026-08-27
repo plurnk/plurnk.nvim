@@ -5,7 +5,7 @@
 local H = {}
 
 H.HOST = os.getenv("PLURNK_HOST") or "127.0.0.1"
-H.PORT = tonumber(os.getenv("PLURNK_PORT") or "3044")
+H.PORT = tonumber(os.getenv("PLURNK_PORT") or "1066")
 
 H.setup = function()
   vim.opt.rtp:append(os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim")

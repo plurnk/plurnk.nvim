@@ -15,10 +15,10 @@ CONTENTS                                                      *plurnk-contents*
 1. Setup                                                         *plurnk-setup*
 
 Requires Neovim >= 0.10 and a running plurnk-service daemon (default
-127.0.0.1:3044). An optional `plurnk` executable on PATH supplies shared GFM
+127.0.0.1:1066). An optional `plurnk` executable on PATH supplies shared GFM
 and Beautiful Mermaid presentation; without it, Markdown remains source. >lua
 
-  require("plurnk").setup({ host = "127.0.0.1", port = 3044 })
+  require("plurnk").setup({ host = "127.0.0.1", port = 1066 })
   require("plurnk").apply_default_keymaps()  -- only fills unmapped keys
 <
 
