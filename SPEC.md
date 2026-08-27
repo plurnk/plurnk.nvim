@@ -105,10 +105,17 @@ what this client guarantees. Tests are organized by observable behavior under
 - **`## LOOK…` inspects off-worker** — a READ for the human, not the model:
   routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
   rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
-- **Completion** — `:AI` cmdline completion offers verbs, declared model aliases,
-  child inheritance, daemon-supported reasoning policies, and local files
-  where a verb consumes one. It never caches the full model catalog; exact-route
-  discovery is explicit through `/models [search]`.
+- §nvim-command-discovery **One command contract** — one registry owns `:AI/`
+  dispatch, the complete root inventory, concise `/help <verb>` guidance,
+  contextual completion, and default key descriptions. Completion offers
+  declared model aliases, child inheritance, daemon-supported reasoning
+  policies, and local files only where a command consumes one. MCP, Skill, and
+  A2A aliases are fetched lazily from the current Worker only at alias-taking
+  positions and cached per Worker; a failed lookup changes no command or durable
+  state. It never caches the full model catalog; exact-route discovery remains
+  explicit through `/models [search]`. Editor-native `/open`, `/reconnect`,
+  `/next`, `/prev`, and `/clear` are presentation controls rather than a second
+  operation vocabulary.
 - §nvim-workspace-mcp-controls **Workspace MCP controls are daemon actions** —
   the client tokenizes quoted alias/target arguments and JSON-decodes an
   optional local options file. The daemon owns normalization, schema
@@ -120,7 +127,7 @@ what this client guarantees. Tests are organized by observable behavior under
   | `:AI/mcp` | `worker.mcp.list {}` |
   | `:AI/mcp discover <url\|command>` | `worker.mcp.discover {source}` |
   | `:AI/mcp add <alias> <target> [options.json]` | `worker.mcp.add {alias, definition}` — the client composes the exact `McpServerDefinition`: `name = alias`; an absolute `http(s)://` target is `{transport: "http", url}`, anything else `{transport: "stdio", command, args: {}}`; `options.json` supplies the remaining definition members |
-  | `:AI/mcp enable <alias>` | `worker.mcp.enable {alias}` |
+  | `:AI/mcp enable <alias> [options.json]` | Without options, `worker.mcp.enable {alias}`. With options, list the current definition and send `worker.mcp.add {alias, definition: {...current, ...options}}` to specialize it for this Worker. |
   | `:AI/mcp disable <alias>` | `worker.mcp.disable {alias}` |
   | `:AI/mcp remove <alias>` | `worker.mcp.remove {alias}` |
   | `:AI/mcp oauth <alias> <callback-url>` | `worker.mcp.oauth.complete {alias, callbackUrl}` |

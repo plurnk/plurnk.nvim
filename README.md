@@ -46,16 +46,27 @@ while pre-1.0, a minor bump may carry breaking changes (see the tag message).
 | `:AI???` | new headless workspace (no project root) |
 | `:AI????` | new worker in the current workspace (fork) |
 | `:AI... {text}` | inject into the running loop (a mid-loop prompt steers too) |
-| `:AI/{verb}` | `models model child reasoning workspaces workers workspace worker rename log yolo ping`, membership `pick hide view drop members`, workspace MCP `mcp`, universal Agent Skills `skills`, `open accept reject next prev stop clear` |
+| `:AI/` | show the compact grouped command index |
+| `:AI/help {verb}` | show one command's exact usage and purpose |
 
 Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:AI?? hi`) work via cmdline abbreviations.
 `/model <selector>` selects the parent; `/child <selector>` selects WORK/FORK/BARE calls, and `/child inherit` follows the spawning loop. A selector is a declared alias or exact `provider/model`. `/models [search]` lazily searches the daemon's bounded model catalog; it is never loaded at startup.
 `/reasoning` reports the worker's durable policy and supported choices;
 `/reasoning <policy>` persists a daemon-validated selection.
 
+Command routing, completion, contextual help, and default key descriptions use
+one registry. Completion demand-loads model and Functionality choices only at
+the positions that consume them. `/open`, `/reconnect`, `/next`, `/prev`, and
+`/clear` are deliberate editor controls; the operation and Functionality
+vocabulary otherwise matches the terminal client.
+
 `:AI/agents` lists this Worker's outbound A2A agents; `discover <url>`, `add <alias> <url> [options.json]`, `enable`, `disable`, and `remove` are the daemon's common Functionality actions; an enabled agent is `a2a://<alias>` to the model.
 
 `:AI/skills` lists this Worker's Agent Skills; `discover`, `add <name> <source> [--global]`, `enable`, `disable`, and `remove` are the daemon's common Functionality actions — the client runs no package manager. Project skills live in `.agents/skills`; global skills use `~/.agents/skills`.
+
+`:AI/mcp` lists this Worker's MCP servers. `enable <alias> [options.json]`
+either enables an available definition or specializes its current definition
+for the Worker; `/help mcp` shows the complete lifecycle.
 
 ## Layout
 
@@ -63,7 +74,7 @@ One tab per **worker** (a conversation); a **workspace** is the world containing
 
 ## Proposals
 
-Side-effecting ops pause for review. EDIT opens a diffsplit (left disk, right proposed): `<localleader>a` accept, `<localleader>e` accept-with-edits, `r` reject, `c` cancel. EXEC opens a scratch: `a`/`r`/`c`. Global: `<leader>ay/ae/an`, `<leader>a]`/`a[` cycle pending, `:PlurnkYolo` auto-accepts.
+Side-effecting ops pause for review. EDIT opens a diffsplit (left disk, right proposed): `<localleader>a` accept, `<localleader>e` accept-with-edits, `r` reject, `c` cancel. EXEC opens a scratch: `a`/`r`/`c`. Global: `<leader>ay/ae/an`, `<leader>a]`/`a[` cycle pending; `:AI/accept`, `/edit`, `/reject`, and `/cancel` expose the same decisions. `:PlurnkYolo` auto-accepts.
 
 ## Statusline
 

@@ -46,7 +46,7 @@ local ok, err = pcall(function()
   sent, notices = {}, {}
   ai({ args = "/skills discover react changelog", range = 0 })
   ai({ args = "/skills discover acme/kit", range = 0 })
-  ai({ args = "/skills find ./vendor/skills", range = 0 })
+  ai({ args = "/skills discover ./vendor/skills", range = 0 })
   H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.skills.discover", params = { query = "react changelog" } }), "multi-word terms are registry queries")
   H.assert_truthy(vim.deep_equal(sent[2], { method = "worker.skills.discover", params = { source = "acme/kit" } }), "a package reference is a source")
   H.assert_truthy(vim.deep_equal(sent[3], { method = "worker.skills.discover", params = { source = "./vendor/skills" } }), "a path is a source")

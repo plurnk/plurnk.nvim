@@ -80,6 +80,24 @@ local ok, err = pcall(function()
     params = { alias = "gitea", callbackUrl = "https://client.example/callback?code=x&state=y" },
   }), "OAuth completion action shape")
 
+  local specialization = vim.fn.tempname() .. ".json"
+  vim.fn.writefile({ vim.json.encode({ tools = { "issue_search" } }) }, specialization)
+  sent, notices = {}, {}
+  ai({ args = "/mcp enable gitea " .. specialization, range = 0 })
+  H.assert_eq(sent[1].method, "worker.mcp.list", "specialization reads the current definition")
+  H.assert_truthy(vim.deep_equal(sent[2], {
+    method = "worker.mcp.add",
+    params = {
+      alias = "gitea",
+      definition = {
+        name = "gitea",
+        transport = "http",
+        url = "https://example.test/mcp",
+        tools = { "issue_search" },
+      },
+    },
+  }), "enable options specialize the current definition through worker.mcp.add")
+
   results["worker.mcp.add"] = {
     status = 202,
     alias = "echo",
@@ -133,6 +151,7 @@ local ok, err = pcall(function()
   vim.fn.delete(malformed)
   vim.fn.delete(structurally_invalid)
   vim.fn.delete(completion_path)
+  vim.fn.delete(specialization)
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

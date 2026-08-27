@@ -66,6 +66,7 @@ end
 
 local function notify_mutation(result, verb, alias_hint)
   if type(result) ~= "table" then return end
+  require("plurnk.functionality").invalidate_aliases("agents")
   local client = require("plurnk.client")
   local alias = type(result.alias) == "string" and result.alias or alias_hint
   local definition = type(result.definition) == "table" and result.definition or {}
@@ -74,9 +75,10 @@ local function notify_mutation(result, verb, alias_hint)
   client.notify(verb .. ": " .. alias .. state .. problem, vim.log.levels.INFO)
 end
 
-local function usage()
+local function usage(subcommand)
+  local exact = require("plurnk.command_registry").usage("agents", subcommand)
   require("plurnk.client").notify(
-    "usage: :AI/agents [discover <url> | add <alias> <url> [options.json] | enable|disable|remove <alias>]",
+    "usage: :AI" .. exact,
     vim.log.levels.WARN
   )
 end
@@ -89,6 +91,7 @@ M.run = function(args, with_workspace)
     return with_workspace(function()
       client.send("worker.agents.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
+        require("plurnk.functionality").remember_aliases("agents", result.definitions)
         if #result.definitions == 0 then
           client.notify("A2A agents: none", vim.log.levels.INFO)
           return
@@ -106,7 +109,7 @@ M.run = function(args, with_workspace)
 
   if command == "discover" then
     if #argv ~= 2 or alias == "" then
-      client.notify("usage: :AI/agents discover <url>", vim.log.levels.WARN)
+      usage("discover")
       return
     end
     return with_workspace(function()
@@ -125,7 +128,7 @@ M.run = function(args, with_workspace)
 
   if command == "add" then
     if #argv < 3 or #argv > 4 or alias == "" or argv[3] == "" then
-      client.notify("usage: :AI/agents add <alias> <url> [options.json]", vim.log.levels.WARN)
+      usage("add")
       return
     end
     local options = argv[4] ~= nil and read_options(argv[4]) or nil
@@ -140,7 +143,7 @@ M.run = function(args, with_workspace)
 
   if command == "enable" or command == "disable" then
     if #argv ~= 2 or alias == "" then
-      client.notify("usage: :AI/agents " .. command .. " <alias>", vim.log.levels.WARN)
+      usage(command)
       return
     end
     return with_workspace(function()
@@ -152,31 +155,20 @@ M.run = function(args, with_workspace)
 
   if command == "remove" then
     if #argv ~= 2 or alias == "" then
-      client.notify("usage: :AI/agents remove <alias>", vim.log.levels.WARN)
+      usage("remove")
       return
     end
     return with_workspace(function()
       client.send("worker.agents.remove", { alias = alias }, false, function(result)
-        if type(result) == "table" then client.notify("removed: " .. alias, vim.log.levels.INFO) end
+        if type(result) == "table" then
+          require("plurnk.functionality").invalidate_aliases("agents")
+          client.notify("removed: " .. alias, vim.log.levels.INFO)
+        end
       end)
     end)
   end
 
   usage()
-end
-
-M.complete = function(cmdline)
-  local options_partial = cmdline:match("/agents%s+add%s+%S+%s+%S+%s+(%S*)$")
-  if options_partial then return vim.fn.getcompletion(options_partial, "file") end
-
-  local partial = cmdline:match("/agents%s+(%S*)$")
-  if not partial then return nil end
-  local out = {}
-  for _, subcommand in ipairs({ "add", "discover", "enable", "disable", "remove" }) do
-    if vim.startswith(subcommand, partial) then out[#out + 1] = subcommand end
-  end
-  table.sort(out)
-  return out
 end
 
 return M

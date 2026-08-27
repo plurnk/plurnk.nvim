@@ -52,6 +52,14 @@ try {
     await writeFile(lua, `
 vim.opt.rtp:prepend(${JSON.stringify(installed)})
 require("plurnk").setup({ host = "127.0.0.1", port = ${port} })
+local language = require("plurnk.language")
+local root_commands = language.complete("", "AI /", 0)
+assert(vim.tbl_contains(root_commands, "/help") and vim.tbl_contains(root_commands, "/agents"),
+  "installed command registry omitted supported root verbs")
+assert(vim.deep_equal(language.complete("", "AI /mcp di", 0), { "disable", "discover" }),
+  "installed command registry omitted contextual Functionality verbs")
+assert(require("plurnk.command_registry").render_help("mcp"):match(":AI/mcp enable <alias>"),
+  "installed contextual help omitted exact MCP usage")
 local markdown = require("plurnk.markdown")
 local table_source = "| Surface | Use |\\n| --- | --- |\\n| TUI | A deliberately long explanation that wraps. |\\n| CLI | Pipe-friendly output. |"
 local table_changed = false

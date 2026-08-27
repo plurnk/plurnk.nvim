@@ -50,6 +50,7 @@ end
 function M.accept() require("plurnk.resolve").accept() end
 function M.accept_edits() require("plurnk.resolve").accept_edits() end
 function M.reject() require("plurnk.resolve").reject() end
+function M.cancel() require("plurnk.resolve").cancel_current() end
 function M.next() require("plurnk.resolve").next() end
 function M.prev() require("plurnk.resolve").prev() end
 

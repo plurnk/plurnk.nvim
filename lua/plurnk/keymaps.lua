@@ -1,6 +1,11 @@
 -- Default keymaps for prompt entry, settings, membership, and proposal review.
 
 local M = {}
+local registry = require("plurnk.command_registry")
+
+local function describe(command)
+  return "Plurnk: " .. registry.summary(command)
+end
 
 local function map_if_empty(modes, lhs, rhs, desc)
   if type(modes) == "string" then modes = { modes } end
@@ -15,37 +20,37 @@ M.setup = function()
   -- <leader>aa is normal-mode only: in visual mode it would drop the
   -- selection silently because `:AI` with no args opens the input buffer.
   -- Selection-aware prompts go through <leader>a? / a: / a! instead.
-  map_if_empty("n",          "<leader>aa", ":AI<CR>",     "Plurnk: chat (open input)")
+  map_if_empty("n",          "<leader>aa", ":AI<CR>",     describe("open"))
   map_if_empty({ "n", "x" }, "<leader>a?", ":AI? ",      "Plurnk: ask prompt")
   map_if_empty({ "n", "x" }, "<leader>a:", ":AI: ",      "Plurnk: act prompt")
   map_if_empty({ "n", "x" }, "<leader>a!", ":AI! ",      "Plurnk: exec command")
-  map_if_empty("n",          "<leader>aN", ":AI?? ",     "Plurnk: new workspace + prompt")
-  map_if_empty("n",          "<leader>af", ":PlurnkFork<CR>", "Plurnk: fork — new worker")
-  map_if_empty("n",          "<leader>ax", ":AI/stop<CR>",  "Plurnk: stop — cancel running loop")
-  map_if_empty("n",          "<leader>aX", ":AI/clear<CR>", "Plurnk: clear — close workspace tab")
+  map_if_empty("n",          "<leader>aN", ":AI?? ",     describe("workspace"))
+  map_if_empty("n",          "<leader>af", ":PlurnkFork<CR>", describe("worker"))
+  map_if_empty("n",          "<leader>ax", ":AI/stop<CR>",  describe("stop"))
+  map_if_empty("n",          "<leader>aX", ":AI/clear<CR>", describe("clear"))
 
   -- ── Pickers / settings ──
-  map_if_empty("n", "<leader>am", ":PlurnkModels<CR>",       "Plurnk: Models")
-  map_if_empty("n", "<leader>as", ":PlurnkWorkspaces<CR>",     "Plurnk: Workspaces")
-  map_if_empty("n", "<leader>aR", ":PlurnkWorkspaceWorkers<CR>",  "Plurnk: workers in workspace")
-  map_if_empty("n", "<leader>aL", ":PlurnkLog<CR>",          "Plurnk: Log")
-  map_if_empty("n", "<leader>aO", ":PlurnkOpen<CR>",         "Plurnk: Open workspace tab")
-  map_if_empty("n", "<leader>aY", ":PlurnkYolo<CR>",         "Plurnk: Toggle YOLO")
+  map_if_empty("n", "<leader>am", ":PlurnkModels<CR>",       describe("models"))
+  map_if_empty("n", "<leader>as", ":PlurnkWorkspaces<CR>",     describe("workspaces"))
+  map_if_empty("n", "<leader>aR", ":PlurnkWorkspaceWorkers<CR>",  describe("workers"))
+  map_if_empty("n", "<leader>aL", ":PlurnkLog<CR>",          describe("log"))
+  map_if_empty("n", "<leader>aO", ":PlurnkOpen<CR>",         describe("open"))
+  map_if_empty("n", "<leader>aY", ":PlurnkYolo<CR>",         describe("yolo"))
 
   -- ── Membership overlay — keymap acts on the CURRENT file (one
   -- keystroke); `:PlurnkPick <glob>` takes a glob (native file completion). ──
-  map_if_empty("n", "<leader>ap", ":PlurnkPick<CR>",        "Plurnk: pick — track file(s)")
-  map_if_empty("n", "<leader>ah", ":PlurnkHide<CR>",        "Plurnk: hide — hide file(s)")
-  map_if_empty("n", "<leader>av", ":PlurnkView<CR>",        "Plurnk: view — track file(s) (read-only)")
-  map_if_empty("n", "<leader>ad", ":PlurnkDrop<CR>",        "Plurnk: drop — no longer pick file(s)")
-  map_if_empty("n", "<leader>aM", ":PlurnkMembers<CR>",     "Plurnk: list members")
+  map_if_empty("n", "<leader>ap", ":PlurnkPick<CR>",        describe("pick"))
+  map_if_empty("n", "<leader>ah", ":PlurnkHide<CR>",        describe("hide"))
+  map_if_empty("n", "<leader>av", ":PlurnkView<CR>",        describe("view"))
+  map_if_empty("n", "<leader>ad", ":PlurnkDrop<CR>",        describe("drop"))
+  map_if_empty("n", "<leader>aM", ":PlurnkMembers<CR>",     describe("members"))
 
   -- ── Proposal review ──
-  map_if_empty("n", "<leader>ay", ":PlurnkAccept<CR>",       "Plurnk: Accept proposal")
-  map_if_empty("n", "<leader>ae", ":PlurnkAcceptEdits<CR>",  "Plurnk: Accept with edits")
-  map_if_empty("n", "<leader>an", ":PlurnkReject<CR>",       "Plurnk: Reject proposal")
-  map_if_empty("n", "<leader>a]", ":PlurnkNext<CR>",         "Plurnk: Next proposal")
-  map_if_empty("n", "<leader>a[", ":PlurnkPrev<CR>",         "Plurnk: Prev proposal")
+  map_if_empty("n", "<leader>ay", ":PlurnkAccept<CR>",       describe("accept"))
+  map_if_empty("n", "<leader>ae", ":PlurnkAcceptEdits<CR>",  describe("edit"))
+  map_if_empty("n", "<leader>an", ":PlurnkReject<CR>",       describe("reject"))
+  map_if_empty("n", "<leader>a]", ":PlurnkNext<CR>",         describe("next"))
+  map_if_empty("n", "<leader>a[", ":PlurnkPrev<CR>",         describe("prev"))
 end
 
 return M

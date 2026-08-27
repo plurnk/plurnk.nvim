@@ -89,6 +89,7 @@ end
 
 local function notify_mutation(result, verb, alias_hint)
   if type(result) ~= "table" then return end
+  require("plurnk.functionality").invalidate_aliases("mcp")
   local client = require("plurnk.client")
   local alias = type(result.alias) == "string" and result.alias or alias_hint
   local definition = type(result.definition) == "table" and result.definition or {}
@@ -108,9 +109,10 @@ local function notify_mutation(result, verb, alias_hint)
   client.notify(verb .. ": " .. alias .. state, vim.log.levels.INFO)
 end
 
-local function usage()
+local function usage(subcommand)
+  local exact = require("plurnk.command_registry").usage("mcp", subcommand)
   require("plurnk.client").notify(
-    "usage: :AI/mcp [discover <url|command> | add <alias> <target> [options.json] | enable|disable|remove <alias> | oauth <alias> <callback-url>]",
+    "usage: :AI" .. exact,
     vim.log.levels.WARN
   )
 end
@@ -137,6 +139,7 @@ M.run = function(args, with_workspace)
     return with_workspace(function()
       client.send("worker.mcp.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
+        require("plurnk.functionality").remember_aliases("mcp", result.definitions)
         if #result.definitions == 0 then
           client.notify("MCP servers: none", vim.log.levels.INFO)
           return
@@ -154,7 +157,7 @@ M.run = function(args, with_workspace)
 
   if command == "discover" then
     if #argv ~= 2 or alias == "" then
-      client.notify("usage: :AI/mcp discover <url|command>", vim.log.levels.WARN)
+      usage("discover")
       return
     end
     return with_workspace(function()
@@ -164,7 +167,7 @@ M.run = function(args, with_workspace)
 
   if command == "add" then
     if #argv < 3 or #argv > 4 or alias == "" or argv[3] == "" then
-      client.notify("usage: :AI/mcp add <alias> <target> [options.json]", vim.log.levels.WARN)
+      usage("add")
       return
     end
     local options = argv[4] ~= nil and read_options(argv[4]) or nil
@@ -177,33 +180,70 @@ M.run = function(args, with_workspace)
     end)
   end
 
-  if command == "enable" or command == "disable" then
-    if #argv ~= 2 or alias == "" then
-      client.notify("usage: :AI/mcp " .. command .. " <alias>", vim.log.levels.WARN)
+  if command == "enable" then
+    if #argv < 2 or #argv > 3 or alias == "" then
+      usage("enable")
       return
     end
+    if argv[3] ~= nil then
+      local options = read_options(argv[3])
+      if options == nil then return end
+      return with_workspace(function()
+        client.send("worker.mcp.list", {}, false, function(result)
+          local definitions = type(result) == "table" and result.definitions or nil
+          if type(definitions) ~= "table" then return end
+          require("plurnk.functionality").remember_aliases("mcp", definitions)
+          local current = nil
+          for _, entry in ipairs(definitions) do
+            if entry.alias == alias and type(entry.definition) == "table" then current = entry.definition; break end
+          end
+          if current == nil then
+            client.notify("MCP server '" .. alias .. "' is not available to this Worker", vim.log.levels.WARN)
+            return
+          end
+          local definition = {}
+          for key, value in pairs(current) do definition[key] = value end
+          for key, value in pairs(options) do definition[key] = value end
+          client.send("worker.mcp.add", { alias = alias, definition = definition }, false, function(mutation)
+            notify_mutation(mutation, "added", alias)
+          end)
+        end)
+      end)
+    end
     return with_workspace(function()
-      client.send("worker.mcp." .. command, { alias = alias }, false, function(result)
-        notify_mutation(result, command == "enable" and "enabled" or "disabled", alias)
+      client.send("worker.mcp.enable", { alias = alias }, false, function(result)
+        notify_mutation(result, "enabled", alias)
+      end)
+    end)
+  end
+
+  if command == "disable" then
+    if #argv ~= 2 or alias == "" then usage("disable"); return end
+    return with_workspace(function()
+      client.send("worker.mcp.disable", { alias = alias }, false, function(result)
+        notify_mutation(result, "disabled", alias)
       end)
     end)
   end
 
   if command == "remove" then
     if #argv ~= 2 or alias == "" then
-      client.notify("usage: :AI/mcp remove <alias>", vim.log.levels.WARN)
+      usage("remove")
       return
     end
     return with_workspace(function()
       client.send("worker.mcp.remove", { alias = alias }, false, function(result)
-        if type(result) == "table" then client.notify("removed: " .. alias, vim.log.levels.INFO) end
+        if type(result) == "table" then
+          require("plurnk.functionality").invalidate_aliases("mcp")
+          client.notify("removed: " .. alias, vim.log.levels.INFO)
+        end
       end)
     end)
   end
 
   if command == "oauth" then
     if #argv ~= 3 or alias == "" or argv[3] == "" then
-      client.notify("usage: :AI/mcp oauth <alias> <callback-url>", vim.log.levels.WARN)
+      usage("oauth")
       return
     end
     return with_workspace(function()
@@ -214,20 +254,6 @@ M.run = function(args, with_workspace)
   end
 
   usage()
-end
-
-M.complete = function(cmdline)
-  local options_partial = cmdline:match("/mcp%s+add%s+%S+%s+%S+%s+(%S*)$")
-  if options_partial then return vim.fn.getcompletion(options_partial, "file") end
-
-  local partial = cmdline:match("/mcp%s+(%S*)$")
-  if not partial then return nil end
-  local out = {}
-  for _, subcommand in ipairs({ "add", "discover", "enable", "disable", "remove", "oauth" }) do
-    if vim.startswith(subcommand, partial) then out[#out + 1] = subcommand end
-  end
-  table.sort(out)
-  return out
 end
 
 return M

@@ -8,18 +8,71 @@ local FAMILIES = {
   agents = "plurnk.agents",
 }
 
+local aliases_by_worker = {}
+local pending = {}
+local CACHE_TTL_NS = 5 * 1000 * 1000 * 1000
+
+local function now() return vim.uv.hrtime() end
+
+local function active_key(family)
+  local state = require("plurnk.state")
+  local workspace = state.get_active_workspace_name()
+  if not workspace then return nil end
+  local worker = state.get_worker_id(workspace)
+  if not worker then return nil end
+  return table.concat({ workspace, tostring(worker), family }, "\0")
+end
+
+local function project_aliases(definitions)
+  local aliases = {}
+  for _, entry in ipairs(type(definitions) == "table" and definitions or {}) do
+    if type(entry) == "table" and type(entry.alias) == "string" and entry.alias ~= "" then
+      aliases[#aliases + 1] = entry.alias
+    end
+  end
+  table.sort(aliases)
+  return aliases
+end
+
 function M.run(family, args)
   local module = FAMILIES[family]
   assert(module, "unknown Functionality family: " .. tostring(family))
   return require(module).run(args, require("plurnk.workspace_context").resolve)
 end
 
-function M.complete(cmdline)
-  for _, family in ipairs({ "mcp", "skills", "agents" }) do
-    local completion = require(FAMILIES[family]).complete(cmdline)
-    if completion then return completion end
+function M.remember_aliases(family, definitions)
+  local key = active_key(family)
+  if key then aliases_by_worker[key] = { values = project_aliases(definitions), at = now() } end
+end
+
+function M.invalidate_aliases(family)
+  local key = active_key(family)
+  if key then aliases_by_worker[key] = nil end
+end
+
+function M.complete_aliases(family, prefix)
+  assert(FAMILIES[family], "unknown Functionality family: " .. tostring(family))
+  local key = active_key(family)
+  if not key then return {} end
+
+  local cached = aliases_by_worker[key]
+  if (cached == nil or now() - cached.at >= CACHE_TTL_NS) and not pending[key] then
+    pending[key] = true
+    local ok = pcall(function()
+      require("plurnk.client").send("worker." .. family .. ".list", {}, false, function(result, problem)
+        pending[key] = nil
+        if problem ~= nil or type(result) ~= "table" or type(result.definitions) ~= "table" then return end
+        aliases_by_worker[key] = { values = project_aliases(result.definitions), at = now() }
+      end)
+    end)
+    if not ok then pending[key] = nil end
   end
-  return nil
+
+  local out = {}
+  for _, alias in ipairs(cached and cached.values or {}) do
+    if vim.startswith(alias, prefix or "") then out[#out + 1] = alias end
+  end
+  return out
 end
 
 return M
