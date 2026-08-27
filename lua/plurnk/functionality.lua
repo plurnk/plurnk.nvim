@@ -1,4 +1,5 @@
--- Common command routing for MCP, Agent Skills, and outbound A2A agents.
+-- Common command routing for MCP, Agent Skills, outbound A2A agents, and file
+-- members.
 
 local M = {}
 
@@ -6,6 +7,7 @@ local FAMILIES = {
   mcp = "plurnk.mcp",
   skills = "plurnk.skills",
   agents = "plurnk.agents",
+  members = "plurnk.members",
 }
 
 local aliases_by_worker = {}

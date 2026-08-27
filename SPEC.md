@@ -112,10 +112,10 @@ what this client guarantees. Tests are organized by observable behavior under
   dispatch, the complete root inventory, concise `/help <verb>` guidance,
   contextual completion, and default key descriptions. Completion offers
   declared model aliases, child inheritance, daemon-supported reasoning
-  policies, and local files only where a command consumes one. MCP, Skill, and
-  A2A aliases are fetched lazily from the current Worker only at alias-taking
-  positions and cached per Worker; a failed lookup changes no command or durable
-  state. It never caches the full model catalog; exact-route discovery remains
+  policies, and local files only where a command consumes one. MCP, Skill,
+  A2A, and file members aliases are fetched lazily from the current Worker only
+  at alias-taking positions and cached per Worker; a failed lookup changes no
+  command or durable state. It never caches the full model catalog; exact-route discovery remains
   explicit through `/models [search]`. Editor-native `/open`, `/reconnect`,
   `/next`, `/prev`, and `/clear` are presentation controls rather than a second
   operation vocabulary.
@@ -181,6 +181,32 @@ what this client guarantees. Tests are organized by observable behavior under
 
   Unreadable or invalid local JSON stops before dispatch; daemon Problems use
   the existing lossless Problem path and are neither rewritten nor retried.
+
+- §nvim-file-members **File members are daemon actions** — `:AI/members`
+  (natively `:PlurnkMembers`) is a thin projection of the Worker's `members`
+  Functionality family, the same common lifecycle as `:AI/mcp`, `:AI/skills`,
+  and `:AI/agents`. Git-tracked files are members on their own; a definition
+  is one gitignore-style glob relative to the project root that includes
+  matching untracked files or, with a leading `!`, excludes matching members —
+  an exclusion wins over every inclusion. The client composes one exact
+  `{glob}` definition, passing a `!` verbatim, and renders the daemon's states
+  and verdicts; resolution, the model's ceiling, and enablement policy live in
+  the service. The glob is tokenized exactly as the sibling families tokenize
+  their arguments (quote it to keep whitespace).
+
+  | Input | AG-UI+ action |
+  |---|---|
+  | `:AI/members` | `worker.members.list {}` — one line per definition with what its glob resolved to: `docs  active  include docs/** → 12 files (3 ignored)  (service)` |
+  | `:AI/members discover [path\|glob]` | `worker.members.discover {query}` — one candidate explaining why a file is or is not a member, or previewing what `add` would include or exclude; without an argument, the query is the current file buffer's project-relative path, and a non-file buffer diagnoses usage |
+  | `:AI/members add <alias> <glob>` | `worker.members.add {alias, definition: {glob}}` |
+  | `:AI/members enable <alias>` | `worker.members.enable {alias}` |
+  | `:AI/members disable <alias>` | `worker.members.disable {alias}` |
+  | `:AI/members remove <alias>` | `worker.members.remove {alias}` |
+
+  Every mutation refreshes the membership gutter signs. Daemon Problems — a
+  headless workspace, an invalid pattern, a service-owned definition that
+  cannot be removed — use the existing lossless Problem path and are neither
+  rewritten nor retried.
 
 ## §4 Workspaces and workers
 
@@ -273,8 +299,11 @@ what this client guarantees. Tests are organized by observable behavior under
   progress supersedes exact `⌛︎` while a loop is active; completion clears the
   slot, exposing idle 🔥 only when YOLO is armed. Branch completion, failure,
   and recovery still append one durable summary.
-- **Membership signs mark exceptions only** — view 🔒 and
-  hidden 🚫 get a line-1 extmark; plain members and non-members get no sign.
+- **Membership signs mark the exception only** — each visible project file is
+  asked about through `worker.members.discover` on its project-relative path,
+  quietly; a file the daemon's verdict reports as `excluded` gets a 🚫 line-1
+  extmark, while members, untracked candidates, and ignored files get no sign.
+  The client matches no glob itself.
 - **The statusline is lean** — one activity slot only; the rich identity, terminal
   lifecycle, and accounting detail live in the winbar.
 - **The cockpit gauge preserves cardinal accounting** — the winbar reads the LAST
@@ -343,9 +372,6 @@ what this client guarantees. Tests are organized by observable behavior under
   enable/disable grammar rides verbatim for the daemon's subtractive intersection;
   `PLURNK_EXECS_MCP_*` server configs (URLs, bearer tokens) never touch the wire.
 - **Interactive provider authentication belongs to third-party MCP tooling.**
-- **Membership verbs converge with the TUI** — pick/hide/view/
-  drop/members speak the service vocabulary live via `workspace.constrain`/`unconstrain`/
-  `constraints`.
 
 ## §9 Diagnostics
 

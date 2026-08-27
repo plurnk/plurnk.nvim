@@ -157,7 +157,7 @@ local ok, err = pcall(function()
   H.assert_truthy(has_model and has_models, "completes slash verbs (/model, /models) after /mo")
   H.assert_eq(language.complete("", "AI /ch", 0)[1], "/child", "completes the child verb")
 
-  local none = language.complete("", "AI /pick src", 0)
+  local none = language.complete("", "AI /ping src", 0)
   H.assert_eq(#none, 0, "no verb completion once past the verb")
 end)
 

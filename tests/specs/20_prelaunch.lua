@@ -103,7 +103,7 @@ local ok, err = pcall(function()
   -- Default mappings fill independent free modes, preserve an occupied key,
   -- and emit one aggregate setup warning. checkhealth names the owner.
   vim.g.mapleader = ","
-  vim.keymap.set("n", "<leader>ap", "<Nop>", { desc = "Another plugin" })
+  vim.keymap.set("n", "<leader>aM", "<Nop>", { desc = "Another plugin" })
   notes = {}
   require("plurnk").apply_default_keymaps()
   H.assert_eq(#notes, 1, "mapping setup emits at most one warning")
@@ -115,9 +115,9 @@ local ok, err = pcall(function()
     mappings_enabled = true,
     mappings = inspected,
   }))
-  H.assert_truthy(matching(mapping_health, "n <leader>ap is owned by Another plugin", "warn"),
+  H.assert_truthy(matching(mapping_health, "n <leader>aM is owned by Another plugin", "warn"),
     "health identifies the conflicting mapping owner")
-  vim.keymap.del("n", "<leader>ap")
+  vim.keymap.del("n", "<leader>aM")
   notes = {}
   require("plurnk").apply_default_keymaps()
   H.assert_eq(#notes, 0, "healthy default-mapping setup stays quiet")

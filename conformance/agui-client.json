@@ -178,53 +178,6 @@
         "durability"
       ]
     },
-    "workspace.constrain": {
-      "posture": "native",
-      "evidence": [
-        "tests/specs/23_membership.lua",
-        "tests/specs/49_durable_controls.lua — separate-connection durable controls",
-        "../plurnk-service/scripts/test-client-conformance.mjs — same-daemon cross-client composition"
-      ],
-      "dimensions": [
-        "admission",
-        "projection",
-        "success",
-        "failure",
-        "presentation",
-        "durability",
-        "composition"
-      ]
-    },
-    "workspace.unconstrain": {
-      "posture": "native",
-      "evidence": [
-        "tests/specs/23_membership.lua",
-        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
-      ],
-      "dimensions": [
-        "admission",
-        "projection",
-        "success",
-        "failure",
-        "presentation",
-        "durability"
-      ]
-    },
-    "workspace.constraints": {
-      "posture": "native",
-      "evidence": [
-        "tests/specs/23_membership.lua",
-        "../plurnk-service/scripts/test-client-conformance.mjs — same-daemon cross-client composition"
-      ],
-      "dimensions": [
-        "admission",
-        "projection",
-        "success",
-        "failure",
-        "presentation",
-        "composition"
-      ]
-    },
     "workspace.derivation": {
       "posture": "generic",
       "evidence": [
@@ -275,19 +228,6 @@
         "failure",
         "presentation",
         "lifecycle"
-      ]
-    },
-    "workspace.members": {
-      "posture": "native",
-      "evidence": [
-        "tests/specs/23_membership.lua"
-      ],
-      "dimensions": [
-        "admission",
-        "projection",
-        "success",
-        "failure",
-        "presentation"
       ]
     },
     "op.look": {
@@ -582,6 +522,97 @@
       "posture": "native",
       "evidence": [
         "tests/specs/50_agents.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.members.list": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua",
+        "../plurnk-service/scripts/test-client-conformance.mjs — same-daemon cross-client composition"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "composition"
+      ]
+    },
+    "worker.members.discover": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua",
+        "tests/specs/27_signs.lua — gutter signs from the daemon's verdict"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "composition"
+      ]
+    },
+    "worker.members.add": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls",
+        "../plurnk-service/scripts/test-client-conformance.mjs — same-daemon cross-client composition"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.members.enable": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.members.disable": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua",
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+      ],
+      "dimensions": [
+        "admission",
+        "projection",
+        "success",
+        "failure",
+        "presentation",
+        "durability"
+      ]
+    },
+    "worker.members.remove": {
+      "posture": "native",
+      "evidence": [
+        "tests/specs/23_membership.lua",
         "tests/specs/49_durable_controls.lua — separate-connection durable controls"
       ],
       "dimensions": [

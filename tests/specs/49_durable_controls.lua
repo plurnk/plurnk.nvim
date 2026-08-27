@@ -35,13 +35,6 @@ local ok, err = pcall(function()
     return item.id == created.id and item.name == workspace
   end), "separate connection observes workspace creation")
 
-  H.call("workspace.constrain", { effect = "pick", glob = "lua/**" })
-  H.assert_truthy(vim.deep_equal(observe("workspace.constraints").constraints, {
-    { effect = "pick", glob = "lua/**", source = "explicit" },
-  }), "separate connection observes constraint")
-  H.call("workspace.unconstrain", { effect = "pick", glob = "lua/**" })
-  H.assert_eq(#observe("workspace.constraints").constraints, 0, "separate connection observes unconstrain")
-
   local child = H.call("run.fork", { name = "durable-child" })
   H.assert_truthy(vim.iter(observe("workspace.workers", { id = created.id }).workers):any(function(worker)
     return worker.id == child.workerId and worker.name == "durable-child"
@@ -77,6 +70,24 @@ local ok, err = pcall(function()
   H.assert_eq(server_state(), "active", "separate connection observes MCP enable")
   H.call("worker.mcp.remove", { alias = "durable" }, 20000)
   H.assert_eq(server_state(), nil, "separate connection observes MCP remove")
+
+  H.call("worker.members.add", { alias = "durable-glob", definition = { glob = "lua/**" } }, 20000)
+  local function member_definition()
+    for _, entry in ipairs(observe("worker.members.list").definitions) do
+      if entry.alias == "durable-glob" then return entry end
+    end
+    return nil
+  end
+  local added = member_definition()
+  H.assert_eq(added and added.state, "active", "separate connection observes members add")
+  H.assert_eq(added and added.origin, "worker", "the added definition is Worker-owned")
+  H.assert_eq(added and added.definition.glob, "lua/**", "separate connection observes the exact glob")
+  H.call("worker.members.disable", { alias = "durable-glob" }, 20000)
+  H.assert_eq(member_definition().state, "disabled", "separate connection observes members disable")
+  H.call("worker.members.enable", { alias = "durable-glob" }, 20000)
+  H.assert_eq(member_definition().state, "active", "separate connection observes members enable")
+  H.call("worker.members.remove", { alias = "durable-glob" }, 20000)
+  H.assert_eq(member_definition(), nil, "separate connection observes members remove")
 
   if daemon_home ~= nil and daemon_home ~= "" then
     local function skill_state()

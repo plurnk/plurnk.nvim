@@ -73,6 +73,8 @@ vocabulary otherwise matches the terminal client.
 either enables an available definition or specializes its current definition
 for the Worker; `/help mcp` shows the complete lifecycle.
 
+`:AI/members` lists this Worker's file members — what the model may see; `discover [path|glob]`, `add <alias> <glob>`, `enable`, `disable`, and `remove` are the daemon's common Functionality actions. Git-tracked files are members on their own; a gitignore-style glob adds untracked files, and a leading `!` excludes matching members. A bare `discover` explains the current buffer's file; a file the daemon reports as excluded carries a 🚫 gutter sign. `:PlurnkMembers` (`<leader>aM`) is the native spelling.
+
 ## Layout
 
 One tab per **worker** (a conversation); a **workspace** is the world containing workers. One workspace is live per Neovim instance; switching notifies. Each worker tab: glyph waterfall on top (the worker's log, exactly what the model sees), 3-line input below — `<CR>` in normal mode submits; `? `/`: `/`! ` prefixes and raw `# PLAN0` / `## OP0` PLURNK work there too. Readable provider reasoning appears before its SEND as a distinct streaming `💭` block; multiline blocks begin folded. Each model body is independent, so its Markdown cannot style later Plurnk rows. When `plurnk render` is available, tables wrap with row separators, task boxes render once, code fences retain their language, and Mermaid uses Beautiful Mermaid; otherwise the semantic source remains visible. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.

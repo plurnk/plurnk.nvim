@@ -8,7 +8,7 @@ function M.setup()
   local loop = require("plurnk.loop")
   local workspaces = require("plurnk.workspaces")
   local generation = require("plurnk.generation")
-  local membership = require("plurnk.membership")
+  local functionality = require("plurnk.functionality")
   local controls = require("plurnk.controls")
   local language = require("plurnk.language")
 
@@ -24,11 +24,13 @@ function M.setup()
   end, { nargs = "?" })
   command("PlurnkLog", workspaces.log, { nargs = "?" })
   command("PlurnkReconnect", workspaces.reconnect, {})
-  command("PlurnkPick", membership.pick, { nargs = "?", complete = "file" })
-  command("PlurnkHide", membership.hide, { nargs = "?", complete = "file" })
-  command("PlurnkView", membership.view, { nargs = "?", complete = "file" })
-  command("PlurnkDrop", membership.drop, { nargs = "?", complete = "file" })
-  command("PlurnkMembers", membership.list, {})
+  -- The native form of :AI/members; the registry owns its routing and completion.
+  command("PlurnkMembers", function(opts) functionality.run("members", opts.args) end, {
+    nargs = "*",
+    complete = function(_, cmdline)
+      return language.complete("", (cmdline:gsub("^%s*PlurnkMembers", "AI /members")), 0)
+    end,
+  })
   command("PlurnkScript", controls.script, { nargs = 1, complete = "file" })
   command("PlurnkYolo", controls.yolo, {})
   command("PlurnkPing", controls.ping, {})

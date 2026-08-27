@@ -12,15 +12,11 @@ local ok, err = pcall(function()
 
   H.assert_match(rhs(",af"), "PlurnkFork", "<leader>af → fork (new worker) — the added shortcut")
   -- a representative slice of the already-converged set, as a regression guard
-  H.assert_match(rhs(",ap"), "PlurnkPick", "<leader>ap → pick")
   H.assert_match(rhs(",aM"), "PlurnkMembers", "<leader>aM → members")
   H.assert_match(rhs(",am"), "PlurnkModels", "<leader>am → models")
   H.assert_match(rhs(",aY"), "PlurnkYolo", "<leader>aY → yolo")
   H.assert_eq(desc(",af"), "Plurnk: Fork and enter a new worker.", "fork description comes from the command contract")
-  H.assert_eq(desc(",ap"), "Plurnk: Track matching files.", "pick description comes from the command contract")
-  H.assert_eq(desc(",ah"), "Plurnk: Hide matching files.", "hide description comes from the command contract")
-  H.assert_eq(desc(",av"), "Plurnk: Track matching files read-only.", "view description comes from the command contract")
-  H.assert_eq(desc(",ad"), "Plurnk: Remove matching explicit constraints.", "drop description comes from the command contract")
+  H.assert_eq(desc(",aM"), "Plurnk: List or manage this worker's file members.", "members description comes from the command contract")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

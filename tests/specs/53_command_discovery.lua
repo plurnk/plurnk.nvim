@@ -34,11 +34,11 @@ local ok, err = pcall(function()
 
   local language = require("plurnk.language")
   local expected = table.concat({
-    "/accept", "/agents", "/cancel", "/child", "/clear", "/drop",
-    "/edit", "/help", "/hide", "/log", "/mcp", "/members", "/model",
-    "/models", "/next", "/open", "/pick", "/ping", "/prev",
+    "/accept", "/agents", "/cancel", "/child", "/clear",
+    "/edit", "/help", "/log", "/mcp", "/members", "/model",
+    "/models", "/next", "/open", "/ping", "/prev",
     "/reasoning", "/reconnect", "/reject", "/rename", "/script",
-    "/skills", "/stop", "/view", "/worker", "/workers", "/workspace",
+    "/skills", "/stop", "/worker", "/workers", "/workspace",
     "/workspaces", "/yolo",
   }, ",")
   H.assert_eq(table.concat(language.complete("", "AI /", 0), ","), expected,

@@ -26,10 +26,6 @@ local MAPS = {
   { modes = { "n" }, lhs = "<leader>aO", rhs = ":PlurnkOpen<CR>", desc = describe("open") },
   { modes = { "n" }, lhs = "<leader>aY", rhs = ":PlurnkYolo<CR>", desc = describe("yolo") },
 
-  { modes = { "n" }, lhs = "<leader>ap", rhs = ":PlurnkPick<CR>", desc = describe("pick") },
-  { modes = { "n" }, lhs = "<leader>ah", rhs = ":PlurnkHide<CR>", desc = describe("hide") },
-  { modes = { "n" }, lhs = "<leader>av", rhs = ":PlurnkView<CR>", desc = describe("view") },
-  { modes = { "n" }, lhs = "<leader>ad", rhs = ":PlurnkDrop<CR>", desc = describe("drop") },
   { modes = { "n" }, lhs = "<leader>aM", rhs = ":PlurnkMembers<CR>", desc = describe("members") },
 
   { modes = { "n" }, lhs = "<leader>ay", rhs = ":PlurnkAccept<CR>", desc = describe("accept") },

@@ -41,6 +41,14 @@ local AGENT_SUBCOMMANDS = {
   { name = "remove", usage = "remove <alias>", summary = "Remove a current outbound A2A agent.", alias = true },
 }
 
+local MEMBERS_SUBCOMMANDS = {
+  { name = "discover", usage = "discover [path|glob]", summary = "Explain a file's visibility (the current file by default), or preview what a glob would include or exclude.", path_arg = 2 },
+  { name = "add", usage = "add <alias> <glob>", summary = "Add and enable a members glob; a leading ! excludes.", path_arg = 3 },
+  { name = "enable", usage = "enable <alias>", summary = "Enable a current members glob.", alias = true },
+  { name = "disable", usage = "disable <alias>", summary = "Disable a current members glob.", alias = true },
+  { name = "remove", usage = "remove <alias>", summary = "Remove a current members glob.", alias = true },
+}
+
 local GROUPS = {
   { id = "inspect", label = "inspect" },
   { id = "policy", label = "policy" },
@@ -63,8 +71,6 @@ local COMMANDS = {
     run = invoke("plurnk.workspaces", "workers") },
   { name = "log", usage = "/log [limit]", summary = "Read recent log entries.", group = "inspect",
     run = invoke("plurnk.workspaces", "log", "options") },
-  { name = "members", usage = "/members", summary = "Show the model's resolved file universe.", group = "inspect",
-    run = invoke("plurnk.membership", "list") },
   { name = "ping", usage = "/ping", summary = "Check daemon reachability.", group = "inspect",
     run = invoke("plurnk.controls", "ping") },
 
@@ -83,21 +89,14 @@ local COMMANDS = {
     run = invoke("plurnk.workspaces", "rename", "options") },
   { name = "worker", usage = "/worker [name]", summary = "Fork and enter a new worker.", group = "workspace",
     run = invoke("plurnk.workspaces", "fork", "options") },
-  { name = "pick", usage = "/pick <glob>", summary = "Track matching files.", group = "workspace",
-    run = invoke("plurnk.membership", "pick", "options"), path_arg = 1 },
-  { name = "hide", usage = "/hide <glob>", summary = "Hide matching files.", group = "workspace",
-    run = invoke("plurnk.membership", "hide", "options"), path_arg = 1 },
-  { name = "view", usage = "/view <glob>", summary = "Track matching files read-only.", group = "workspace",
-    run = invoke("plurnk.membership", "view", "options"), path_arg = 1 },
-  { name = "drop", usage = "/drop <glob>", summary = "Remove matching explicit constraints.", group = "workspace",
-    run = invoke("plurnk.membership", "drop", "options"), path_arg = 1 },
-
   { name = "mcp", usage = "/mcp [subcommand]", summary = "List or manage this worker's MCP servers.", group = "functionality",
     run = functionality("mcp"), subcommands = MCP_SUBCOMMANDS },
   { name = "skills", usage = "/skills [subcommand]", summary = "List or manage this worker's Agent Skills.", group = "functionality",
     run = functionality("skills"), subcommands = SKILL_SUBCOMMANDS },
   { name = "agents", usage = "/agents [subcommand]", summary = "List or manage this worker's outbound A2A agents.", group = "functionality",
     run = functionality("agents"), subcommands = AGENT_SUBCOMMANDS },
+  { name = "members", usage = "/members [subcommand]", summary = "List or manage this worker's file members.", group = "functionality",
+    run = functionality("members"), subcommands = MEMBERS_SUBCOMMANDS },
 
   { name = "script", usage = "/script <path>", summary = "Submit a local .plk program through op.parse.", group = "compose",
     run = invoke("plurnk.controls", "script", "options"), path_arg = 1 },

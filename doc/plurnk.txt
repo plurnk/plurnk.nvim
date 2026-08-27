@@ -52,9 +52,20 @@ cmdline abbreviations.
 Visual mode prepends the selection: `'<,'>AI? explain this`.
 
 Completion demand-loads model aliases, reasoning policies, local paths, and
-the current Worker's MCP, Skill, or A2A aliases only where the command consumes
-them. `/open`, `/reconnect`, `/next`, `/prev`, and `/clear` are deliberate
-editor-native controls; other command vocabulary follows the terminal client.
+the current Worker's MCP, Skill, A2A, or file members aliases only where the
+command consumes them. `/open`, `/reconnect`, `/next`, `/prev`, and `/clear`
+are deliberate editor-native controls; other command vocabulary follows the
+terminal client.
+
+`:AI/mcp`, `:AI/skills`, `:AI/agents`, and `:AI/members` share one Worker
+Functionality lifecycle: bare lists, `discover`, `add`, `enable`, `disable`,
+`remove`. File members are what the model may see: git-tracked files are
+members on their own; `/members add <alias> <glob>` includes untracked files
+by a gitignore-style glob, and a leading `!` excludes matching members.
+`/members discover [path|glob]` explains one file's visibility (the current
+buffer's file by default) or previews a glob; a file the daemon reports as
+excluded carries a 🚫 gutter sign. `:PlurnkMembers` (`<leader>aM`) is the
+native spelling of the same command.
 
 ==============================================================================
 3. Layout: workspaces and workers                               *plurnk-layout*
