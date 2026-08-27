@@ -355,7 +355,9 @@ what this client guarantees. Tests are organized by observable behavior under
   provider. The specimen must stop a real side effect for review, resume the same
   logical loop, complete its second inference, and render reasoning, operations,
   PLAN, SEND, and settled authoritative lifecycle without asynchronous callback
-  failures. Stochastic real-model dogfooding remains a separate opt-in tier.
+  failures. The gate admits daemon-backed specimens only after worldless AG-UI+
+  `discover` succeeds; listener ownership during durable recovery is not readiness.
+  Stochastic real-model dogfooding remains a separate opt-in tier.
 - §nvim-health-surface **Health reports evidence without activating the
   runtime** — `:checkhealth plurnk` reports the resolved plugin path and Git
   describe/remote metadata when present, Neovim and curl requirements, the

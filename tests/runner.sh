@@ -48,6 +48,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# {§nvim-installed-journey} Listener acquisition is not daemon readiness: Core
+# deliberately owns the port before durable recovery completes. Admit composed
+# specs only after the ordinary worldless AG-UI discovery action succeeds.
+wait_for_daemon() {
+  nvim --headless -u NONE -l "$REPO_DIR/tests/daemon-ready.lua"
+}
+
 if [ -z "${PLURNK_PORT:-}" ]; then
   # PLURNK_SERVICE_DIR overrides the canonical metaproject checkout.
   SERVICE_BIN=""
@@ -106,18 +113,9 @@ PLURNK_A2A_ENABLED=[\"demo\"]
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
-  # AG-UI+ is the client surface. The banner prints the CONFIGURED port (0 stays 0 —
-  # service bug, filed), so allocate a concrete free port up front and pass it in.
-  # (Port was exported before boot; just await the module answering.)
-  # A --conditions=plurnk-dev daemon compiles the TS graph on boot — well past the
-  # old 10s window; specs 01-05 starved on cold boots. 60s, first answer wins.
-  DAEMON_READY=0
-  for _ in $(seq 1 300); do
-    if curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}'; then DAEMON_READY=1; break; fi
-    kill -0 "$DAEMON_PID" 2>/dev/null || break
-    sleep 0.2
-  done
-  if [ "$DAEMON_READY" -ne 1 ]; then
+  # AG-UI+ is the client surface. The banner prints the configured port, so
+  # allocate a concrete free port up front and await semantic readiness there.
+  if ! wait_for_daemon; then
     echo "private daemon failed to start" >&2
     cat "$DAEMON_DIR/daemon.log" >&2
     exit 1
@@ -170,15 +168,7 @@ reboot_daemon() {
     echo $! > "$DAEMON_DIR/pid"
   )
   DAEMON_PID="$(cat "$DAEMON_DIR/pid")"
-  # A --conditions=plurnk-dev daemon compiles the TS graph on boot — well past the
-  # old 10s window; specs 01-05 starved on cold boots. 60s, first answer wins.
-  DAEMON_READY=0
-  for _ in $(seq 1 300); do
-    if curl -s -o /dev/null "http://127.0.0.1:$PLURNK_PORT/" -X POST -d '{}'; then DAEMON_READY=1; break; fi
-    kill -0 "$DAEMON_PID" 2>/dev/null || break
-    sleep 0.2
-  done
-  if [ "$DAEMON_READY" -ne 1 ]; then
+  if ! wait_for_daemon; then
     echo "private daemon failed to restart" >&2
     cat "$DAEMON_DIR/daemon.log" >&2
     return 1
