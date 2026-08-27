@@ -9,7 +9,7 @@ local H = dofile(root .. "/tests/helpers.lua")
 H.setup()
 
 local ok, err = pcall(function()
-  local sent, notices, refreshed = {}, {}, {}
+  local sent, notices = {}, {}
   local results = {
     ["worker.members.list"] = {
       definitions = {
@@ -36,9 +36,6 @@ local ok, err = pcall(function()
     sent[#sent + 1] = { method = method, params = params }
     if callback then callback(results[method]) end
   end
-  local signs = require("plurnk.signs")
-  local real_refresh = signs.refresh
-  signs.refresh = function(workspace) refreshed[#refreshed + 1] = workspace end
   local state = require("plurnk.state")
   state.set_active_workspace_name("members-test")
   state.set_workspace_id("members-test", 1)
@@ -99,7 +96,7 @@ local ok, err = pcall(function()
   H.assert_match(notices[#notices], "usage: :AI/members discover %[path|glob%]", "a bare discover without a file diagnoses usage")
   vim.api.nvim_set_current_buf(buf)
 
-  sent, notices, refreshed = {}, {}, {}
+  sent, notices = {}, {}
   ai({ args = "/members add docs docs/**", range = 0 })
   ai({ args = "/members add no-tokenizer !**/tokenizer.json", range = 0 })
   ai({ args = "/members enable docs", range = 0 })
@@ -114,8 +111,6 @@ local ok, err = pcall(function()
   H.assert_match(notices[3], "enabled: docs %(active%)", "enable renders the daemon state")
   H.assert_match(notices[4], "disabled: docs %(disabled%)", "disable renders the daemon state")
   H.assert_match(notices[5], "removed: docs", "remove confirms")
-  H.assert_eq(#refreshed, 5, "every mutation refreshes the membership signs")
-  H.assert_eq(refreshed[1], "members-test", "signs refresh for the live workspace")
 
   results["worker.members.add"] = { status = 201, alias = "ghost", definition = { alias = "ghost", state = "unavailable", problem = { detail = "the workspace has no project root" } } }
   sent, notices = {}, {}
@@ -152,9 +147,8 @@ local ok, err = pcall(function()
 
   -- Against the live daemon: git-tracked files are members on their own; an
   -- added glob makes an untracked file a member the model can READ; a `!glob`
-  -- excludes it and signs the gutter; disable, enable, and remove follow.
+  -- excludes it; disable, enable, and remove follow.
   client.send, client.check_daemon_once = real_send, real_check
-  signs.refresh = real_refresh
   local project = vim.fn.tempname()
   vim.fn.mkdir(project .. "/docs", "p")
   vim.fn.writefile({ "# tracked" }, project .. "/README.md")
@@ -207,20 +201,11 @@ local ok, err = pcall(function()
   H.assert_match(read.content, "# loose guide", "the model reads the included file's content")
   settle("/members", "guide%s+active%s+include docs/%*%* → 1 file", "the live list reports what the glob resolved to")
 
-  vim.cmd("edit " .. vim.fn.fnameescape(project .. "/docs/guide.md"))
-  local ns = vim.api.nvim_create_namespace("plurnk_membership_signs")
-  local function sign_text()
-    local marks = vim.api.nvim_buf_get_extmarks(0, ns, 0, -1, { details = true })
-    return #marks > 0 and marks[1][4].sign_text or nil
-  end
   settle("/members add no-guide !docs/guide.md", "added: no%-guide %(active%)", "the live exclusion is active")
   H.assert_eq(verdict("docs/guide.md"), "excluded", "an exclusion wins over the inclusion")
-  H.wait_for(function() return sign_text() ~= nil end, 20000, "the excluded file gets its gutter sign")
-  H.assert_match(sign_text(), "🚫", "the gutter follows the daemon's excluded verdict")
 
   settle("/members disable no-guide", "disabled: no%-guide %(disabled%)", "the live disable renders the daemon state")
   H.assert_eq(verdict("docs/guide.md"), "member", "a disabled exclusion no longer applies")
-  H.wait_for(function() return sign_text() == nil end, 20000, "the restored member loses its sign")
   settle("/members enable no-guide", "enabled: no%-guide %(active%)", "the live enable renders the daemon state")
   H.assert_eq(verdict("docs/guide.md"), "excluded", "an enabled exclusion applies again")
   settle("/members remove no-guide", "removed: no%-guide", "the live remove confirms")

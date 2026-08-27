@@ -203,7 +203,7 @@ what this client guarantees. Tests are organized by observable behavior under
   | `:AI/members disable <alias>` | `worker.members.disable {alias}` |
   | `:AI/members remove <alias>` | `worker.members.remove {alias}` |
 
-  Every mutation refreshes the membership gutter signs. Daemon Problems — a
+  Daemon Problems — a
   headless workspace, an invalid pattern, a service-owned definition that
   cannot be removed — use the existing lossless Problem path and are neither
   rewritten nor retried.
@@ -299,11 +299,6 @@ what this client guarantees. Tests are organized by observable behavior under
   progress supersedes exact `⌛︎` while a loop is active; completion clears the
   slot, exposing idle 🔥 only when YOLO is armed. Branch completion, failure,
   and recovery still append one durable summary.
-- **Membership signs mark the exception only** — each visible project file is
-  asked about through `worker.members.discover` on its project-relative path,
-  quietly; a file the daemon's verdict reports as `excluded` gets a 🚫 line-1
-  extmark, while members, untracked candidates, and ignored files get no sign.
-  The client matches no glob itself.
 - **The statusline is lean** — one activity slot only; the rich identity, terminal
   lifecycle, and accounting detail live in the winbar.
 - **The cockpit gauge preserves cardinal accounting** — the winbar reads the LAST

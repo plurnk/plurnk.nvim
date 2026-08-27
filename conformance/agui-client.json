@@ -551,8 +551,7 @@
     "worker.members.discover": {
       "posture": "native",
       "evidence": [
-        "tests/specs/23_membership.lua",
-        "tests/specs/27_signs.lua — gutter signs from the daemon's verdict"
+        "tests/specs/23_membership.lua"
       ],
       "dimensions": [
         "admission",

@@ -73,7 +73,6 @@ local function notify_mutation(result, verb, alias_hint, workspace_name)
   local state = type(definition.state) == "string" and (" (" .. definition.state .. ")") or ""
   local problem = type(definition.problem) == "table" and type(definition.problem.detail) == "string" and ("  — " .. definition.problem.detail) or ""
   client.notify(verb .. ": " .. alias .. state .. problem, vim.log.levels.INFO)
-  require("plurnk.signs").refresh(workspace_name)
 end
 
 local function usage(subcommand)
@@ -165,7 +164,6 @@ M.run = function(args, with_workspace)
         if type(result) == "table" then
           require("plurnk.functionality").invalidate_aliases("members")
           client.notify("removed: " .. alias, vim.log.levels.INFO)
-          require("plurnk.signs").refresh(workspace_name)
         end
       end)
     end)

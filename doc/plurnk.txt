@@ -63,9 +63,8 @@ Functionality lifecycle: bare lists, `discover`, `add`, `enable`, `disable`,
 members on their own; `/members add <alias> <glob>` includes untracked files
 by a gitignore-style glob, and a leading `!` excludes matching members.
 `/members discover [path|glob]` explains one file's visibility (the current
-buffer's file by default) or previews a glob; a file the daemon reports as
-excluded carries a 🚫 gutter sign. `:PlurnkMembers` (`<leader>aM`) is the
-native spelling of the same command.
+buffer's file by default) or previews a glob. `:PlurnkMembers` (`<leader>aM`)
+is the native spelling of the same command.
 
 ==============================================================================
 3. Layout: workspaces and workers                               *plurnk-layout*

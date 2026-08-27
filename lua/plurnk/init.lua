@@ -7,7 +7,6 @@ M.setup = function(opts)
   require("plurnk.worker_tab").setup()
   require("plurnk.statusline").setup_highlights()
   require("plurnk.hud").setup_highlights()
-  require("plurnk.signs").setup()
 end
 
 M.apply_default_keymaps = function()

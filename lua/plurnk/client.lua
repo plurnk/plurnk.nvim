@@ -42,7 +42,7 @@ M.rename_workspace = state.rename_workspace
 -- The single send point — AG-UI+ is the only transport. Verbs ride action runs;
 -- loop.resolve rides the terminate-resume
 -- tool-result run; loop.run never reaches here (send_loop_run drives bridge.run).
-M.send = function(method, params, _is_notification, callback, options)
+M.send = function(method, params, _is_notification, callback)
   local bridge = require("plurnk.bridge")
   local thread = state.get_active_workspace_name() or "nvim"
   if method == "loop.resolve" then
@@ -51,13 +51,12 @@ M.send = function(method, params, _is_notification, callback, options)
     end)
   else
     -- FAIL-HARD ACROSS LAYERS (the 2026-07-10 rule): a failed action delivers NIL —
-    -- bridge.rpc has already surfaced the error (unless `options.quiet`, when the
-    -- caller owns the Problem). `result or {}` here converted every contract
-    -- violation into silent half-behavior; that fallback shipped the
+    -- bridge.rpc has already surfaced the error. `result or {}` here converted every
+    -- contract violation into silent half-behavior; that fallback shipped the
     -- workspace-door disaster and is permanently banned.
     bridge.rpc(thread, method, params, function(result, problem)
       if callback then callback(result, problem) end
-    end, options)
+    end)
   end
 end
 
