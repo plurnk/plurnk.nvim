@@ -71,33 +71,23 @@ M.notify = function(msg, level, workspace)
   pcall(vim.cmd, "redrawstatus! | redrawtabline")
 end
 
--- Daemon compatibility check, once per nvim instance. Probe `discover` for
--- capabilities this client depends on and surface an incompatible daemon.
+-- Daemon compatibility check, once per nvim instance. Discovery's schema
+-- version and the executable client-conformance manifest are the authority;
+-- package semver across separately-versioned projects is not comparable.
 local daemon_checked = false
 M.check_daemon_once = function()
   if daemon_checked then return end
   daemon_checked = true
-  M.send("discover", {}, false, function(result)
-    if type(result) ~= "table" or type(result.actions) ~= "table" then return end
-    local missing = {}
-    -- Schema-bearing AG-UI+ actions this client depends on.
-    for _, m in ipairs({ "op.exec", "op.look" }) do
-      local action = result.actions[m]
-      if type(action) ~= "table"
-          or type(action.inputSchema) ~= "table"
-          or type(action.outputSchema) ~= "table" then
-        missing[#missing + 1] = m
-      end
+  M.send("discover", {}, false, function(result, problem)
+    if problem ~= nil or result == nil then return end
+    local ok, assessment = pcall(require("plurnk.compatibility").assess, result)
+    if not ok then
+      M.notify("client compatibility contract is unreadable — run :checkhealth plurnk", vim.log.levels.WARN)
+      return
     end
-    local notifs = result.notifications
-    local concluded = type(notifs) == "table" and notifs["stream/concluded"] or nil
-    if type(concluded) ~= "table" or type(concluded.payloadSchema) ~= "table" then
-      missing[#missing + 1] = "stream/concluded"
-    end
-    if #missing > 0 then
-      M.notify("daemon looks OLDER than this client (missing: "
-        .. table.concat(missing, ", ")
-        .. ") — restart plurnk-service from a current checkout", vim.log.levels.WARN)
+    if not assessment.compatible then
+      M.notify("daemon is incompatible with this client (" .. assessment.detail
+        .. ") — run :checkhealth plurnk", vim.log.levels.WARN)
     end
   end)
   -- Warm the alias cache once, so the header/statusline can name the daemon's

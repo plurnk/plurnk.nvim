@@ -15,6 +15,11 @@ require("plurnk").setup({ host = "127.0.0.1", port = 3044 })
 require("plurnk").apply_default_keymaps()  -- optional; only fills unmapped keys
 ```
 
+Run `:checkhealth plurnk` for the installed checkout/version, redacted daemon
+endpoint, AG-UI+ compatibility, optional renderer, and every enabled default
+mapping. If an occupied key prevents a default mapping, setup emits one
+aggregate warning and health names the owner when Neovim can identify it.
+
 ## Install & releases
 
 A source-consumed plugin — no build step, package registry, or compiled

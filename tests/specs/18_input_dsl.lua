@@ -7,6 +7,7 @@ H.setup()
 
 local ok, err = pcall(function()
   local sent = {}
+  require("plurnk.client").check_daemon_once = function() end
   require("plurnk.bridge").run = function(_t, prompt, opts, on_done)
     local fwd = (opts and opts.forwardedProps) or {}
     table.insert(sent, { method = "loop.run", params = vim.tbl_extend("force", { prompt = prompt }, fwd) })

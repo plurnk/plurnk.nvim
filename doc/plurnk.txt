@@ -21,6 +21,12 @@ and Beautiful Mermaid presentation; without it, Markdown remains source. >lua
   require("plurnk").setup({ host = "127.0.0.1", port = 3044 })
   require("plurnk").apply_default_keymaps()  -- only fills unmapped keys
 <
+
+`:checkhealth plurnk` reports the installed checkout/version, redacted daemon
+endpoint, AG-UI+ compatibility, optional renderer, and every enabled default
+mapping. Occupied keys are preserved; setup emits one aggregate warning and
+health identifies their owner when Neovim exposes it.
+
 ==============================================================================
 2. The :AI language                                       *plurnk-ai* *:AI*
 

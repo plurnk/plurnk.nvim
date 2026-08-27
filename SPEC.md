@@ -342,3 +342,24 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Membership verbs converge with the TUI** — pick/hide/view/
   drop/members speak the service vocabulary live via `workspace.constrain`/`unconstrain`/
   `constraints`.
+
+## §9 Diagnostics
+
+- §nvim-health-surface **Health reports evidence without activating the
+  runtime** — `:checkhealth plurnk` reports the resolved plugin path and Git
+  describe/remote metadata when present, Neovim and curl requirements, the
+  optional local Markdown renderer, a credential-free daemon authority, and
+  every enabled default mode mapping. It invokes only worldless AG-UI+
+  `discover`: no workspace is created, no Functionality is enabled, and no
+  provider or model is contacted.
+- **Protocol metadata, not unrelated package semver, owns compatibility** — the
+  client requires AG-UI+ discovery schema 1 and every schema-bearing action,
+  notification, and display member in its executable conformance manifest.
+  A lower schema is stale, a higher schema is unsupported, and a same-version
+  response missing a consumed capability is incompatible. Source projections
+  without Git metadata are reported honestly as unversioned.
+- **Optional defaults never overwrite editor state** — each requested mode
+  mapping fills independently. Setup emits at most one aggregate warning when
+  occupied keys are skipped; healthy setup is silent. Health checks the entire
+  enabled inventory and reports the existing description and script owner when
+  Neovim exposes them.
