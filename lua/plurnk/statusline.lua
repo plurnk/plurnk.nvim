@@ -23,6 +23,10 @@ M.text = function()
   local workspace = vim.b[buf].plurnk_workspace
   if not workspace then return "" end
 
+  local transport = state.get_transport_status(workspace)
+  if transport and transport.phase == "reconnecting" then return "↻ reconnecting" end
+  if transport and transport.phase == "stale" then return "⚠ stale" end
+
   local activity = active_activity(workspace)
   if activity ~= nil and activity ~= "100%" then return activity end
   local runtime = state.get_runtime_status(workspace)

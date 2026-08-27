@@ -76,8 +76,15 @@ local function build_winbar(workspace, key)
   local parts = { "plurnk · " .. workspace .. " · " .. worker_label(workspace, rid) }
 
   local runtime = state.get_runtime_status(workspace)
-  local lifecycle = runtime and require("plurnk.runtime_status").lifecycle_glyph(runtime.lifecycle) or ""
-  if lifecycle ~= "" then parts[#parts + 1] = lifecycle end
+  local transport = state.get_transport_status(workspace)
+  if transport and transport.phase == "reconnecting" then
+    parts[#parts + 1] = "↻ reconnecting"
+  elseif transport and transport.phase == "stale" then
+    parts[#parts + 1] = "⚠ stale"
+  else
+    local lifecycle = runtime and require("plurnk.runtime_status").lifecycle_glyph(runtime.lifecycle) or ""
+    if lifecycle ~= "" then parts[#parts + 1] = lifecycle end
+  end
 
   local model = runtime and runtime.model or state.get_active_model(workspace)
   if model then parts[#parts + 1] = "🤖 " .. model end

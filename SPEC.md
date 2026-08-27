@@ -73,6 +73,17 @@ what this client guarantees. Tests are organized by observable behavior under
   replaceable activity. Rows, turns, and local callbacks never reconstruct
   status or masquerade as provider packets. Missing, malformed, or unsupported
   state is a transport failure rather than a partial display.
+- §nvim-stream-recovery **A broken stream is observation loss, not permission
+  to rerun inference.** Neovim settles partial reasoning, displays a client-owned
+  reconnecting overlay, and makes bounded read-only `log.read` action Runs until
+  standard `STATE` reports a non-running lifecycle. The successful observation
+  appends only durable rows beyond that worker's last observed row, in canonical
+  order and without duplication. If losslessness cannot be established or the
+  public result bound is exhausted, the client fails visibly rather than
+  presenting a partial reconciliation. If the daemon cannot be observed, the
+  overlay becomes explicitly stale and names
+  `:AI/reconnect` or reopening the worker as recovery; neither path resubmits the
+  prompt or rewrites the daemon-owned lifecycle.
 
 ## §3 The `:AI` language
 

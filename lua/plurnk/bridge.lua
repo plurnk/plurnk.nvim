@@ -5,8 +5,9 @@
 -- world, the thread binds its model worker); workspace options ride the first run's forwardedProps.
 local M = {}
 local agui = require("plurnk.agui")
+local active_runs = {}
 
-local function consume_status_event(current, event, thread_id, worker_id, dispatch)
+local function consume_status_event(current, event, thread_id, worker_id, dispatch, quiet)
   local ok, handled, next_gauge = pcall(require("plurnk.runtime_status").reduce, current, event)
   if not ok then
     local problem = agui.transport_problem(
@@ -15,10 +16,12 @@ local function consume_status_event(current, event, thread_id, worker_id, dispat
       502,
       "The AG-UI stream contained invalid runtime state: " .. tostring(handled),
       false)
-    dispatch.handle_notification({
-      method = "problem/event",
-      params = { problem = problem, workspaceName = thread_id },
-    })
+    if not quiet then
+      dispatch.handle_notification({
+        method = "problem/event",
+        params = { problem = problem, workspaceName = thread_id },
+      })
+    end
     return true, current, problem
   end
   if not handled then return false, current, nil end
@@ -30,6 +33,7 @@ local function consume_status_event(current, event, thread_id, worker_id, dispat
       gauge = next_gauge,
     },
   })
+  require("plurnk.recovery").observed(thread_id, dispatch)
   return true, next_gauge, nil
 end
 
@@ -40,6 +44,24 @@ local function unproject(e, assembler, workspace_name, worker_id)
     if type(worker_id) == "number" then n.params.workerId = worker_id end
   end
   return n
+end
+
+local function settle_reasoning(assembler, workspace_name, worker_id, dispatch)
+  if type(assembler.reasoning) ~= "table" then return end
+  local ids = vim.tbl_keys(assembler.reasoning)
+  table.sort(ids)
+  for _, message_id in ipairs(ids) do
+    assembler.reasoning[message_id] = nil
+    pcall(dispatch.handle_notification, {
+      method = "reasoning/event",
+      params = {
+        workspaceName = workspace_name,
+        workerId = worker_id,
+        phase = "end",
+        messageId = message_id,
+      },
+    })
+  end
 end
 
 -- AG-UI+ IS the client surface: default http://PLURNK_HOST:PLURNK_PORT (the
@@ -72,9 +94,30 @@ function M.run(thread_id, prompt, opts, on_done)
   local paused = false
   local proposed_interrupt = nil
   local interaction_interrupt = nil
+  local pending_proposal = nil
+  local interrupt_confirmed = false
+  local saw_run_started = false
   local status_gauge = nil
+  local active = { thread_id = thread_id }
+
+  local function begin_stream()
+    final = nil
+    run_problem = nil
+    saw_run_error = false
+    problem_dispatched = false
+    plurnk_status = nil
+    paused = false
+    proposed_interrupt = nil
+    interaction_interrupt = nil
+    pending_proposal = nil
+    interrupt_confirmed = false
+    status_gauge = nil
+    saw_run_started = false
+  end
+
   local on_event
   on_event = function(e)
+    if type(e) == "table" and e.type == "RUN_STARTED" then saw_run_started = true end
     local status_handled, next_gauge, status_problem = consume_status_event(
       status_gauge,
       e,
@@ -99,7 +142,6 @@ function M.run(thread_id, prompt, opts, on_done)
       if interaction ~= nil and interaction.method == "loop/interaction" then
         paused = true
         interaction_interrupt = "int:" .. tostring(interaction.params.interactionId)
-        pcall(dispatch.handle_notification, interaction)
       end
       local outcome = e.outcome
       if interaction_interrupt ~= nil then
@@ -115,6 +157,9 @@ function M.run(thread_id, prompt, opts, on_done)
             { interactionId = tonumber(interaction_interrupt:sub(5)) }
           )
           final = run_problem.status
+        else
+          interrupt_confirmed = true
+          pcall(dispatch.handle_notification, interaction)
         end
       elseif proposed_interrupt ~= nil then
         if not agui.has_interrupt(outcome, proposed_interrupt) then
@@ -129,6 +174,9 @@ function M.run(thread_id, prompt, opts, on_done)
             { logEntryId = tonumber(proposed_interrupt:sub(6)) }
           )
           final = run_problem.status
+        else
+          interrupt_confirmed = true
+          pcall(dispatch.handle_notification, pending_proposal)
         end
       elseif type(outcome) == "table" and outcome.type == "success" then
         final = plurnk_status or 200
@@ -142,6 +190,8 @@ function M.run(thread_id, prompt, opts, on_done)
     if n.method == "loop/proposal" then
       paused = true
       proposed_interrupt = "prop:" .. tostring(n.params.logEntryId)
+      pending_proposal = n
+      return
     elseif n.method == "loop/interaction" then
       paused = true
       interaction_interrupt = "int:" .. tostring(n.params.interactionId)
@@ -175,13 +225,12 @@ function M.run(thread_id, prompt, opts, on_done)
   end
   -- resolve.lua answers via M.resolve below; the resume run's events feed the SAME
   -- on_event/on_done, so the worker-tab renders the continuation seamlessly.
-  M._active = { thread_id = thread_id, on_event = on_event, on_done = function(_, transport_error)
-    if transport_error ~= nil then
+  active.on_event = on_event
+  active.begin_resume = begin_stream
+  active.on_done = function(_, transport_error)
+    if final == nil and not interrupt_confirmed and transport_error ~= nil then
       run_problem = transport_error
-      final = tonumber(transport_error.status) or 500
-      local recovery = type(transport_error.recovery) == "string" and ("\n  " .. transport_error.recovery) or ""
-      vim.notify("plurnk: " .. tostring(transport_error.detail or transport_error.title or "request failed") .. recovery, vim.log.levels.ERROR)
-    elseif not paused and final == nil then
+    elseif final == nil and not interrupt_confirmed and run_problem == nil then
       run_problem = saw_run_error
           and agui.transport_problem(
             "problem-missing",
@@ -191,15 +240,43 @@ function M.run(thread_id, prompt, opts, on_done)
             false
           )
           or agui.transport_problem(
-            "terminal-missing",
-            "Terminal missing",
-            502,
-            "The AG-UI stream ended before reporting the run outcome.",
-            false
-          )
-      final = run_problem.status
-      vim.notify("plurnk: " .. run_problem.detail, vim.log.levels.ERROR)
+              "terminal-missing",
+              "Terminal missing",
+              502,
+              "The AG-UI stream ended before reporting the run outcome.",
+              true,
+              "stream-reconciliation",
+              { recovery = "Reconnect to observe durable state; do not replay the prompt." }
+            )
     end
+
+    -- A confirmed interrupt is the normal terminate/resume boundary. Its active
+    -- callbacks remain available for the later resume Run.
+    if interrupt_confirmed and run_problem == nil then return end
+
+    settle_reasoning(tool, thread_id, opts and opts.workerId, dispatch)
+
+    -- An unterminalled stream is recoverable observation loss. The daemon has
+    -- already received the hangup as cancellation; only read-only state/log
+    -- reconciliation is legal here. Never submit the prompt a second time.
+    local recoverable = saw_run_started and final == nil and not saw_run_error
+        and type(run_problem) == "table"
+        and (run_problem.kind == "terminal-missing"
+          or run_problem.kind == "stream-read-failed"
+          or run_problem.kind == "event-stream-empty"
+          or (run_problem.source == "client:connection" and run_problem.retryable == true))
+    if recoverable then
+      if active_runs[thread_id] == active then active_runs[thread_id] = nil end
+      require("plurnk.recovery").reconcile(thread_id, {
+        workerId = opts and opts.workerId,
+        cause = run_problem,
+      }, function(status)
+        if on_done then on_done(status or 502) end
+      end)
+      return
+    end
+
+    if run_problem ~= nil and final == nil then final = tonumber(run_problem.status) or 502 end
     if type(run_problem) == "table" and not problem_dispatched then
       problem_dispatched = true
       pcall(dispatch.handle_notification, {
@@ -207,11 +284,12 @@ function M.run(thread_id, prompt, opts, on_done)
         params = { problem = run_problem },
       })
     end
-    -- A stream that died without an AG-UI terminal is a broken wire — 502, never 200.
+    if active_runs[thread_id] == active then active_runs[thread_id] = nil end
     if not paused and on_done then on_done(final or 502) end
-  end }
+  end
+  active_runs[thread_id] = active
   return agui.run(t, { threadId = thread_id, prompt = prompt, forwardedProps = opts and opts.forwardedProps or nil },
-    on_event, M._active.on_done)
+    on_event, active.on_done)
 end
 
 -- A verb is a §3 action run. cb(result, problem); an action error surfaces as a notify —
@@ -262,10 +340,10 @@ local resume_action
 local function finish_action(action, result, problem)
   if lane.action ~= action then return end
   lane.action = nil
-  if problem ~= nil and not action.problem_dispatched then
+  if problem ~= nil and not action.problem_dispatched and not action.quiet then
     notify_action_failure(action.method, problem)
   end
-  if action.cb then action.cb(result, problem) end
+  if action.cb then action.cb(result, problem, action.status_gauge) end
   vim.schedule(lane_next)
 end
 
@@ -312,7 +390,8 @@ local function action_event(action, e)
     e,
     action.thread_id,
     action.worker_id,
-    action.dispatch)
+    action.dispatch,
+    action.quiet)
   action.status_gauge = next_gauge
   if status_problem ~= nil then
     action.problem = status_problem
@@ -326,7 +405,8 @@ local function action_event(action, e)
     action.proposal_id = n.params.logEntryId
   elseif n.method == "problem/event" and type(n.params) == "table" then
     action.problem = n.params.problem
-    action.problem_dispatched = true
+    action.problem_dispatched = not action.quiet
+    if action.quiet then return end
   end
   pcall(action.dispatch.handle_notification, n)
 end
@@ -347,7 +427,7 @@ resume_action = function(action)
   end)
 end
 
-function M.rpc(thread_id, method, params, cb)
+function M.rpc(thread_id, method, params, cb, options)
   local t = M.target()
   local dispatch = require("plurnk.dispatch")
   lane_run(function()
@@ -365,6 +445,7 @@ function M.rpc(thread_id, method, params, cb)
       problem = nil,
       problem_dispatched = false,
       status_gauge = nil,
+      quiet = options and options.quiet == true,
     }
     lane.action = action
     agui.rpc(t, thread_id, method, params, function(segment)
@@ -383,15 +464,20 @@ function M.resolve_interaction(thread_id, interaction_id, payload, cb)
     if cb then cb(nil, bridge_problem("target-unavailable", "Target unavailable", "No bridge target is configured.")) end
     return
   end
-  local a = M._active
+  local a = active_runs[thread_id]
   local dispatch = require("plurnk.dispatch")
   local tool = {}
   local worker_id = require("plurnk.state").get_worker_id(thread_id)
+  local detached_gauge = nil
   local on_event = (a ~= nil and a.thread_id == thread_id) and a.on_event or function(e)
+    local handled, next_gauge = consume_status_event(detached_gauge, e, thread_id, worker_id, dispatch)
+    detached_gauge = next_gauge
+    if handled then return end
     local n = unproject(e, tool, thread_id, worker_id)
     if n ~= nil then pcall(dispatch.handle_notification, n) end
   end
   local on_done = (a ~= nil and a.thread_id == thread_id) and a.on_done or function(_) end
+  if a ~= nil then a.begin_resume() end
   agui.resolve_interaction(t, thread_id, interaction_id, payload, on_event, function(code, transport_error)
     on_done(code, transport_error)
     if cb then cb(transport_error == nil and code or nil, transport_error) end
@@ -430,11 +516,15 @@ function M.resolve(thread_id, r, cb)
     if action.phase == "paused" then resume_action(action) end
     return
   end
-  local a = M._active
+  local a = active_runs[thread_id]
   local dispatch = require("plurnk.dispatch")
   local tool = {}
   local worker_id = require("plurnk.state").get_worker_id(thread_id)
+  local detached_gauge = nil
   local on_event = (a ~= nil and a.thread_id == thread_id) and a.on_event or function(e)
+    local handled, next_gauge = consume_status_event(detached_gauge, e, thread_id, worker_id, dispatch)
+    detached_gauge = next_gauge
+    if handled then return end
     local n = unproject(e, tool, thread_id, worker_id)
     if n ~= nil then pcall(dispatch.handle_notification, n) end
   end
@@ -442,6 +532,7 @@ function M.resolve(thread_id, r, cb)
   -- The resume run rides the same lane: its rebound stream carries the continued
   -- work's events (exec output, loop rows) — nothing may steal the binding mid-run.
   lane_run(function()
+    if a ~= nil then a.begin_resume() end
     agui.resolve(t, vim.tbl_extend("force", { threadId = thread_id }, r), on_event, function(code, transport_error)
       vim.schedule(lane_next)
       on_done(code, transport_error)

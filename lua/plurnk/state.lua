@@ -30,7 +30,8 @@ local function ensure_workspace(name)
       reasoning_policies = {}, -- daemon-supported choices for this worker
       model_display = nil,     -- "(no model)" or "alias=provider/model"
       runtime_gauge = nil,     -- exact latest AG-UI STATE snapshot after deltas
-      last_seen_log_id = 0,
+      transport_status = nil,  -- client-owned reconnecting/stale overlay; nil means connected
+      last_seen_log_ids = {}, -- worker id → highest durable row observed
       pending_proposals = {},  -- keyed by logEntryId
       search_progress = nil,   -- aggregate page acquisition percent; nil when idle
       branch_batch = nil,      -- active serialized branch-batch lifecycle
@@ -165,6 +166,14 @@ M.get_runtime_status = function(name)
   local gauge = M.get_runtime_gauge(name)
   return gauge and require("plurnk.runtime_status").project(gauge) or nil
 end
+M.get_transport_status = function(name)
+  local s = ensure_workspace(name)
+  return s and s.transport_status or nil
+end
+M.set_transport_status = function(name, status)
+  local s = ensure_workspace(name)
+  if s then s.transport_status = type(status) == "table" and status or nil end
+end
 
 -- The exact usage/accounting envelope from the last plurnk.terminated event.
 M.get_usage = function(name) local s = ensure_workspace(name); return s and s.usage end
@@ -194,9 +203,18 @@ M.set_branch_batch = function(name, batch)
   if s then s.branch_batch = type(batch) == "table" and batch or nil end
 end
 
-M.get_last_seen_log_id = function(name) local s = ensure_workspace(name); return s and s.last_seen_log_id or 0 end
-M.set_last_seen_log_id = function(name, id)
-  local s = ensure_workspace(name); if s and id and id > s.last_seen_log_id then s.last_seen_log_id = id end
+M.get_last_seen_log_id = function(name, worker_id)
+  local s = ensure_workspace(name)
+  if not s then return 0 end
+  local key = worker_id or s.worker_id
+  return key and (s.last_seen_log_ids[key] or 0) or 0
+end
+M.set_last_seen_log_id = function(name, worker_id, id)
+  local s = ensure_workspace(name)
+  local key = worker_id or (s and s.worker_id)
+  if s and key and type(id) == "number" and id > (s.last_seen_log_ids[key] or 0) then
+    s.last_seen_log_ids[key] = id
+  end
 end
 
 -- ── Proposal tracking ───────────────────────────────────────────────

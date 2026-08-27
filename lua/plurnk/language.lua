@@ -21,7 +21,7 @@ local HELP = table.concat({
   "                       discover <url> · add <alias> <url> [options.json] · enable/disable/remove <alias>",
   "                   skills (list this Worker's Agent Skills)",
   "                       discover <query|source> · add <name> <source> [--global] · enable/disable/remove <name>",
-  "                   open accept reject next prev stop clear",
+  "                   open reconnect accept reject next prev stop clear",
   "visual             '<,'>AI? … prepends the selection",
   "input buffer       ? ask · : act · ! exec · # PLAN0 / ## OP0 raw PLURNK · <CR> submits",
 }, "\n")
@@ -52,6 +52,7 @@ local SLASH = {
   yolo = function() require("plurnk.controls").yolo() end,
   ping = function() require("plurnk.controls").ping() end,
   open = function() require("plurnk.workspaces").toggle() end,
+  reconnect = function() require("plurnk.workspaces").reconnect() end,
   accept = function() require("plurnk.controls").accept() end,
   reject = function() require("plurnk.controls").reject() end,
   next = function() require("plurnk.controls").next() end,

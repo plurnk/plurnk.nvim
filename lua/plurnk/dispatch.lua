@@ -61,7 +61,7 @@ end
 
 local function apply_entry_to_state(workspace_name, entry)
   if type(entry.id) == "number" then
-    state.set_last_seen_log_id(workspace_name, entry.id)
+    state.set_last_seen_log_id(workspace_name, entry.worker_id, entry.id)
   end
 end
 
@@ -91,6 +91,30 @@ end
 M.handle_loop_packet = function(params, workspace_name)
   if not workspace_name or type(params) ~= "table" or type(params.gauge) ~= "table" then return end
   state.set_runtime_gauge(workspace_name, params.gauge)
+  vim.schedule(function()
+    local ok, worker_tab = pcall(require, "plurnk.worker_tab")
+    if ok then worker_tab.refresh_winbar(workspace_name) end
+    redraw_statusline()
+  end)
+end
+
+-- Connection health is client-owned presentation state, distinct from the
+-- daemon-owned runtime gauge. A broken wire must never rewrite lifecycle; its
+-- overlay simply takes precedence until a later supported AG-UI Run proves the
+-- connection live again.
+M.handle_transport_status = function(params, workspace_name)
+  if not workspace_name or type(params) ~= "table" then return end
+  local status = nil
+  if params.phase ~= "connected" then
+    status = {
+      phase = params.phase,
+      attempt = params.attempt,
+      attempts = params.attempts,
+      detail = params.detail,
+      recovery = params.recovery,
+    }
+  end
+  state.set_transport_status(workspace_name, status)
   vim.schedule(function()
     local ok, worker_tab = pcall(require, "plurnk.worker_tab")
     if ok then worker_tab.refresh_winbar(workspace_name) end
@@ -275,6 +299,7 @@ M.handle_notification = function(payload)
 
   if method == "log/entry" then M.handle_log_entry(params, workspace_name)
   elseif method == "loop/packet" then M.handle_loop_packet(params, workspace_name)
+  elseif method == "transport/status" then M.handle_transport_status(params, workspace_name)
   elseif method == "reasoning/event" then M.handle_reasoning_event(params, workspace_name)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, workspace_name)
   elseif method == "loop/interaction" then M.handle_loop_interaction(params, workspace_name)

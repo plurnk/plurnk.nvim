@@ -142,6 +142,19 @@ function M.log(opts)
   end)
 end
 
+function M.reconnect()
+  local workspace = context.active()
+  if not workspace then
+    require("plurnk.client").notify("No active workspace", vim.log.levels.WARN)
+    return
+  end
+  require("plurnk.recovery").reconcile(workspace, {}, function(_, problem)
+    if problem == nil then
+      require("plurnk.client").notify("Reconciled " .. workspace, vim.log.levels.INFO)
+    end
+  end)
+end
+
 local return_tabpage
 
 function M.toggle()

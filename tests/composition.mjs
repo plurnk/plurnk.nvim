@@ -85,6 +85,47 @@ print("installed Neovim composition GREEN: " .. tostring(discovery.schemaVersion
 pcall(function() require("plurnk.client").stop() end)
 vim.cmd("qa!")
 `);
+    const reopenLua = join(temp, "reopen.lua");
+    await writeFile(reopenLua, `
+vim.opt.rtp:prepend(${JSON.stringify(installed)})
+require("plurnk").setup({ host = "127.0.0.1", port = ${port} })
+local agui = require("plurnk.agui")
+local target = require("plurnk.bridge").target()
+local world = "installed-nvim-composition"
+local function rpc(method, params)
+  local segment
+  agui.rpc(target, world, method, params or {}, function(value) segment = value end)
+  assert(vim.wait(10000, function() return segment ~= nil end, 25), method .. " timed out")
+  assert(segment.state == "complete", method .. " failed: " .. vim.inspect(segment.problem))
+  return segment.result
+end
+local workspace
+for _, candidate in ipairs(rpc("workspace.list").workspaces) do
+  if candidate.name == world then workspace = candidate; break end
+end
+assert(workspace ~= nil, "the installed client's workspace did not survive editor restart")
+local worker
+for _, candidate in ipairs(rpc("workspace.workers", { id = workspace.id }).workers) do
+  if candidate.origin == "model" then worker = candidate; break end
+end
+assert(worker ~= nil, "the installed client's model worker did not survive editor restart")
+local state = require("plurnk.state")
+state.set_workspace_id(world, workspace.id)
+state.set_active_workspace_name(world)
+state.set_worker_id(world, worker.id)
+local reconciled
+require("plurnk.recovery").reconcile(world, {}, function(status, problem)
+  assert(problem == nil, vim.inspect(problem))
+  reconciled = status
+end)
+assert(vim.wait(10000, function() return reconciled ~= nil end, 25), "installed reconnect timed out")
+assert(state.get_transport_status(world) == nil, "installed reconnect left a stale transport overlay")
+assert(state.get_runtime_status(world) ~= nil, "installed reconnect did not project authoritative STATE")
+assert(rpc("worker.settings.get").requestUserInput == true, "reopened worker lost durable settings")
+print("installed Neovim reopen GREEN: worker " .. tostring(worker.id))
+pcall(function() require("plurnk.client").stop() end)
+vim.cmd("qa!")
+`);
 
     daemon = spawn(process.execPath, [join(serviceRoot, "plurnk-core/dist/service.js"), "start"], {
         cwd: serviceRoot,
@@ -139,8 +180,25 @@ vim.cmd("qa!")
     if (!`${result.stdout}\n${result.stderr}`.includes("installed Neovim composition GREEN: 1")) {
         throw new Error(`installed plugin produced no success evidence\n${result.stdout}\n${result.stderr}`);
     }
+    const reopened = await run("nvim", ["--headless", "-u", "NONE", "-l", reopenLua], {
+        env: {
+            ...process.env,
+            HOME: home,
+            XDG_CONFIG_HOME: join(home, ".config"),
+            PLURNK_HOST: "127.0.0.1",
+            PLURNK_PORT: String(port),
+            PLURNK_NVIM_ROOT: installed,
+            PATH: `${clientBin}:${process.env.PATH ?? ""}`,
+        },
+        maxBuffer: 16 * 1024 * 1024,
+    });
+    if (!`${reopened.stdout}\n${reopened.stderr}`.includes("installed Neovim reopen GREEN:")) {
+        throw new Error(`installed plugin did not resume its durable worker\n${reopened.stdout}\n${reopened.stderr}`);
+    }
     process.stdout.write(result.stdout);
     process.stderr.write(result.stderr);
+    process.stdout.write(reopened.stdout);
+    process.stderr.write(reopened.stderr);
     passed = true;
 } finally {
     await stop(daemon);
