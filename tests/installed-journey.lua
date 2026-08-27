@@ -16,6 +16,12 @@ local function assert_match(value, pattern, message)
   end
 end
 
+local function match_count(value, pattern)
+  local count = 0
+  for _ in value:gmatch(pattern) do count = count + 1 end
+  return count
+end
+
 local function wait_for(predicate, timeout, message)
   assert_truthy(vim.wait(timeout, predicate, 25), "wait_for(" .. message .. ") timed out")
 end
@@ -100,6 +106,10 @@ local ok, err = pcall(function()
   assert_match(content, "❯\n   Create a reviewed acceptance marker%.\n   The final response must confirm this multiline prompt%.",
     "the native buffer preserves the multiline prompt")
   assert_match(content, "💭 I will make one reviewed local change", "reasoning streams into the waterfall")
+  local reasoning_count = match_count(content, "💭 I will make one reviewed local change")
+  assert_truthy(reasoning_count == 1,
+    "reasoning delivered before review is not duplicated after resume (count="
+      .. tostring(reasoning_count) .. ")\n" .. content)
   assert_match(content, "🚧 Create the requested acceptance marker", "the active PLAN renders")
   assert_match(content, "🔧", "the executed operation renders")
   assert_match(content, "%[sh%]", "the operation row retains its executor")
