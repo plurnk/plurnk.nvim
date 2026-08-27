@@ -37,12 +37,15 @@ what this client guarantees. Tests are organized by observable behavior under
   client-owned `problem-missing` transport failure. The UI renders `detail`
   and an optional `recovery`. `plurnk.terminated.result.status` is the
   family-specific terminal status; there is no sibling `finalStatus` field.
-- **Standard run lifecycle** — every request carries a fresh `runId`; proposals end
+- §nvim-agui-interrupt-resume **Standard run lifecycle** — every request carries a fresh `runId`; proposals end
   their run with an AG-UI interrupt outcome, and the decision arrives in a new run
   through `RunAgentInput.resume`. A proposal tool call without its matching declared
   interrupt is a protocol error, never an invitation to infer private lifecycle state.
   A proposal-gated management action remains one logical action across its interrupt
   and resume runs and retains the serialized management lane until its action result.
+  A model-loop proposal resumes by exact interrupt identity independently of that
+  lane. Each transport segment owns its own terminal evidence, so a delayed completion
+  from an interrupted segment cannot settle or corrupt its resumed logical run.
   `RUN_FINISHED` and `RUN_ERROR` alone settle the client run; `plurnk.terminated`
   supplies family-specific status and usage metadata but is not a competing lifecycle.
 - **Cold no-daemon onboarding** — a management run against a dead
@@ -254,7 +257,8 @@ what this client guarantees. Tests are organized by observable behavior under
   standard AG-UI reasoning deltas update one `💭` buffer region in place as they
   arrive. The completed region precedes the paired SEND and a multiline block then
   becomes a native closed fold; absent, empty, and encrypted reasoning invent no
-  readable transcript.
+  readable transcript. Replaying a completed message identity is idempotent; malformed
+  ordering within a live message fails at the client boundary.
   PLAN remains the model's durable working-memory inventory.
 - **Stream windows** — channel prefixes + interleave, batched
   flush (one `entry.read` per tick burst), partial-line hold, a conclusion footer, and
@@ -345,6 +349,13 @@ what this client guarantees. Tests are organized by observable behavior under
 
 ## §9 Diagnostics
 
+- §nvim-installed-journey **The packaged default journey is a release gate** —
+  a clean installed-layout copy of the plugin uses its default mappings and native
+  multiline input against the built daemon and a deterministic standards-compatible
+  provider. The specimen must stop a real side effect for review, resume the same
+  logical loop, complete its second inference, and render reasoning, operations,
+  PLAN, SEND, and settled authoritative lifecycle without asynchronous callback
+  failures. Stochastic real-model dogfooding remains a separate opt-in tier.
 - §nvim-health-surface **Health reports evidence without activating the
   runtime** — `:checkhealth plurnk` reports the resolved plugin path and Git
   describe/remote metadata when present, Neovim and curl requirements, the

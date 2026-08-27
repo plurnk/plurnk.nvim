@@ -521,6 +521,7 @@ M.append_reasoning_delta = function(workspace, worker_id, message_id, delta)
   if not workspace or type(message_id) ~= "string" or type(delta) ~= "string" then return end
   if delta == "" then return end
   local rec = reasoning_record(workspace, worker_id)
+  if rec.reasoning_ids and rec.reasoning_ids[message_id] then return end
   local live = rec.reasoning_live and rec.reasoning_live[message_id]
   if live == nil then error("reasoning content arrived before its start: " .. message_id, 0) end
   live.content = live.content .. delta
@@ -536,6 +537,7 @@ end
 M.end_reasoning = function(workspace, worker_id, message_id)
   if not workspace or type(message_id) ~= "string" then return end
   local rec = reasoning_record(workspace, worker_id)
+  if rec.reasoning_ids and rec.reasoning_ids[message_id] then return end
   local live = rec.reasoning_live and rec.reasoning_live[message_id]
   if live == nil then error("reasoning message ended before its start: " .. message_id, 0) end
   rec.reasoning_live[message_id] = nil

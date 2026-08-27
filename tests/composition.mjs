@@ -4,6 +4,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { startOpenAiCompatibleFixture } from "./fixtures/openai-compatible.mjs";
 
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "..");
@@ -13,6 +14,7 @@ const temp = await mkdtemp(join(tmpdir(), "plurnk-nvim-composition-"));
 const installed = join(temp, "site", "pack", "plurnk", "start", "plurnk.nvim");
 const clientBin = join(temp, "bin");
 const home = join(temp, "home");
+const project = join(temp, "project");
 const port = await new Promise((accept, reject) => {
     const server = createServer();
     server.once("error", reject);
@@ -32,6 +34,7 @@ const stop = async (child) => {
 };
 
 let daemon;
+let fixture;
 let passed = false;
 try {
     await run("npm", ["run", "build"], {
@@ -48,6 +51,17 @@ try {
     }
     await mkdir(clientBin, { recursive: true });
     await symlink(join(clientRoot, "bin/plurnk.js"), join(clientBin, "plurnk"));
+    await mkdir(project, { recursive: true });
+    await writeFile(join(project, "README.md"), "# Installed journey fixture\n");
+    await writeFile(join(project, "journey.txt"), "pending\n");
+    await run("git", ["init", "--quiet"], { cwd: project });
+    await run("git", ["add", "README.md", "journey.txt"], { cwd: project });
+    await run("git", [
+        "-c", "user.name=Plurnk Test",
+        "-c", "user.email=test@plurnk.invalid",
+        "commit", "--quiet", "-m", "test: seed installed journey",
+    ], { cwd: project });
+    fixture = await startOpenAiCompatibleFixture();
     const lua = join(temp, "composition.lua");
     await writeFile(lua, `
 vim.opt.rtp:prepend(${JSON.stringify(installed)})
@@ -148,8 +162,22 @@ vim.cmd("qa!")
             PLURNK_WS_PORT: "0",
             PLURNK_SERVICE_DB_PATH: join(temp, "plurnk.db"),
             PLURNK_SERVICE_EMBED_DISABLE: "1",
+            PLURNK_SERVICE_MAX_TURNS: "8",
             PLURNK_MCP_ENABLED: "[]",
-            PLURNK_MODEL: "",
+            PLURNK_MODEL: "journey",
+            PLURNK_MODEL_journey: "journey-fixture/plurnk-installed-journey",
+            PLURNK_PROVIDERS_PROVIDER_JOURNEY_FIXTURE_NPM: "@ai-sdk/openai-compatible",
+            PLURNK_PROVIDERS_PROVIDER_JOURNEY_FIXTURE_BASE_URL: fixture.baseUrl,
+            PLURNK_PROVIDERS_CONTEXT_WINDOW_journey: "32768",
+            PLURNK_PROVIDERS_OUTPUT_BUDGET_journey: "4096",
+            PLURNK_PROVIDERS_REASONING_journey: "adaptive",
+            PLURNK_PROVIDERS_RETRY_ATTEMPTS_journey: "0",
+            PLURNK_PROVIDERS_FETCH_TIMEOUT_journey: "5000",
+            PLURNK_PROVIDERS_OPERATION_TIMEOUT_journey: "15000",
+            PLURNK_PROVIDERS_FIRST_CONTENT_TIMEOUT_journey: "5000",
+            PLURNK_PROVIDERS_STREAM_IDLE_TIMEOUT_journey: "5000",
+            PLURNK_PROVIDERS_CACHE_AFFINITY_journey: "0",
+            PLURNK_PROVIDERS_CACHE_WRITE_POLICY_journey: "off",
         },
         stdio: ["ignore", "pipe", "pipe"],
     });
@@ -203,13 +231,43 @@ vim.cmd("qa!")
     if (!`${reopened.stdout}\n${reopened.stderr}`.includes("installed Neovim reopen GREEN:")) {
         throw new Error(`installed plugin did not resume its durable worker\n${reopened.stdout}\n${reopened.stderr}`);
     }
+    const journey = await run("nvim", ["--headless", "-u", "NONE", "-l", join(root, "tests/installed-journey.lua")], {
+        cwd: project,
+        env: {
+            ...process.env,
+            HOME: home,
+            XDG_CONFIG_HOME: join(home, ".config"),
+            PLURNK_HOST: "127.0.0.1",
+            PLURNK_PORT: String(port),
+            PLURNK_NVIM_ROOT: installed,
+            PATH: `${clientBin}:${process.env.PATH ?? ""}`,
+        },
+        maxBuffer: 16 * 1024 * 1024,
+    });
+    if (!`${journey.stdout}\n${journey.stderr}`.includes("PASS installed Neovim default journey:")) {
+        throw new Error(`installed plugin did not complete its default journey\n${journey.stdout}\n${journey.stderr}`);
+    }
+    if (`${journey.stdout}\n${journey.stderr}`.includes("vim.schedule callback:")) {
+        throw new Error(`installed plugin raised an asynchronous callback failure\n${journey.stdout}\n${journey.stderr}`);
+    }
+    if (fixture.requests.length !== 2) {
+        throw new Error(`installed journey made ${fixture.requests.length} inference requests instead of exactly two`);
+    }
+    const firstRequest = JSON.stringify(fixture.requests[0]?.messages ?? []);
+    if (!firstRequest.includes("Create a reviewed acceptance marker.")
+        || !firstRequest.includes("The final response must confirm this multiline prompt.")) {
+        throw new Error("the standards-compatible provider did not receive the native multiline prompt");
+    }
     process.stdout.write(result.stdout);
     process.stderr.write(result.stderr);
     process.stdout.write(reopened.stdout);
     process.stderr.write(reopened.stderr);
+    process.stdout.write(journey.stdout);
+    process.stderr.write(journey.stderr);
     passed = true;
 } finally {
     await stop(daemon);
+    if (fixture !== undefined) await fixture.close();
     if (passed) await rm(temp, { recursive: true, force: true });
     else process.stderr.write(`installed Neovim composition evidence preserved at ${temp}\n`);
 }
