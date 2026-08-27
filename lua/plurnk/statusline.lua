@@ -4,15 +4,18 @@
 local M = {}
 local state = require("plurnk.state")
 
-local function active_percent(workspace)
-  if state.is_embedding(workspace) then return state.get_embedding_progress(workspace) end
+local function active_activity(workspace)
+  local runtime = state.get_runtime_status(workspace)
+  if runtime and runtime.activity then
+    return require("plurnk.runtime_status").activity_text(runtime.activity)
+  end
   local search = state.get_search_progress(workspace)
-  if search ~= nil then return search end
+  if search ~= nil then return tostring(search) .. "%" end
   local branch = state.get_branch_batch(workspace)
   if type(branch) ~= "table" then return nil end
   local completed, total = tonumber(branch.completed), tonumber(branch.total)
   if completed == nil or total == nil or total <= 0 then return nil end
-  return math.floor((completed / total) * 100)
+  return tostring(math.floor((completed / total) * 100)) .. "%"
 end
 
 M.text = function()
@@ -20,9 +23,10 @@ M.text = function()
   local workspace = vim.b[buf].plurnk_workspace
   if not workspace then return "" end
 
-  local percent = active_percent(workspace)
-  if type(percent) == "number" and percent < 100 then return tostring(percent) .. "%" end
-  if state.is_loop_inflight(workspace) or state.is_embedding(workspace) then return "⌛︎" end
+  local activity = active_activity(workspace)
+  if activity ~= nil and activity ~= "100%" then return activity end
+  local runtime = state.get_runtime_status(workspace)
+  if runtime and runtime.lifecycle == "running" then return "⌛︎" end
   local ok_diff, diff = pcall(require, "plurnk.diff")
   return ok_diff and diff.is_yolo and diff.is_yolo() and "🔥" or ""
 end

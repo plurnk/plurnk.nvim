@@ -6,6 +6,33 @@
 local M = {}
 local agui = require("plurnk.agui")
 
+local function consume_status_event(current, event, thread_id, worker_id, dispatch)
+  local ok, handled, next_gauge = pcall(require("plurnk.runtime_status").reduce, current, event)
+  if not ok then
+    local problem = agui.transport_problem(
+      "state-invalid",
+      "State invalid",
+      502,
+      "The AG-UI stream contained invalid runtime state: " .. tostring(handled),
+      false)
+    dispatch.handle_notification({
+      method = "problem/event",
+      params = { problem = problem, workspaceName = thread_id },
+    })
+    return true, current, problem
+  end
+  if not handled then return false, current, nil end
+  dispatch.handle_notification({
+    method = "loop/packet",
+    params = {
+      workspaceName = thread_id,
+      workerId = worker_id,
+      gauge = next_gauge,
+    },
+  })
+  return true, next_gauge, nil
+end
+
 local function unproject(e, assembler, workspace_name, worker_id)
   local n = agui.unproject(e, assembler)
   if n ~= nil and n.method == "reasoning/event" then
@@ -45,8 +72,23 @@ function M.run(thread_id, prompt, opts, on_done)
   local paused = false
   local proposed_interrupt = nil
   local interaction_interrupt = nil
+  local status_gauge = nil
   local on_event
   on_event = function(e)
+    local status_handled, next_gauge, status_problem = consume_status_event(
+      status_gauge,
+      e,
+      thread_id,
+      opts and opts.workerId,
+      dispatch)
+    status_gauge = next_gauge
+    if status_problem ~= nil then
+      run_problem = status_problem
+      problem_dispatched = true
+      final = status_problem.status
+      return
+    end
+    if status_handled then return end
     if type(e) == "table" and e.type == "RUN_ERROR" then
       saw_run_error = true
       if type(run_problem) == "table" then final = tonumber(run_problem.status) end
@@ -265,6 +307,19 @@ local function accept_action_segment(action, segment, resolution)
 end
 
 local function action_event(action, e)
+  local status_handled, next_gauge, status_problem = consume_status_event(
+    action.status_gauge,
+    e,
+    action.thread_id,
+    action.worker_id,
+    action.dispatch)
+  action.status_gauge = next_gauge
+  if status_problem ~= nil then
+    action.problem = status_problem
+    action.problem_dispatched = true
+    return
+  end
+  if status_handled then return end
   local n = unproject(e, action.tool, action.thread_id, action.worker_id)
   if n == nil then return end
   if n.method == "loop/proposal" then
@@ -309,6 +364,7 @@ function M.rpc(thread_id, method, params, cb)
       resolution = nil,
       problem = nil,
       problem_dispatched = false,
+      status_gauge = nil,
     }
     lane.action = action
     agui.rpc(t, thread_id, method, params, function(segment)

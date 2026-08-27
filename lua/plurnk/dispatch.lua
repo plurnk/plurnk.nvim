@@ -59,16 +59,9 @@ local function conversation_entry(workspace_name, entry)
   return false
 end
 
--- Track current loop/turn for the statusline (conversation entries only).
 local function apply_entry_to_state(workspace_name, entry)
   if type(entry.id) == "number" then
     state.set_last_seen_log_id(workspace_name, entry.id)
-  end
-  if type(entry.loop_id) == "number" then
-    state.set_current_loop_id(workspace_name, entry.loop_id)
-  end
-  if type(entry.turn_id) == "number" then
-    state.set_current_turn(workspace_name, entry.turn_id)
   end
 end
 
@@ -89,6 +82,18 @@ M.handle_log_entry = function(params, workspace_name)
       worker_tab.append_history(workspace_name, { entry })
       worker_tab.refresh_winbar(workspace_name)
     end
+    redraw_statusline()
+  end)
+end
+
+-- AG-UI STATE is the sole status authority. The bridge reduces each stream's
+-- snapshot and deltas before projecting the resulting gauge here.
+M.handle_loop_packet = function(params, workspace_name)
+  if not workspace_name or type(params) ~= "table" or type(params.gauge) ~= "table" then return end
+  state.set_runtime_gauge(workspace_name, params.gauge)
+  vim.schedule(function()
+    local ok, worker_tab = pcall(require, "plurnk.worker_tab")
+    if ok then worker_tab.refresh_winbar(workspace_name) end
     redraw_statusline()
   end)
 end
@@ -139,11 +144,7 @@ end
 M.handle_loop_terminated = function(params, workspace_name)
   if not params or not workspace_name then return end
   state.set_loop_inflight(workspace_name, false)
-  state.set_embedding(workspace_name, false)
   state.record_loop_usage(workspace_name, params.usage)  -- exact last-loop envelope; never a client tally
-  if type(params.result) == "table" and type(params.result.status) == "number" then
-    state.set_final_status(workspace_name, params.result.status)
-  end
   vim.schedule(function()
     local ok, worker_tab = pcall(require, "plurnk.worker_tab")
     if ok then
@@ -186,18 +187,8 @@ M.handle_notice_event = function(params, workspace_name)
   local notice = params.notice
   -- engine:turn liveness is the activity slot, not a waterfall line.
   if notice.source == "engine:turn" then return end
-  -- Derivation progress occupies the same compact edge slot as the TUI prompt.
+  -- The immediately preceding AG-UI STATE_DELTA owns derivation activity.
   if notice.source == "engine:derivation" and notice.kind == "embed_progress" then
-    local completed, total = tonumber(notice.completed), tonumber(notice.total)
-    local phase = type(notice.phase) == "string" and notice.phase or nil
-    local active = phase == "preparing" or (phase ~= "complete" and phase ~= "failed"
-      and completed ~= nil and total ~= nil and completed < total)
-    local percent = active and completed ~= nil and total ~= nil and total > 0
-      and math.floor((completed / total) * 100) or nil
-    if workspace_name then
-      state.set_embedding(workspace_name, active, percent)
-      redraw_statusline()
-    end
     return
   end
   -- Search page acquisition is compact edge state too: a percentage in the
@@ -283,6 +274,7 @@ M.handle_notification = function(payload)
     or state.get_active_workspace_name()
 
   if method == "log/entry" then M.handle_log_entry(params, workspace_name)
+  elseif method == "loop/packet" then M.handle_loop_packet(params, workspace_name)
   elseif method == "reasoning/event" then M.handle_reasoning_event(params, workspace_name)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, workspace_name)
   elseif method == "loop/interaction" then M.handle_loop_interaction(params, workspace_name)

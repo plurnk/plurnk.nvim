@@ -66,12 +66,13 @@ what this client guarantees. Tests are organized by observable behavior under
 - **The push pipeline** — a dispatched op (e.g. `op.parse`)
   produces a `log/entry` notification that advances client state; rendering is
   push-driven, never polled.
-- §nvim-worker-status **Worker status contains only client-owned facts** — the
-  client combines run lifecycle, the durable model control-plane result,
-  observed `log/entry` coordinates, ephemeral progress Notices, and the exact
-  terminal accounting envelope. It never relabels rows or turns as provider
-  packets. The winbar presents lifecycle → model → loop/turn before reasoning
-  and terminal accounting; the editor statusline owns transient activity.
+- §nvim-worker-status **Worker status projects the authoritative AG-UI gauge** —
+  each stream begins from `STATE_SNAPSHOT` and applies only its subsequent RFC
+  6902 `replace` deltas. The client presents lifecycle → model → exact packet
+  count before reasoning and terminal accounting; the editor statusline owns
+  replaceable activity. Rows, turns, and local callbacks never reconstruct
+  status or masquerade as provider packets. Missing, malformed, or unsupported
+  state is a transport failure rather than a partial display.
 
 ## §3 The `:AI` language
 

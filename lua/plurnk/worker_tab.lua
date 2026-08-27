@@ -37,7 +37,7 @@ local function buffer_title(workspace, key)
 end
 
 -- The winbar is plurnk's OWN window header — its real estate, so the rich
--- detail lives here (identity + model + live L·T/status + loop accounting), NOT in
+-- detail lives here (identity + authoritative status + loop accounting), NOT in
 -- the user's shared statusline. Reactive: refresh_winbar re-renders
 -- it on each notification so the live state stays current (operator, 2026-06-20).
 local function fmt_count(n)
@@ -75,28 +75,13 @@ local function build_winbar(workspace, key)
   local rid = type(key) == "number" and key or nil
   local parts = { "plurnk · " .. workspace .. " · " .. worker_label(workspace, rid) }
 
-  -- Lifecycle leads every client-owned status surface; terminal truth comes
-  -- from the exact loop outcome already retained by this client.
-  if state.is_loop_inflight(workspace) then
-    parts[#parts + 1] = "⌛︎"
-  else
-    local final = state.get_final_status(workspace)
-    if final then
-      local g = require("plurnk.render").send_lifecycle_glyph(final)
-      parts[#parts + 1] = final >= 400 and final ~= 499
-        and (g .. " " .. tostring(final)) or g
-    end
-  end
+  local runtime = state.get_runtime_status(workspace)
+  local lifecycle = runtime and require("plurnk.runtime_status").lifecycle_glyph(runtime.lifecycle) or ""
+  if lifecycle ~= "" then parts[#parts + 1] = lifecycle end
 
-  local model = state.get_active_model(workspace)
+  local model = runtime and runtime.model or state.get_active_model(workspace)
   if model then parts[#parts + 1] = "🤖 " .. model end
-
-  local loop_id = state.get_current_loop_id(workspace)
-  local turn = state.get_current_turn(workspace)
-  if loop_id then
-    parts[#parts + 1] = turn and string.format("L%s·T%s", tostring(loop_id), tostring(turn))
-      or ("L" .. tostring(loop_id))
-  end
+  if runtime then parts[#parts + 1] = "P" .. tostring(runtime.packet_count) end
 
   local reasoning = state.get_reasoning_policy(workspace)
   if reasoning then parts[#parts + 1] = "🧠 " .. reasoning end
@@ -156,7 +141,7 @@ M.winbar_text = function(workspace, key)
 end
 
 -- Re-render the winbar for a workspace's open waterfall window(s) — called from
--- dispatch on each state-changing notification so the live L·T / status / accounting
+-- dispatch on each state-changing notification so status and accounting
 -- stay current without a statusline round-trip.
 M.refresh_winbar = function(workspace)
   local recs = records[workspace]

@@ -33,15 +33,6 @@ M.set_workspace_child = state.set_child_selector
 M.get_model_display = state.get_model_display
 M.set_model_display = state.set_model_display
 
-M.get_current_loop_id = state.get_current_loop_id
-M.set_current_loop_id = state.set_current_loop_id
-M.get_current_turn = state.get_current_turn
-M.set_current_turn = state.set_current_turn
-M.get_final_status = state.get_final_status
-M.set_final_status = state.set_final_status
-M.get_status_text = state.get_status_text
-M.set_status_text = state.set_status_text
-
 M.is_project_file = state.is_project_file
 M.get_relative_path = state.get_relative_path
 M.rename_workspace = state.rename_workspace

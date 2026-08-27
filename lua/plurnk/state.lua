@@ -29,13 +29,9 @@ local function ensure_workspace(name)
       reasoning_policy = nil,  -- daemon-owned durable policy
       reasoning_policies = {}, -- daemon-supported choices for this worker
       model_display = nil,     -- "(no model)" or "alias=provider/model"
-      current_loop_id = nil,
-      current_turn = nil,
-      final_status = nil,
-      status_text = nil,
+      runtime_gauge = nil,     -- exact latest AG-UI STATE snapshot after deltas
       last_seen_log_id = 0,
       pending_proposals = {},  -- keyed by logEntryId
-      embedding = nil,         -- active derivation progress; table even when percent is unknown
       search_progress = nil,   -- aggregate page acquisition percent; nil when idle
       branch_batch = nil,      -- active serialized branch-batch lifecycle
     }
@@ -157,14 +153,18 @@ M.set_model_display = function(name, display)
   local s = ensure_workspace(name); if s then s.model_display = display end
 end
 
-M.get_current_loop_id = function(name) local s = ensure_workspace(name); return s and s.current_loop_id end
-M.set_current_loop_id = function(name, lid) local s = ensure_workspace(name); if s then s.current_loop_id = lid end end
-
-M.get_current_turn = function(name) local s = ensure_workspace(name); return s and s.current_turn end
-M.set_current_turn = function(name, t) local s = ensure_workspace(name); if s then s.current_turn = t end end
-
-M.get_final_status = function(name) local s = ensure_workspace(name); return s and s.final_status end
-M.set_final_status = function(name, st) local s = ensure_workspace(name); if s then s.final_status = st end end
+M.get_runtime_gauge = function(name)
+  local s = ensure_workspace(name)
+  return s and s.runtime_gauge or nil
+end
+M.set_runtime_gauge = function(name, gauge)
+  local s = ensure_workspace(name)
+  if s then s.runtime_gauge = gauge end
+end
+M.get_runtime_status = function(name)
+  local gauge = M.get_runtime_gauge(name)
+  return gauge and require("plurnk.runtime_status").project(gauge) or nil
+end
 
 -- The exact usage/accounting envelope from the last plurnk.terminated event.
 M.get_usage = function(name) local s = ensure_workspace(name); return s and s.usage end
@@ -183,22 +183,6 @@ end
 M.is_loop_inflight = function(name) local s = ensure_workspace(name); return s and s.loop_inflight or false end
 M.set_loop_inflight = function(name, v) local s = ensure_workspace(name); if s then s.loop_inflight = not not v end end
 
--- Derivation progress is compact edge state, never a waterfall line. Store its
--- optional producer-derived percentage with its liveness so both clients can
--- present the same progress-or-hourglass contract.
-M.is_embedding = function(name) local s = ensure_workspace(name); return s and s.embedding ~= nil or false end
-M.get_embedding_progress = function(name)
-  local s = ensure_workspace(name)
-  return s and type(s.embedding) == "table" and s.embedding.percent or nil
-end
-M.set_embedding = function(name, active, percent)
-  local s = ensure_workspace(name)
-  if not s then return end
-  if not active then s.embedding = nil; return end
-  s.embedding = {
-    percent = type(percent) == "number" and math.max(0, math.min(100, math.floor(percent))) or nil,
-  }
-end
 M.get_search_progress = function(name) local s = ensure_workspace(name); return s and s.search_progress or nil end
 M.set_search_progress = function(name, percent)
   local s = ensure_workspace(name)
@@ -209,9 +193,6 @@ M.set_branch_batch = function(name, batch)
   local s = ensure_workspace(name)
   if s then s.branch_batch = type(batch) == "table" and batch or nil end
 end
-
-M.get_status_text = function(name) local s = ensure_workspace(name); return s and s.status_text end
-M.set_status_text = function(name, text) local s = ensure_workspace(name); if s then s.status_text = text end end
 
 M.get_last_seen_log_id = function(name) local s = ensure_workspace(name); return s and s.last_seen_log_id or 0 end
 M.set_last_seen_log_id = function(name, id)

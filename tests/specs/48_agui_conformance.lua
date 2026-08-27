@@ -160,6 +160,23 @@ local ok, err = pcall(function()
       H.assert_truthy(families[family] == true, specimen.name .. " projects " .. family)
     end
   end
+
+  local invalid_notifications, invalid_final = {}, nil
+  agui.run = function(_, _, on_event, on_done)
+    on_event({
+      type = "STATE_DELTA",
+      delta = { { op = "replace", path = "/plurnk/status/packetCount", value = 1 } },
+    })
+    on_done(0, nil)
+    return { kill = function() end }
+  end
+  dispatch.handle_notification = function(notification)
+    invalid_notifications[#invalid_notifications + 1] = notification
+  end
+  bridge.run("fixture", "fixture", {}, function(status) invalid_final = status end)
+  H.assert_eq(invalid_final, 502, "a state delta without its stream snapshot fails the run")
+  H.assert_eq(invalid_notifications[1].method, "problem/event", "invalid state becomes a transport Problem")
+  H.assert_match(invalid_notifications[1].params.problem.type, "/state%-invalid$", "invalid state has a stable Problem type")
   agui.run = real_run
   dispatch.handle_notification = real_dispatch
   vim.notify = real_notify

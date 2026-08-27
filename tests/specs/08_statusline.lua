@@ -38,11 +38,23 @@ local ok, err = pcall(function()
   end
   local buf = vim.api.nvim_get_current_buf()
   vim.b[buf].plurnk_workspace = "s1"
-  state.set_model_selector("s1", "claude")
-  state.set_current_loop_id("s1", 7)
-  state.set_current_turn("s1", 2)
+  local runtime_status = require("plurnk.runtime_status")
+  local handled, gauge = runtime_status.reduce(nil, {
+    type = "STATE_SNAPSHOT",
+    snapshot = {
+      plurnk = { status = {
+        lifecycle = "running",
+        model = { alias = "claude", provider = "anthropic", model = "sonnet" },
+        loopId = 7,
+        packetCount = 2,
+        activity = vim.NIL,
+      } },
+      budget = {},
+    },
+  })
+  H.assert_eq(handled, true, "runtime snapshot is handled")
+  state.set_runtime_gauge("s1", gauge)
   state.record_loop_usage("s1", loop_usage(0, 0, "0.0700"))
-  state.set_loop_inflight("s1", true)
 
   -- ── lean statusline: a glance, not a squat on shared real estate ──
   local sl = require("plurnk.statusline").text()
@@ -53,25 +65,32 @@ local ok, err = pcall(function()
   H.assert_truthy(not sl:match("claude"), "statusline does NOT show the model (winbar's job)")
   H.assert_truthy(not sl:match("loop:"), "statusline does NOT show money (winbar's job)")
 
-  -- ── rich winbar: identity + model + L·T + status + money ──
+  -- ── rich winbar: identity + authoritative lifecycle/model/packets + money ──
   local wb = worker_tab.winbar_text("s1", 7)
   H.assert_match(wb, "plurnk", "winbar names the client without a mascot")
   H.assert_truthy(not wb:match("🐹"), "the retired mascot is absent from the winbar")
   H.assert_match(wb, "s1", "workspace")
   H.assert_match(wb, "claude", "model")
-  H.assert_match(wb, "L7", "loop")
-  H.assert_match(wb, "T2", "turn")
+  H.assert_match(wb, "P2", "authoritative packet count")
+  H.assert_truthy(not wb:match("L7") and not wb:match("T2"), "row coordinates do not masquerade as packet status")
   H.assert_match(wb, "⌛︎", "in-flight glyph in winbar")
   H.assert_match(wb, "loop: %$0%.0700", "per-loop cost, labelled 'loop:'")
-  local lifecycle_at, model_at, turn_at = wb:find("⌛︎"), wb:find("🤖 claude"), wb:find("L7·T2")
-  H.assert_truthy(lifecycle_at < model_at and model_at < turn_at, "winbar status order is lifecycle → model → loop/turn")
+  local lifecycle_at, model_at, packet_at = wb:find("⌛︎"), wb:find("🤖 claude"), wb:find("P2")
+  H.assert_truthy(lifecycle_at < model_at and model_at < packet_at, "winbar status order is lifecycle → model → packet count")
 
-  state.set_loop_inflight("s1", false)
-  state.set_final_status("s1", 200)
+  handled, gauge = runtime_status.reduce(gauge, {
+    type = "STATE_DELTA",
+    delta = { { op = "replace", path = "/plurnk/status/lifecycle", value = "completed" } },
+  })
+  state.set_runtime_gauge("s1", gauge)
   H.assert_match(worker_tab.winbar_text("s1", 7), "⏹️", "completion lifecycle glyph")
   H.assert_truthy(not worker_tab.winbar_text("s1", 7):match("200"), "routine final code is not repeated")
-  state.set_final_status("s1", 504)
-  H.assert_match(worker_tab.winbar_text("s1", 7), "❌ 504", "error glyph retains diagnostic code")
+  handled, gauge = runtime_status.reduce(gauge, {
+    type = "STATE_DELTA",
+    delta = { { op = "replace", path = "/plurnk/status/lifecycle", value = "failed" } },
+  })
+  state.set_runtime_gauge("s1", gauge)
+  H.assert_match(worker_tab.winbar_text("s1", 7), "❌", "failed lifecycle comes from AG-UI state")
 
   require("plurnk.diff").set_yolo(true)
   H.assert_eq(require("plurnk.statusline").text(), "🔥", "idle YOLO uses the same fire as the TUI")
