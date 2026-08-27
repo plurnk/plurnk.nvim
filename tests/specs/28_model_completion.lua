@@ -69,7 +69,8 @@ local ok, err = pcall(function()
   state.set_active_workspace_name("ms")
   state.set_workspace_id("ms", 1)
 
-  local cmds = require("plurnk.commands")
+  local cmds = require("plurnk.generation")
+  local language = require("plurnk.language")
 
   cmds.set_model("google/gemini-3-flash")
   H.assert_eq(calls[1].method, "worker.model.set", "set_model persists server-side")
@@ -131,7 +132,7 @@ local ok, err = pcall(function()
   local original_run = require("plurnk.bridge").run
   require("plurnk.bridge").run = function() model_runs = model_runs + 1 end
   state.set_selected_model_selector("broken/model")
-  cmds.prompt({ args = "must not run", range = 0 })
+  require("plurnk.loop").prompt({ args = "must not run", range = 0 })
   H.assert_eq(model_runs, 0, "a rejected pending model selection prevents inference")
   H.assert_eq(state.consume_selected_model_selector(), "broken/model", "the rejected selection remains pending")
   H.assert_match(notices[#notices], "prompt was not submitted", "the admission failure explains the prompt outcome")
@@ -140,23 +141,23 @@ local ok, err = pcall(function()
   -- Completion stays intentionally small: aliases only. Exact catalog discovery
   -- is explicit through /models, never a startup-sized completion cache.
   state.set_available_aliases({ { alias = "gpt4" }, { alias = "gpt3" }, { alias = "claude" } })
-  local m = cmds.ai_complete("", "AI /model gp", 0)
+  local m = language.complete("", "AI /model gp", 0)
   table.sort(m)
   H.assert_eq(table.concat(m, ","), "gpt3,gpt4", "completes declared aliases by prefix after /model")
 
-  local c = cmds.ai_complete("", "AI /child in", 0)
+  local c = language.complete("", "AI /child in", 0)
   H.assert_eq(table.concat(c, ","), "inherit", "child completion includes the inherit policy")
 
-  local v = cmds.ai_complete("", "AI /mo", 0)
+  local v = language.complete("", "AI /mo", 0)
   local has_model, has_models = false, false
   for _, completion in ipairs(v) do
     if completion == "/model" then has_model = true end
     if completion == "/models" then has_models = true end
   end
   H.assert_truthy(has_model and has_models, "completes slash verbs (/model, /models) after /mo")
-  H.assert_eq(cmds.ai_complete("", "AI /ch", 0)[1], "/child", "completes the child verb")
+  H.assert_eq(language.complete("", "AI /ch", 0)[1], "/child", "completes the child verb")
 
-  local none = cmds.ai_complete("", "AI /pick src", 0)
+  local none = language.complete("", "AI /pick src", 0)
   H.assert_eq(#none, 0, "no verb completion once past the verb")
 end)
 

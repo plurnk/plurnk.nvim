@@ -33,11 +33,11 @@ local ok, err = pcall(function()
   vim.b[buf].plurnk_workspace = "smoke"
   require("plurnk.state").set_workspace_id("smoke", 1)
 
-  local ai = require("plurnk.commands").ai
+  local ai = require("plurnk.language").run
 
   -- {§worker-model-selection} — /child is a server-backed durable selection:
   -- worker.child.set persists the override; nothing child-related rides the run.
-  require("plurnk.commands").set_child("kid")
+  require("plurnk.generation").set_child("kid")
   H.assert_eq(captured[#captured].method, "worker.child.set", "set_child persists server-side")
   H.assert_eq(captured[#captured].params.selector, "kid", "the selector is the server parameter")
   captured = {}
@@ -47,7 +47,7 @@ local ok, err = pcall(function()
   H.assert_eq(child_run.params.childModel, nil, "no client-side child resolution exists")
   H.assert_eq(child_run.params.childSelector, nil, "durable child policy does not ride loop.run")
 
-  require("plurnk.commands").set_child("inherit")
+  require("plurnk.generation").set_child("inherit")
   H.assert_eq(captured[#captured].method, "worker.child.set", "inherit persists server-side")
   H.assert_eq(captured[#captured].params.selector, vim.NIL, "inherit clears the override (selector null)")
   captured = {}
@@ -60,7 +60,7 @@ local ok, err = pcall(function()
 
   -- {§nvim-reasoning-policy} — policy selection is one durable action; it is
   -- never copied into the loop's forwarded properties.
-  require("plurnk.commands").set_reasoning("high")
+  require("plurnk.generation").set_reasoning("high")
   H.assert_eq(captured[#captured].method, "worker.reasoning.set", "reasoning persists server-side")
   H.assert_eq(captured[#captured].params.policy, "high", "the exact policy reaches the daemon")
   captured = {}

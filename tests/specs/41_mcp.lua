@@ -33,8 +33,8 @@ local ok, err = pcall(function()
   state.set_active_workspace_name("mcp-test")
   state.set_workspace_id("mcp-test", 1)
 
-  local commands = require("plurnk.commands")
-  local ai = commands.ai
+  local commands = require("plurnk.language")
+  local ai = commands.run
 
   ai({ args = "/mcp", range = 0 })
   H.assert_eq(sent[1].method, "worker.mcp.list", ":AI/mcp lists the Worker's MCP definitions")
@@ -120,13 +120,13 @@ local ok, err = pcall(function()
   H.assert_eq(#sent, 0, "malformed client command shapes never dispatch")
   H.assert_eq(#notices, 8, "each malformed command has one usage diagnosis")
 
-  local completion = commands.ai_complete("", "AI /mcp en", 0)
+  local completion = commands.complete("", "AI /mcp en", 0)
   H.assert_eq(table.concat(completion, ","), "enable", "MCP management verbs complete")
-  H.assert_eq(table.concat(commands.ai_complete("", "AI /mcp di", 0), ","), "disable,discover", "discover completes alongside disable")
+  H.assert_eq(table.concat(commands.complete("", "AI /mcp di", 0), ","), "disable,discover", "discover completes alongside disable")
   local completion_path = vim.fn.tempname() .. ".json"
   vim.fn.writefile({ "{}" }, completion_path)
   local prefix = completion_path:sub(1, #completion_path - 2)
-  local file_completion = commands.ai_complete("", "AI /mcp add echo echo-mcp " .. prefix, 0)
+  local file_completion = commands.complete("", "AI /mcp add echo echo-mcp " .. prefix, 0)
   H.assert_truthy(#file_completion > 0, "MCP options path completes")
 
   vim.fn.delete(path)

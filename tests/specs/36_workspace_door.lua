@@ -18,7 +18,7 @@ local ok, err = pcall(function()
     end
     on_choice(nil)
   end
-  require("plurnk.commands").workspaces()
+  require("plurnk.workspaces").list()
   H.wait_for(function()
     return require("plurnk.state").get_active_workspace_name() == "door-alpha"
   end, 10000, "picker attach binds the active workspace")

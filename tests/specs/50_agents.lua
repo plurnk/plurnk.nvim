@@ -33,8 +33,8 @@ local ok, err = pcall(function()
   state.set_active_workspace_name("agents-test")
   state.set_workspace_id("agents-test", 1)
 
-  local commands = require("plurnk.commands")
-  local ai = commands.ai
+  local commands = require("plurnk.language")
+  local ai = commands.run
 
   ai({ args = "/agents", range = 0 })
   H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.agents.list", params = {} }), ":AI/agents lists the Worker's agents")
@@ -77,7 +77,7 @@ local ok, err = pcall(function()
   end
   H.assert_eq(#sent, 0, "malformed client command shapes never dispatch")
   H.assert_eq(#notices, 8, "each malformed command has one usage diagnosis")
-  H.assert_eq(table.concat(commands.ai_complete("", "AI /agents di", 0), ","), "disable,discover", "agents verbs complete")
+  H.assert_eq(table.concat(commands.complete("", "AI /agents di", 0), ","), "disable,discover", "agents verbs complete")
 
   vim.fn.delete(path)
   vim.fn.delete(malformed)

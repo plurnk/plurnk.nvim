@@ -68,7 +68,7 @@ local function submit(buf, workspace_name)
   -- one language across both.
   if text:sub(1, 1) == "/" then
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
-    require("plurnk.commands").ai({ args = text, range = 0 })
+    require("plurnk.language").run({ args = text, range = 0 })
     return
   end
 
@@ -99,13 +99,13 @@ local function submit(buf, workspace_name)
   local target_worker = vim.b[buf].plurnk_worker_id
   local current_worker = workspace_name and require("plurnk.state").get_worker_id(workspace_name)
   if target_worker and current_worker and target_worker ~= current_worker then
-    require("plurnk.commands").switch_worker(workspace_name, target_worker, function()
-      require("plurnk.commands").prompt({ args = text, range = 0, flags = flags })
+    require("plurnk.workspace_context").switch_worker(workspace_name, target_worker, function()
+      require("plurnk.loop").prompt({ args = text, range = 0, flags = flags })
     end)
     return
   end
 
-  require("plurnk.commands").prompt({ args = text, range = 0, flags = flags })
+  require("plurnk.loop").prompt({ args = text, range = 0, flags = flags })
 end
 
 -- Decorate the input window (no numbers, wrap on, fixed-height). No

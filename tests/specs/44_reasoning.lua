@@ -21,7 +21,7 @@ local ok, err = pcall(function()
 
   state.set_active_workspace_name("reasoning")
   state.set_workspace_id("reasoning", 1)
-  local commands = require("plurnk.commands")
+  local commands = require("plurnk.generation")
 
   commands.set_reasoning("")
   H.assert_eq(calls[1].method, "worker.reasoning.get", "bare reasoning inspects daemon state")
@@ -34,7 +34,7 @@ local ok, err = pcall(function()
   H.assert_eq(state.get_reasoning_policy("reasoning"), "high", "the daemon result is display truth")
   H.assert_match(require("plurnk.worker_tab").winbar_text("reasoning", nil), "🧠 high", "winbar shows reasoning separately")
 
-  local completion = commands.ai_complete("", "AI /reasoning a", 0)
+  local completion = require("plurnk.language").complete("", "AI /reasoning a", 0)
   H.assert_eq(table.concat(completion, ","), "adaptive", "completion derives from daemon-supported choices")
 
   state.set_active_workspace_name(nil)

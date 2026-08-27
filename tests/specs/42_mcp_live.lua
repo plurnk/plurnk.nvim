@@ -46,7 +46,7 @@ local ok, err = pcall(function()
   state.set_active_workspace_name(workspace.name)
   state.set_workspace_id(workspace.name, workspace.id)
 
-  local ai = require("plurnk.commands").ai
+  local ai = require("plurnk.language").run
   ai({ args = "/mcp add current " .. node .. " \"" .. current_definition .. "\"", range = 0 })
   wait_note("added: current %(active%)", "current add")
 

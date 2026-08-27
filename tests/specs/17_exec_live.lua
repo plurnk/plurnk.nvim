@@ -9,7 +9,7 @@ local ok, err = pcall(function()
   -- EXEC is proposal-gated (202 → loop/proposal); auto-accept via client
   -- YOLO so the headless run doesn't wait on a review keypress.
   require("plurnk.diff").set_yolo(true)
-  local ai = require("plurnk.commands").ai
+  local ai = require("plurnk.language").run
   ai({ args = "! echo alpha && echo beta", range = 0 })
 
   local function stream_lines()

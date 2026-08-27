@@ -23,7 +23,7 @@ local ok, err = pcall(function()
   -- An active workspace → resolve_workspace_then short-circuits straight to the send.
   require("plurnk.state").set_active_workspace_name("memb")
 
-  local cmds = require("plurnk.commands")
+  local cmds = require("plurnk.membership")
   local function last(method)
     for i = #sent, 1, -1 do if sent[i].method == method then return sent[i] end end
     return nil
@@ -72,7 +72,7 @@ local ok, err = pcall(function()
   local notified = {}
   local real_notify = require("plurnk.client").notify
   require("plurnk.client").notify = function(msg) notified[#notified + 1] = msg end
-  cmds.members()
+  cmds.list()
   require("plurnk.client").notify = real_notify
   H.assert_eq(sent[1].method, "workspace.members", "/members asks the daemon for the resolved universe first")
   local out = table.concat(notified, "\n")

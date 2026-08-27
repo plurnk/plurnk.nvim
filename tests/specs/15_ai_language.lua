@@ -41,7 +41,7 @@ local ok, err = pcall(function()
   H.assert_truthy(lr, "abbrev :AI? runs loop")
   H.assert_eq(lr.params.prompt, "hello", "abbrev :AI? strips prefix")
 
-  local ai = require("plurnk.commands").ai
+  local ai = require("plurnk.language").run
 
   -- ── `???` — new HEADLESS workspace (no projectRoot) ──────────────────
   sent = {}

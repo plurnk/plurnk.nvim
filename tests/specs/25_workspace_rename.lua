@@ -18,10 +18,10 @@ local ok, err = pcall(function()
   state.set_active_workspace_name("old")
   state.set_workspace_id("old", 9)
 
-  local cmds = require("plurnk.commands")
+  local cmds = require("plurnk.workspaces")
 
   -- /rename → workspace.rename with the new name; local state adopts it.
-  cmds.workspace_rename({ args = "fresh" })
+  cmds.rename({ args = "fresh" })
   local r
   for i = #sent, 1, -1 do if sent[i].method == "workspace.rename" then r = sent[i]; break end end
   H.assert_truthy(r ~= nil, "workspace.rename was sent")
@@ -31,7 +31,7 @@ local ok, err = pcall(function()
 
   -- empty name → no rpc
   sent = {}
-  cmds.workspace_rename({ args = "" })
+  cmds.rename({ args = "" })
   H.assert_eq(#sent, 0, "empty name sends nothing")
 
   -- The open tab's buffers follow the rename. The input buffer's URI carries

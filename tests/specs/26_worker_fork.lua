@@ -24,7 +24,7 @@ local ok, err = pcall(function()
   state.set_workspace_id("s", 9)
   state.set_worker_id("s", 5)  -- a model worker exists to fork
 
-  local cmds = require("plurnk.commands")
+  local cmds = require("plurnk.workspaces")
 
   -- named fork → run.fork {name}, then attach binds the new worker
   cmds.fork({ args = "branch-a" })

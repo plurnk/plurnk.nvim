@@ -20,7 +20,7 @@ local ok, err = pcall(function()
     if method == "workspace.create" and cb then cb({ id = 1, name = "s", workerId = 2, workerName = "r" }) end
   end
   require("plurnk.client").check_daemon_once = function() end
-  require("plurnk.commands").workspace_new({ args = "" })
+  require("plurnk.workspaces").create({ args = "" })
   local create
   for _, s in ipairs(sent) do if s.method == "workspace.create" then create = s end end
   H.assert_truthy(create ~= nil, "workspace.create was sent")

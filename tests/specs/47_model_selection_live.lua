@@ -15,7 +15,7 @@ local ok, err = pcall(function()
   state.set_active_workspace_name(workspace)
   state.set_workspace_id(workspace, created.id)
 
-  local commands = require("plurnk.commands")
+  local commands = require("plurnk.generation")
   local selector = "nvimtest"
   commands.set_model(selector)
   H.wait_for(function() return state.get_model_selector(workspace) == selector end, 5000, "model selection persisted")

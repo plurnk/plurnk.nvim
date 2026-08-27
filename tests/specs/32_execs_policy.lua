@@ -7,7 +7,7 @@ local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plur
 H.setup()
 
 local ok, err = pcall(function()
-  local commands = require("plurnk.commands")
+  local commands = require("plurnk.workspace_context")
   H.assert_eq(commands.collect_execs_policy(), nil, "nothing set → nil")
 
   vim.env.PLURNK_EXECS_ONLY = "python,node"

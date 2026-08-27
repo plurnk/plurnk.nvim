@@ -14,7 +14,7 @@ local ok, err = pcall(function()
   local orig_notify = vim.notify
   vim.notify = function(msg, lvl) table.insert(notes, { msg = msg, lvl = lvl }) end
 
-  local ai = require("plurnk.commands").ai
+  local ai = require("plurnk.language").run
 
   -- ── :AI/ and :AI/help — language screen, zero RPC ──────────────────
   ai({ args = "/", range = 0 })
@@ -31,7 +31,7 @@ local ok, err = pcall(function()
 
   notes = {}
   -- switch_worker to a different run forces fresh_connection.
-  require("plurnk.commands").switch_worker("busy", 777, function() end)
+  require("plurnk.workspace_context").switch_worker("busy", 777, function() end)
   local warned = false
   for _, n in ipairs(notes) do
     if n.msg:match("continues on the daemon") and n.msg:match("busy·main%-thread") then warned = true end
@@ -40,7 +40,7 @@ local ok, err = pcall(function()
 
   state.set_loop_inflight("busy", false)
   notes = {}
-  require("plurnk.commands").switch_worker("busy", 778, function() end)
+  require("plurnk.workspace_context").switch_worker("busy", 778, function() end)
   for _, n in ipairs(notes) do
     H.assert_truthy(not n.msg:match("continues on the daemon"), "idle switch stays quiet")
   end
