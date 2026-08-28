@@ -167,9 +167,9 @@ local function build_extra(entry)
 
   if entry.op == "COPY" or entry.op == "MOVE" then
     if not tx then return "" end
-    local body = type(tx.body) == "table" and tx.body or nil
-    if body == nil then return "(deleted)" end
-    return "→ " .. (body.raw or "")
+    local destination = type(tx.destination) == "table" and tx.destination or nil
+    local target = destination and type(destination.target) == "table" and destination.target or nil
+    return target and type(target.raw) == "string" and "→ " .. target.raw or ""
   end
 
   if entry.op == "SEND" then

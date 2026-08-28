@@ -57,6 +57,22 @@ local ok, err = pcall(function()
   H.assert_match(find_lines[1], "🔍", "FIND glyph")
   H.assert_match(find_lines[1], "→ 3 results", "FIND counts the current array result shape")
 
+  local copy_lines = R({
+    op = "COPY", origin = "model", scheme = "worker", pathname = "/source",
+    status_rx = 200,
+    tx = { destination = { target = { raw = "worker:///destination" } } },
+  })
+  H.assert_match(copy_lines[1], "📋", "COPY glyph")
+  H.assert_match(copy_lines[1], "→ worker:///destination", "COPY names its destination operand")
+
+  local incomplete_move = R({
+    op = "MOVE", origin = "model", scheme = "worker", pathname = "/source",
+    status_rx = 200, tx = {},
+  })
+  H.assert_match(incomplete_move[1], "📦", "MOVE glyph")
+  H.assert_truthy(not incomplete_move[1]:match("deleted"),
+    "an invalid transfer invents no retired destination-body semantics")
+
   -- PLAN → one ordered status-glyph line per canonical entry.
   local plan_lines = R({
     op = "PLAN", origin = "model", scheme = nil, pathname = nil,
