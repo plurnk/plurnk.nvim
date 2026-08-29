@@ -36,10 +36,9 @@ descriptions consume the same registry. No-space forms (`:AI?? hi`) work via
 cmdline abbreviations.
 
   :AI               toggle workspace tab <-> where you came from
-  :AI {text}        prompt (act)
-  :AI? {text}       ASK: read-only loop (flags.mode="ask"; the daemon
-                    403s schemes excluded in ask — file edits, exec)
-  :AI: {text}       act (the default)
+  :AI {text}        prompt with the configured loop policy
+  :AI? {text}       ask profile: deny EXEC; review admitted side effects
+  :AI: {text}       ordinary configured loop policy
   :AI! {cmd}        exec {cmd} via the daemon; bare :AI! execs the
                     visual selection verbatim
   :AI?? / ::        new workspace, then prompt
@@ -81,7 +80,8 @@ the daemon (and still completes) — you just stop seeing its live events, so
 the notify says to reopen the worker to catch up.
 
 The input split (bottom, 3 lines): `<CR>` in normal mode submits. Prefixes
-match :AI — `? ` ask, `: ` act, `! ` exec; `# PLAN0` / `## OP0` enter raw
+match :AI — `? ` narrows policy, `: ` uses ordinary policy, `! ` execs;
+`# PLAN0` / `## OP0` enter raw
 PLURNK.
 
 Readable provider reasoning appears before its SEND as a distinct `💭` block.

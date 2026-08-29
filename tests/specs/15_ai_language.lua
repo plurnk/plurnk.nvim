@@ -62,24 +62,26 @@ local ok, err = pcall(function()
   H.assert_truthy(lrf, ":AI???? runs a loop in the fork")
   H.assert_eq(lrf.params.prompt, "take two", ":AI???? carries the prompt into the fork")
 
-  -- ── `?` is ASK: flags.mode="ask" rides loop.run; `:` is act ────────
+  -- ── `?` is one capability-policy profile; `:` is ordinary ────────
   sent = {}
   ai({ args = "? read only please", range = 0 })
   local ask = find(sent, "loop.run")
   H.assert_truthy(ask, ":AI? runs a loop")
-  H.assert_eq(ask.params.flags and ask.params.flags.mode, "ask", ":AI? sends flags.mode=ask")
+  H.assert_eq(ask.params.policy.proposals, "review", ":AI? retains client review")
+  H.assert_eq(ask.params.policy.capabilities.deny[1].operation, "EXEC", ":AI? denies EXEC")
 
   sent = {}
   ai({ args = ": change things", range = 0 })
   local act = find(sent, "loop.run")
   H.assert_truthy(act, ":AI: runs a loop")
-  H.assert_eq(act.params.flags, nil, ":AI: sends no flags (act is the daemon default)")
+  H.assert_eq(act.params.policy.proposals, "review", ":AI: sends ordinary review policy")
+  H.assert_eq(next(act.params.policy.capabilities), nil, ":AI: does not attenuate capabilities")
 
   -- ask survives scope repetition: `??` = new workspace, still ask
   sent = {}
   ai({ args = "?? fresh ask", range = 0 })
   local ask2 = find(sent, "loop.run")
-  H.assert_eq(ask2.params.flags and ask2.params.flags.mode, "ask", ":AI?? carries ask into the new workspace")
+  H.assert_eq(ask2.params.policy.capabilities.deny[1].operation, "EXEC", ":AI?? carries policy attenuation into the new workspace")
 
   -- ── `/` routing ────────────────────────────────────────────────────
   sent = {}

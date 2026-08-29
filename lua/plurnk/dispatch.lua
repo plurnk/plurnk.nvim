@@ -142,10 +142,8 @@ end
 -- loop/proposal: a side-effecting op is paused awaiting client resolution
 -- per SPEC §6.1. We hand it off to resolve.lua.
 --
--- Server-resolved proposals (loop flags.yolo = server-side YOLO auto-accept,
--- flags.noProposals = server-side auto-reject) settle in-process before any
--- human can react — review UI and a loop.resolve would race the already-
--- settled entry. Skip; the lifecycle still shows in the log/entry waterfall.
+-- AG-UI projects only client-owned proposals onto this surface. Loop-owned
+-- accept/reject dispositions settle in Core and never become review work here.
 -- One daemon proposal fans out to EVERY open SSE of the workspace (each in-flight
 -- action run is a live stream) — process once per logEntryId; the log is
 -- append-only, so an id never legitimately recurs.
@@ -155,8 +153,6 @@ M.handle_loop_proposal = function(params, workspace_name)
   if not params or type(params.logEntryId) ~= "number" then return end
   if seen_proposals[params.logEntryId] then return end
   seen_proposals[params.logEntryId] = true
-  local flags = params.flags
-  if type(flags) == "table" and (flags.yolo == true or flags.noProposals == true) then return end
   if workspace_name then state.add_proposal(workspace_name, params.logEntryId, params) end
   vim.schedule(function()
     local ok, resolve = pcall(require, "plurnk.resolve")

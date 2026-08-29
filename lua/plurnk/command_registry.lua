@@ -80,6 +80,8 @@ local COMMANDS = {
     run = invoke("plurnk.generation", "set_child", "argument"), completion = "child" },
   { name = "reasoning", usage = "/reasoning [policy]", summary = "Inspect or select durable reasoning policy.", group = "policy",
     run = invoke("plurnk.generation", "set_reasoning", "argument"), completion = "reasoning" },
+  { name = "capabilities", usage = "/capabilities [json]", summary = "Inspect or restrict this worker's capabilities.", group = "policy",
+    run = invoke("plurnk.capabilities", "run", "argument") },
   { name = "yolo", usage = "/yolo", summary = "Toggle local proposal auto-accept.", group = "policy",
     run = invoke("plurnk.controls", "yolo") },
 

@@ -132,11 +132,11 @@ failed_names=()
 
 # Real-model specs are excluded from the ordinary deterministic gate. Exporting
 # PLURNK_MODEL is both their model selection and their explicit admission.
-MODEL_SPECS="10_ai_end_to_end 39_ask_steer"
+MODEL_SPECS="10_ai_end_to_end 39_policy_steer"
 
 # Stateful composed specimens get a fresh daemon so earlier client state cannot
 # change their meaning. Isolation is the fix, not retries.
-ISOLATED_SPECS="10_ai_end_to_end 17_exec_live 39_ask_steer"
+ISOLATED_SPECS="10_ai_end_to_end 17_exec_live 39_policy_steer"
 
 reboot_daemon() {
   [ -n "${DAEMON_PID:-}" ] || return 0

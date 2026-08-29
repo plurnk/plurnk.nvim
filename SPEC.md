@@ -93,9 +93,9 @@ what this client guarantees. Tests are organized by observable behavior under
 - **One metacommand** — cmdline abbreviations (`:AI?` without a
   space), full `/` verb routing, and the bare `:AI` toggle; `:AI/` prints the language
   and sends nothing.
-- **Mode is a per-line prefix** — `?` = ask
-  (`flags.mode="ask"`), `:` = act (the daemon default, send nothing), `!` = exec.
-  Converged with the TUI and the CLI; never an `--ask` flag.
+- **Policy is projected per line** — `?` intersects the configured loop policy
+  with `{deny:[{operation:"EXEC"}]}` and selects proposal review; `:` sends the
+  configured policy unchanged; `!` = exec. Core has no named ask/act mode.
 - **Repetition carries scope** — `??` new workspace, `???` new
   headless workspace, `????` fork-lite (new worker in the current workspace).
 - **Visual ranges wrap** — `:'<,'>AI: explain` folds the
@@ -324,9 +324,9 @@ what this client guarantees. Tests are organized by observable behavior under
 
 - **Review is a diffsplit** — accept-with-edits regenerates a
   valid udiff from the edited buffer.
-- **Server-resolved proposals never prompt** — `flags.yolo`
-  (server auto-accept) and `flags.noProposals` (server auto-reject) settle in-process
-  on the daemon; dispatch drops them client-side.
+- **Only client-owned proposals prompt** — AG-UI projects proposal review only
+  when the durable disposition owner is the client. Loop-owned accept/reject
+  settles in Core; the client never re-derives ownership from policy fields.
 - **[300] questions elicit** — a SEND carrying `attrs.question`
   picks via `vim.ui.select` (+ a Free Response escape) or `vim.ui.input`, resolving
   with `decision=accept` and the answer as body.
@@ -334,9 +334,13 @@ what this client guarantees. Tests are organized by observable behavior under
 ## §8 Config and policy
 
 - **Workspace-open settings ride creation** — the client id,
-  execs policy, `questions`, and `filesItems` (the CLI's
+  optional canonical `capabilities`, and `filesItems` (the CLI's
   `--files-items`, converged: -1 full / 0 off / N first-N) travel on `workspace.create`;
   creation is atomic, nothing arrives later.
+- **One capability contract spans scopes** — `workspace_capabilities` narrows
+  workspace creation, `/capabilities [json]` reads the complete durable cascade
+  or replaces its mutable Worker layer, and `loop_policy` supplies the base
+  policy for each loop. `?` is only a further loop attenuation.
 - §nvim-model-discovery **Model selection is server-backed and discovery is lazy** —
   the worker owns the model ({§worker-model-selection}). `/model <selector>` accepts
   either a declared alias or exact `provider/model`; `worker.model.set {selector}`
@@ -363,9 +367,6 @@ what this client guarantees. Tests are organized by observable behavior under
   the daemon value, model changes refresh its supported choices, and the worker
   winbar renders the effective policy independently of the model selector. The
   client owns no provider-effort catalog and preserves daemon Problems.
-- **Execs policy forwards; secrets never do** — `PLURNK_EXECS_*`
-  enable/disable grammar rides verbatim for the daemon's subtractive intersection;
-  `PLURNK_EXECS_MCP_*` server configs (URLs, bearer tokens) never touch the wire.
 - **Interactive provider authentication belongs to third-party MCP tooling.**
 
 ## §9 Diagnostics

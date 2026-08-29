@@ -127,7 +127,7 @@
     "loop.inject": {
       "posture": "native",
       "evidence": [
-        "tests/specs/39_ask_steer.lua"
+        "tests/specs/39_policy_steer.lua"
       ],
       "dimensions": [
         "admission",
@@ -329,7 +329,7 @@
         "durability"
       ]
     },
-    "worker.settings.get": {
+    "worker.capabilities.get": {
       "posture": "generic",
       "evidence": [
         "tests/specs/35_agui.lua — generic action transport",
@@ -342,7 +342,7 @@
         "composition"
       ]
     },
-    "worker.settings.set": {
+    "worker.capabilities.set": {
       "posture": "generic",
       "evidence": [
         "tests/specs/35_agui.lua — generic action transport",

@@ -72,9 +72,8 @@ local function submit(buf, workspace_name)
     return
   end
 
-  -- Prefix language, same as :AI — `?` is ASK (flags.mode="ask"; the
-  -- engine 403s excludedInAsk schemes), `:` is act (default), `!` execs
-  -- the rest through the daemon (op.exec).
+  -- Prefix language, same as :AI. `?` is a client projection that denies EXEC
+  -- for this loop and retains proposal review; `:` carries ordinary policy.
   local first = text:sub(1, 1)
   if first == "!" then
     local cmd = text:gsub("^!+%s*", "")
@@ -84,8 +83,8 @@ local function submit(buf, workspace_name)
       return
     end
   end
-  local flags = first == "?" and { mode = "ask" } or nil
-  text = text:gsub("^[%?%:%!]+%s*", "")
+  local projected = require("plurnk.policy").prompt(text)
+  text = projected.prompt
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
 
@@ -100,12 +99,12 @@ local function submit(buf, workspace_name)
   local current_worker = workspace_name and require("plurnk.state").get_worker_id(workspace_name)
   if target_worker and current_worker and target_worker ~= current_worker then
     require("plurnk.workspace_context").switch_worker(workspace_name, target_worker, function()
-      require("plurnk.loop").prompt({ args = text, range = 0, flags = flags })
+      require("plurnk.loop").prompt({ args = text, range = 0, policy = projected.policy })
     end)
     return
   end
 
-  require("plurnk.loop").prompt({ args = text, range = 0, flags = flags })
+  require("plurnk.loop").prompt({ args = text, range = 0, policy = projected.policy })
 end
 
 -- Decorate the input window (no numbers, wrap on, fixed-height). No

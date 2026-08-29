@@ -8,9 +8,8 @@ local defaults = {
   port = 1066,
   log_path = log_dir .. "/plurnk_client.log",
   background_log_path = log_dir .. "/plurnk_background.log",
-  -- {§worker-settings} — nvim is an interactive client: the conversation worker
-  -- may ask through the question tool by default; set false to forbid it.
-  request_user_input = true,
+  loop_policy = { capabilities = {}, proposals = "review" },
+  workspace_capabilities = nil,
 }
 
 local config = vim.deepcopy(defaults)

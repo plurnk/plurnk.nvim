@@ -48,8 +48,8 @@ local ok, err = pcall(function()
   H.assert_eq(observe("worker.model.get").spawnModel.alias, "nvimtest", "separate connection observes child model")
   H.call("worker.reasoning.set", { policy = "adaptive" })
   H.assert_eq(observe("worker.reasoning.get").policy, "adaptive", "separate connection observes reasoning")
-  H.call("worker.settings.set", { settings = { requestUserInput = true } })
-  H.assert_eq(observe("worker.settings.get").requestUserInput, true, "separate connection observes settings")
+  H.call("worker.capabilities.set", { policy = { deny = { { runtime = "sh" } } } })
+  H.assert_eq(observe("worker.capabilities.get").worker.deny[1].runtime, "sh", "separate connection observes capability settings")
 
   local service_root = os.getenv("PLURNK_SERVICE_DIR") or (root .. "/../plurnk-service")
   local fixture = service_root .. "/plurnk-mcp/src/fixtures/echo-server.mjs"

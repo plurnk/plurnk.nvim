@@ -43,9 +43,9 @@ while pre-1.0, a minor bump may carry breaking changes (see the tag message).
 | Form | Effect |
 |---|---|
 | `:AI` | toggle workspace tab ⇄ where you came from |
-| `:AI {text}` | prompt (act) |
-| `:AI? {text}` | **ask** — read-only loop: `flags.mode="ask"`, the engine 403s edits/exec |
-| `:AI: {text}` | act (the default) |
+| `:AI {text}` | prompt with the configured loop policy |
+| `:AI? {text}` | ask profile — deny EXEC for this loop; review any admitted side effect |
+| `:AI: {text}` | ordinary configured loop policy |
 | `:AI! {cmd}` | exec `{cmd}` via the daemon; bare `:AI!` execs the visual selection |
 | `:AI??` / `::` | new workspace, then prompt |
 | `:AI???` | new headless workspace (no project root) |
@@ -58,6 +58,8 @@ Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:A
 `/model <selector>` selects the parent; `/child <selector>` selects WORK/FORK/BARE calls, and `/child inherit` follows the spawning loop. A selector is a declared alias or exact `provider/model`. `/models [search]` lazily searches the daemon's bounded model catalog; it is never loaded at startup.
 `/reasoning` reports the worker's durable policy and supported choices;
 `/reasoning <policy>` persists a daemon-validated selection.
+`/capabilities` reports the service/workspace/inherited/Worker capability cascade and effective intersection;
+`/capabilities <json>` replaces its mutable Worker layer through the daemon's canonical policy contract.
 
 Command routing, completion, contextual help, and default key descriptions use
 one registry. Completion demand-loads model and Functionality choices only at
@@ -96,6 +98,6 @@ vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 - Transport: AG-UI+ over HTTP/SSE (`curl -N` under `vim.system`) against the daemon's in-process module; events un-project to the daemon shapes dispatch renders. The threadId is the workspace name, verbatim; the workspace (world) rides `forwardedProps.plurnk.workspace` on every run.
 - Presentation: optional `plurnk render --width <columns>` over stdin/stdout, cached by semantic source and live width. It is never used for transport.
 - Client contract: `SPEC.md` (this repo). External protocol: the plurnk-agui SPEC. Runtime model: the plurnk-service SPEC.
-- Notifications consumed: `log/entry` (routed per worker by `entry.worker_id`), `loop/proposal` (server-resolved `flags.yolo/noProposals` are skipped), `loop/terminated`, `notice/event`, `stream/event`, `stream/concluded`.
+- Notifications consumed: `log/entry` (routed per worker by `entry.worker_id`), client-owned `loop/proposal`, `loop/terminated`, `notice/event`, `stream/event`, `stream/concluded`. Loop-owned proposal dispositions settle before AG-UI projection.
 - Tests: `./tests/runner.sh` — one headless nvim per spec; boots a private daemon from the sibling `../plurnk-service` checkout (tmp DB, ephemeral port) unless `PLURNK_PORT` is set. `PLURNK_SERVICE_DIR` overrides the daemon location. `node tests/composition.mjs` copies an installed-plugin layout and drives its default multiline prompt, review/resume, and two-turn completion journey through the built service and a deterministic local provider fixture.
 - Project management: `AGENTS.md` (local). Audit + roadmap: [#16](https://github.com/plurnk/plurnk.nvim/issues/16).

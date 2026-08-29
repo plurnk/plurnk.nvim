@@ -54,19 +54,8 @@ function M.exec(command)
   end)
 end
 
-function M.run(workspace_name, prompt, flags)
-  local forwarded = {}
-  local configured = require("plurnk.config").get("request_user_input")
-  local enabled_by_env = ({
-    ["1"] = true,
-    ["true"] = true,
-    ["yes"] = true,
-    ["on"] = true,
-  })[(vim.env.PLURNK_REQUEST_USER_INPUT or ""):lower()]
-  local request_user_input = true
-  if configured == false or enabled_by_env == false then request_user_input = false end
-  forwarded.requestUserInput = request_user_input
-  if flags then forwarded.flags = flags end
+function M.run(workspace_name, prompt, policy)
+  local forwarded = { policy = policy or require("plurnk.policy").base() }
   local open_paths = extract_open_paths(prompt)
   if #open_paths > 0 then forwarded.openPaths = open_paths end
 
@@ -90,7 +79,7 @@ function M.prompt(opts)
   end
   require("plurnk.workspace_context").resolve(function(workspace_name)
     require("plurnk.worker_tab").open(workspace_name)
-    M.run(workspace_name, text, opts.flags)
+    M.run(workspace_name, text, opts.policy)
   end)
 end
 

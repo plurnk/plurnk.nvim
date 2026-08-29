@@ -84,7 +84,7 @@ function M.run(opts)
     end
   end
   local rest = raw:sub(prefix_length + 1):gsub("^%s+", "")
-  local flags = first == "?" and { mode = "ask" } or nil
+  local projected = require("plurnk.policy").prompt(raw)
   local context = require("plurnk.workspace_context")
   local loop = require("plurnk.loop")
 
@@ -115,7 +115,7 @@ function M.run(opts)
     local prompt = loop.wrap_with_selection(rest, opts)
     local submit = function(workspace_name)
       require("plurnk.worker_tab").open(workspace_name)
-      if prompt ~= "" then loop.run(workspace_name, prompt, flags) end
+      if prompt ~= "" then loop.run(workspace_name, prompt, projected.policy) end
     end
     if prefix_length >= 4 then
       local workspace = context.active()
@@ -130,7 +130,7 @@ function M.run(opts)
     range = opts.range or 0,
     line1 = opts.line1,
     line2 = opts.line2,
-    flags = flags,
+    policy = projected.policy,
   })
 end
 

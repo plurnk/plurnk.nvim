@@ -4,23 +4,12 @@ local M = {}
 
 local CLIENT_ID = "plurnk.nvim"
 
-function M.collect_execs_policy()
-  local out, any = {}, false
-  for key, value in pairs(vim.fn.environ()) do
-    if key:match("^PLURNK_EXECS_")
-        and not key:match("^PLURNK_EXECS_MCP_")
-        and type(value) == "string" then
-      out[key] = value
-      any = true
-    end
-  end
-  return any and out or nil
-end
-
 function M.settings()
   local settings = { client = CLIENT_ID }
-  local execs = M.collect_execs_policy()
-  if execs then settings.execs = execs end
+  local capabilities = require("plurnk.config").get("workspace_capabilities")
+  if type(capabilities) == "table" then
+    settings.capabilities = require("plurnk.policy").capabilities(capabilities)
+  end
   local files_items = require("plurnk.config").get("files_items")
   if type(files_items) == "number" then settings.filesItems = files_items end
   return settings
