@@ -8,7 +8,7 @@
 local M = {}
 local INPUT_HEIGHT = 3
 local H2_OPS = {
-  "FIND", "READ", "EDIT", "COPY", "MOVE", "OPEN", "FOLD",
+  "FIND", "READ", "EDIT", "COPY", "MOVE",
   "KILL", "EXEC", "BARE", "WORK", "FORK", "SEND", "LOOK",
 }
 

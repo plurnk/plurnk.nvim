@@ -30,11 +30,11 @@ local ok, err = pcall(function()
   -- No leading indent
   H.assert_truthy(read_lines[1]:sub(1, 1) ~= " ", "no leading indent")
 
-  -- EXEC: executor name from signal renders as [executor]; failure → ❌.
+  -- EXEC: the authored executor slot renders as [executor]; failure → ❌.
   local exec_lines = R({
     op = "EXEC", origin = "model", scheme = "exec", pathname = "/1/1/2/EXEC",
-    status_rx = 501, signal = "search",
-    tx = { body = "capital of France" },
+    status_rx = 501,
+    tx = { executor = "search", body = "capital of France" },
   })
   H.assert_eq(#exec_lines, 1, "EXEC single line")
   H.assert_match(exec_lines[1], "🔧", "EXEC glyph")

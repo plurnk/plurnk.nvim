@@ -12,8 +12,6 @@ M.OP_GLYPHS = {
   MOVE = "📦",
   SHOW = "➕",
   HIDE = "➖",
-  OPEN = "➕",
-  FOLD = "➖",
   SEND = "💬",
   EXEC = "🔧",
   BARE = "🔮",
@@ -346,12 +344,13 @@ M.render_log_entry = function(entry)
   local sub_glyph = M.status_glyph(entry.status_rx)
   local status = tostring(entry.status_rx or "?")
 
-  -- EXEC: signal carries the executor name per grammar SPEC §3 — show it
-  -- in the path column as `[<executor>]`. The runtime-tag stream entry the
-  -- daemon stamps on EXEC entries is noise from the user's perspective.
+  -- EXEC: the authored `[executor]` slot rides the statement (tx.executor); show it
+  -- in the path column as the model wrote it. A bare shell EXEC shows nothing — the
+  -- runtime-tag stream entry the daemon stamps is noise from the user's perspective.
   local path = ""
   if entry.op == "EXEC" then
-    if entry.signal ~= nil then path = "[" .. tostring(entry.signal) .. "]" end
+    local tx = entry.tx
+    if type(tx) == "table" and type(tx.executor) == "string" then path = "[" .. tx.executor .. "]" end
   elseif entry.pathname ~= nil then
     if entry.scheme ~= nil then
       path = string.format("%s://%s%s%s",
