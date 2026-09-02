@@ -10,9 +10,9 @@ const programs = Object.freeze([
         content: [
             "# PLAN0",
             '[{"content":"Create the requested acceptance marker through review.","priority":"high","status":"in_progress"}]',
-            "## EXEC0 [sh] (.)",
+            "## EXEC0",
             "printf 'accepted\\n' > journey.txt",
-            "## SEND0 [102]",
+            "## SEND0 (NEXT)",
             "Next: Confirm the reviewed command completed.",
         ].join("\n"),
     },
@@ -21,7 +21,7 @@ const programs = Object.freeze([
         content: [
             "# PLAN0",
             '[{"content":"Create the requested acceptance marker through review.","priority":"high","status":"completed"}]',
-            "## SEND0 [200]",
+            "## SEND0 (TERM)",
             "The reviewed multiline journey is complete.",
         ].join("\n"),
     },
