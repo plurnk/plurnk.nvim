@@ -22,7 +22,6 @@ M.PLAN_STATUS_GLYPHS = {
   in_progress = "🚧",
   pending = "⬜",
 }
-M.PLAN_MEMORY_GLYPH = "💾"
 
 M.ORIGIN_GLYPHS = {
   model = "🤖",
@@ -205,10 +204,7 @@ end
 -- codes remain exact on the wire without repeating in human output.
 
 local function plan_entry(entry)
-  local projected_memory = entry.status == "completed"
-    and type(entry.content) == "string"
-    and entry.content:sub(1, 8) == "Memory: "
-  local glyph = projected_memory and M.PLAN_MEMORY_GLYPH or M.PLAN_STATUS_GLYPHS[entry.status]
+  local glyph = M.PLAN_STATUS_GLYPHS[entry.status]
   if glyph == nil or type(entry.content) ~= "string" then
     error("PLAN row carries a noncanonical Plan entry")
   end
@@ -216,7 +212,6 @@ local function plan_entry(entry)
     error("PLAN row carries a noncanonical ACP Plan priority")
   end
   local content = entry.content:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
-  if projected_memory then content = content:sub(9) end
   if entry.priority ~= "medium" then content = "[" .. entry.priority .. "] " .. content end
   return glyph, content
 end

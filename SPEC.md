@@ -283,8 +283,8 @@ what this client guarantees. Tests are organized by observable behavior under
   blocks.
 - **Plan entries remain structured** — PLAN consumes the ACP Plan projection and
   renders its complete entry list in source order, one line each: ✅ `completed`,
-  🚧 `in_progress`, and ⬜ `pending`; `completed` content beginning "Memory: "
-  renders as 💾 without the projection prefix.
+  🚧 `in_progress`, and ⬜ `pending`. Task content is literal, without
+  prefix-based status inference or stripping.
   The first line carries a failed PLAN's glyph and code (a routine PLAN carries neither); later lines
   align beneath it. Entry whitespace collapses to one line, neutral `medium` priority
   is implicit, and non-neutral priority renders as `[high]` or `[low]`. An empty Plan
@@ -300,7 +300,7 @@ what this client guarantees. Tests are organized by observable behavior under
   becomes a native closed fold; absent, empty, and encrypted reasoning invent no
   readable transcript. Replaying a completed message identity is idempotent; malformed
   ordering within a live message fails at the client boundary.
-  PLAN remains the model's durable working-memory inventory.
+  PLAN remains the model's durable task inventory.
 - **Stream windows** — channel prefixes + interleave, batched
   flush (one `entry.read` per tick burst), partial-line hold, a conclusion footer, and
   `BufWipeout` → an `op.send` cancellation carrying status 499.
