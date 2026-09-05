@@ -178,17 +178,6 @@
         "durability"
       ]
     },
-    "workspace.derivation": {
-      "posture": "generic",
-      "evidence": [
-        "tests/specs/35_agui.lua — generic action transport"
-      ],
-      "dimensions": [
-        "projection",
-        "success",
-        "failure"
-      ]
-    },
     "entry.read": {
       "posture": "native",
       "evidence": [

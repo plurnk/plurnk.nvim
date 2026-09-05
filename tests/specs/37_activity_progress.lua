@@ -1,7 +1,4 @@
--- -- Derivation progress collapses into the shared edge percentage — NOT a
--- per-tick waterfall line — and engine:turn liveness is
--- dropped entirely. The nvim used to spam every
--- "recounting tokens N/M" tick into the worker tab (operator, 2026-07-10).
+-- {§nvim-worker-status}: indexing uses ordinary AG-UI state; failures remain diagnostics.
 local NAME = "37_activity_progress"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
@@ -41,20 +38,17 @@ local ok, err = pcall(function()
   local appended = {}
   worker_tab.append_line = function(_, line) appended[#appended + 1] = line end
 
-  -- Mid-recount (12/65) → progress active, and NOT a single waterfall line.
-  apply_delta({ kind = "derivation", phase = "indexing", completed = 12, total = 65, percent = 18, message = "recounting tokens 12/65" })
-  dispatch.handle_notice_event({ notice = { source = "engine:derivation", kind = "embed_progress", level = "info", completed = 12, total = 65, percent = 18, message = "recounting tokens 12/65" } }, workspace)
+  -- Mid-indexing (12/65) → progress active, and NOT a single waterfall line.
+  apply_delta({ kind = "derivation", phase = "indexing", completed = 12, total = 65, percent = 18, message = "indexing search 12/65" })
   H.assert_eq(state.get_runtime_status(workspace).activity.percent, 18, "AG-UI state owns derivation percentage")
   H.assert_eq(#appended, 0, "progress ticks never hit the waterfall")
 
   -- Another tick while already active — still no line, no churn.
-  apply_delta({ kind = "derivation", phase = "indexing", completed = 40, total = 65, percent = 61, message = "recounting tokens 40/65" })
-  dispatch.handle_notice_event({ notice = { source = "engine:derivation", kind = "embed_progress", level = "info", completed = 40, total = 65, percent = 61 } }, workspace)
+  apply_delta({ kind = "derivation", phase = "indexing", completed = 40, total = 65, percent = 61, message = "indexing search 40/65" })
   H.assert_eq(#appended, 0, "subsequent ticks add no lines")
 
-  -- Recount complete (65/65) → compact progress off.
+  -- Indexing complete (65/65) → compact progress off.
   apply_delta(vim.NIL)
-  dispatch.handle_notice_event({ notice = { source = "engine:derivation", kind = "embed_progress", level = "info", phase = "complete", completed = 65, total = 65, percent = 100 } }, workspace)
   H.assert_eq(state.get_runtime_status(workspace).activity, nil, "terminal AG-UI state clears compact progress")
 
   -- engine:turn liveness → dropped (it's the activity slot, not a line).
@@ -83,6 +77,14 @@ local ok, err = pcall(function()
   dispatch.handle_notice_event({ notice = { source = "exec:search", kind = "search_progress", level = "info", phase = "complete", percent = 100 } }, workspace)
   H.assert_eq(state.get_search_progress(workspace), nil, "terminal search progress clears the edge state")
   H.assert_eq(require("plurnk.statusline").text(), "", "search gauge gone when complete")
+
+  dispatch.handle_notice_event({ notice = {
+    source = "engine:derivation", kind = "search_progress", level = "error", phase = "failed",
+    message = "Search indexing failed: SQLite database is locked",
+  } }, workspace)
+  vim.wait(300, function() return #appended > 1 end)
+  H.assert_eq(#appended, 2, "indexing failure remains an explicit diagnostic")
+  H.assert_match(appended[2], "SQLite database is locked", "the producer's failure detail is preserved")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

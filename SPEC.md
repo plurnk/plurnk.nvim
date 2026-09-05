@@ -310,7 +310,9 @@ what this client guarantees. Tests are organized by observable behavior under
   ErrorMsg, warn → WarningMsg, info → Comment; no kind heuristic.
 - **Compact activity mirrors the terminal clients** — derivation, search
   acquisition, and serialized branch progress share one plain `N%` statusline
-  slot and never append progress ticks to the waterfall. Below-completion
+  slot and never append progress ticks to the waterfall. Indexing comes only
+  from AG-UI status snapshots/deltas; warnings and failures retain their
+  diagnostic Notices. Below-completion
   progress supersedes exact `⌛︎` while a loop is active; completion clears the
   slot, exposing idle 🔥 only when YOLO is armed. Branch completion, failure,
   and recovery still append one durable summary.

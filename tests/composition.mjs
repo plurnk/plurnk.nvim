@@ -161,7 +161,6 @@ vim.cmd("qa!")
             PLURNK_PORT: String(port),
             PLURNK_WS_PORT: "0",
             PLURNK_SERVICE_DB_PATH: join(temp, "plurnk.db"),
-            PLURNK_SERVICE_EMBED_DISABLE: "1",
             PLURNK_SERVICE_MAX_TURNS: "8",
             PLURNK_MCP_ENABLED: "[]",
             PLURNK_MODEL: "journey",

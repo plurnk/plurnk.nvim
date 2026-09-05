@@ -207,10 +207,6 @@ M.handle_notice_event = function(params, workspace_name)
   local notice = params.notice
   -- engine:turn liveness is the activity slot, not a waterfall line.
   if notice.source == "engine:turn" then return end
-  -- The immediately preceding AG-UI STATE_DELTA owns derivation activity.
-  if notice.source == "engine:derivation" and notice.kind == "embed_progress" then
-    return
-  end
   -- Search page acquisition is compact edge state too: a percentage in the
   -- statusline, never one waterfall line per milestone or candidate.
   if type(notice.source) == "string" and notice.source:match("^exec:")
