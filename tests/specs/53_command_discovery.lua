@@ -34,7 +34,7 @@ local ok, err = pcall(function()
 
   local language = require("plurnk.language")
   local expected = table.concat({
-    "/accept", "/agents", "/cancel", "/capabilities", "/child", "/clear",
+    "/accept", "/agents", "/attach", "/cancel", "/capabilities", "/child", "/clear",
     "/edit", "/help", "/log", "/mcp", "/members", "/model",
     "/models", "/next", "/open", "/ping", "/prev",
     "/reasoning", "/reconnect", "/reject", "/rename", "/script",

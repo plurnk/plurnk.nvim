@@ -87,25 +87,68 @@ function M.workers()
   local client = require("plurnk.client")
   client.send("workspace.workers", { id = workspace_id }, false, function(result)
     if type(result) ~= "table" or type(result.workers) ~= "table" then return end
-    local workers = {}
-    for _, worker in ipairs(result.workers) do
-      if worker.origin == "model" then workers[#workers + 1] = worker end
-    end
+    local directory = require("plurnk.workers")
+    directory.remember_names(workspace, result.workers)
+    local workers = directory.conversations(result.workers)
     if #workers == 0 then
       client.notify("No conversations in " .. workspace, vim.log.levels.INFO)
       return
     end
-    vim.ui.select(workers, {
+    -- The picker IS the topology (nvim#27): the bound conversation's tree
+    -- first, ● on the bound worker, one row per conversation.
+    local rows = directory.topology(workers, require("plurnk.state").get_worker_id(workspace))
+    vim.ui.select(rows, {
       prompt = "Plurnk conversation (workspace " .. workspace .. ")",
-      format_item = function(worker)
-        return worker.name .. "  (" .. (worker.created_at or "?") .. ")"
+      format_item = function(row)
+        return row.tree .. "  " .. (row.worker.created_at or "?")
       end,
     }, function(choice)
       if not choice then return end
-      context.switch_worker(workspace, choice.id, function()
+      context.switch_worker(workspace, choice.worker.id, function()
         require("plurnk.worker_tab").open(workspace)
         context.hydrate_worker(workspace)
       end)
+    end)
+  end)
+end
+-- Bind this tab to a conversation worker by name (nvim#27). The bridge's thread
+-- is the workspace and the worker is selected by id, so an unknown name is not
+-- minted here — :PlurnkFork <name> is this client's mint.
+function M.attach(args)
+  local name = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local client = require("plurnk.client")
+  if name == "" then
+    client.notify("usage: :PlurnkAttach <name>", vim.log.levels.WARN)
+    return
+  end
+  local workspace = context.active()
+  if not workspace then
+    client.notify("No active workspace", vim.log.levels.WARN)
+    return
+  end
+  local workspace_id = require("plurnk.state").get_workspace_id(workspace)
+  if not workspace_id then
+    client.notify("Workspace " .. workspace .. " not resolved", vim.log.levels.WARN)
+    return
+  end
+  client.send("workspace.workers", { id = workspace_id }, false, function(result)
+    if type(result) ~= "table" or type(result.workers) ~= "table" then return end
+    local directory = require("plurnk.workers")
+    directory.remember_names(workspace, result.workers)
+    local target
+    for _, worker in ipairs(directory.conversations(result.workers)) do
+      if worker.name == name then target = worker end
+    end
+    if not target then
+      client.notify(
+        "no conversation " .. name .. " in " .. workspace .. "; :PlurnkFork " .. name .. " branches this conversation into a new worker",
+        vim.log.levels.WARN)
+      return
+    end
+    context.switch_worker(workspace, target.id, function()
+      require("plurnk.worker_tab").open(workspace)
+      context.hydrate_worker(workspace)
+      client.notify("attached → " .. name, vim.log.levels.INFO)
     end)
   end)
 end

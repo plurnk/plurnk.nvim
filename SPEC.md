@@ -222,6 +222,21 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Fork branches the conversation** — `:PlurnkFork` / `:AI????` →
   `run.fork`, optionally named at instantiation (immutable after), then binds to the
   new worker.
+- **Attach binds a tab to a conversation by name** — `:PlurnkAttach <name>` /
+  `:AI/attach <name>` resolves the name against `workspace.workers` (model-origin
+  workers, the attachable conversations) and binds through the same
+  `workspace.attach {id, workerId}` path the picker uses, then opens the worker
+  tab and hydrates. Completion offers the directory's conversation names.
+  Deliberate divergence from the terminal client's `/attach`: its bridge thread is
+  the worker, so a new name mints a fresh conversation there; this plugin's thread
+  is the workspace and the worker is selected by id, so an unknown name is reported
+  with the pointer to `:PlurnkFork <name>`, this client's mint (nvim#27).
+- **The workers picker is the topology** — `:PlurnkWorkspaceWorkers` / `:AI/workers`
+  renders conversations as a forest from `parentWorkerId`, the bound conversation's
+  tree first and marked `●`, tree connectors, creation time per row; a worker whose
+  parent is not in the directory stands as a root. Lifecycle glyphs for workers other
+  than the bound one arrive with plurnk-service#523 and are never inferred. This is
+  navigation; supervising concurrent descendants is #25.
 - **Rename is a mutable handle on the world** — `workspace.rename`
   rekeys local state and the worker tab in place; a worker's name is immutable.
 - **Project root defaults to the editor cwd** — `workspace.create`

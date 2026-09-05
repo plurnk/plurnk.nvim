@@ -54,6 +54,9 @@ M.set_project_path = function(p) project_path = p end
 -- ── Models / aliases (providers.list) ───────────────────────────────
 
 M.get_available_aliases = function() return available_aliases end
+local worker_names = {}              -- per workspace: conversation names for /attach completion
+M.get_worker_names = function(name) return worker_names[name] or {} end
+M.set_worker_names = function(name, names) worker_names[name] = names or {} end
 M.set_available_aliases = function(aliases) available_aliases = aliases or {} end
 
 M.set_selected_model_selector = function(selector) selected_model_selector = selector end

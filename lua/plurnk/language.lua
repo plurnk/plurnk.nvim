@@ -15,6 +15,9 @@ function M.complete(_arglead, cmdline, _cursor_position)
     return require("plurnk.functionality").complete_aliases(context.family, context.prefix)
   end
 
+  if context.kind == "worker" then
+    return require("plurnk.workers").name_candidates(context.prefix)
+  end
   local state = require("plurnk.state")
   if context.kind == "reasoning" then
     local out = {}

@@ -17,6 +17,10 @@ function M.setup()
   command("PlurnkWorkspaceNew", workspaces.create, { nargs = "?" })
   command("PlurnkWorkspaceRename", workspaces.rename, { nargs = "?" })
   command("PlurnkFork", workspaces.fork, { nargs = "?" })
+  command("PlurnkAttach", function(opts) workspaces.attach(opts.args) end, {
+    nargs = 1,
+    complete = function(arglead) return require("plurnk.workers").name_candidates(arglead) end,
+  })
   command("PlurnkWorkspaceWorkers", workspaces.workers, {})
   command("PlurnkModels", generation.models, { nargs = "*" })
   command("PlurnkReasoning", function(opts)
