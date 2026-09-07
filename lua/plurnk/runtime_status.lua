@@ -4,6 +4,7 @@ local M = {}
 
 local LIFECYCLES = {
   idle = true,
+  queued = true,
   running = true,
   parked = true,
   completed = true,
@@ -114,6 +115,7 @@ end
 
 function M.lifecycle_glyph(lifecycle)
   return lifecycle == "running" and "⌛︎"
+    or lifecycle == "queued" and "⏳"
     or lifecycle == "parked" and "💤"
     or lifecycle == "completed" and "⏹️"
     or lifecycle == "cancelled" and "✋"

@@ -125,6 +125,15 @@ local ok, err = pcall(function()
   H.assert_eq(vim.fn.strdisplaywidth("🔮"), 2, "BARE glyph occupies one stable terminal cell pair")
   H.assert_match(bare_lines[1], "🔮", "BARE has an isolated-inference glyph")
   H.assert_truthy(not bare_lines[1]:match("%?"), "BARE is not the unknown-op fallback")
+  for op, glyph in pairs({ KILL = "✂️", WORK = "🐜", FORK = "👥" }) do
+    local lines = r.render_log_entry({
+      op = op, origin = "model", scheme = "worker", hostname = "reviewer", pathname = "/",
+      status_rx = 200, tx = {}, rx = { status = 200 },
+    })
+    H.assert_eq(lines[1]:sub(1, #glyph), glyph, op .. " owns its glyph instead of the unknown-op fallback")
+    H.assert_eq(vim.fn.strdisplaywidth(glyph), 2, "operation glyphs preserve two-column alignment")
+    H.assert_match(lines[1], "worker://reviewer/", "the operation target is retained")
+  end
 
   -- Broadcast SEND lifecycle is one glyph with no repeated protocol code.
   local bc_short = R({

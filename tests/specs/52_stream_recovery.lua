@@ -89,6 +89,18 @@ local ok, err = pcall(function()
   H.assert_eq(state.get_transport_status("recover"), nil, "successful reconciliation clears the transport overlay")
   H.assert_eq(state.get_runtime_status("recover").lifecycle, "completed", "reconnected STATE remains runtime truth")
 
+  state.set_worker_id("queued", 43)
+  agui.rpc = function(_, _, method, _, cb, on_event)
+    H.assert_eq(method, "log.read", "queued recovery only observes durable state")
+    on_event({ type = "STATE_SNAPSHOT", snapshot = gauge("queued", 0) })
+    cb({ state = "complete", result = { entries = {} }, code = 0 })
+  end
+  local queued_status
+  require("plurnk.recovery").reconcile("queued", { workerId = 43 }, function(status) queued_status = status end)
+  H.wait_for(function() return queued_status ~= nil end, 3000, "queued work is observed without inference")
+  H.assert_eq(queued_status, 100, "queued work has not completed or entered WAIT")
+  H.assert_eq(prompts, 1, "observing queued work does not submit another prompt")
+
   -- A daemon that remains running through every bounded observation cannot be
   -- called recovered. It becomes explicitly stale until the same public action
   -- later supplies terminal truth.

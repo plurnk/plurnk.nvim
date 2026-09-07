@@ -31,6 +31,7 @@ M.text = function()
   if activity ~= nil and activity ~= "100%" then return activity end
   local runtime = state.get_runtime_status(workspace)
   if runtime and runtime.lifecycle == "running" then return "⌛︎" end
+  if runtime and runtime.lifecycle == "queued" then return "⏳" end
   local ok_diff, diff = pcall(require, "plurnk.diff")
   return ok_diff and diff.is_yolo and diff.is_yolo() and "🔥" or ""
 end

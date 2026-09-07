@@ -74,7 +74,9 @@ what this client guarantees. Tests are organized by observable behavior under
   6902 `replace` deltas. The client presents lifecycle → model → exact packet
   count before reasoning and terminal accounting; the editor statusline owns
   replaceable activity. Rows, turns, and local callbacks never reconstruct
-  status or masquerade as provider packets. Missing, malformed, or unsupported
+  status or masquerade as provider packets. Queued work retains `queued` (⏳),
+  including during read-only stream recovery; it is not running, parked, or completed.
+  Missing, malformed, or unsupported
   state is a transport failure rather than a partial display.
 - §nvim-stream-recovery **A broken stream is observation loss, not permission
   to rerun inference.** Neovim settles partial reasoning, displays a client-owned

@@ -24,7 +24,8 @@ function M.observed(thread_id, dispatch)
 end
 
 local function recovered_status(lifecycle)
-  return lifecycle == "completed" and 200
+  return lifecycle == "queued" and 100
+    or lifecycle == "completed" and 200
     or lifecycle == "parked" and 202
     or lifecycle == "cancelled" and 499
     or lifecycle == "failed" and 502

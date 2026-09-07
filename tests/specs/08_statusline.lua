@@ -87,6 +87,14 @@ local ok, err = pcall(function()
   H.assert_truthy(not worker_tab.winbar_text("s1", 7):match("200"), "routine final code is not repeated")
   handled, gauge = runtime_status.reduce(gauge, {
     type = "STATE_DELTA",
+    delta = { { op = "replace", path = "/plurnk/status/lifecycle", value = "queued" } },
+  })
+  state.set_runtime_gauge("s1", gauge)
+  H.assert_eq(state.get_runtime_status("s1").lifecycle, "queued", "a future task is neither running nor WAITing")
+  H.assert_match(worker_tab.winbar_text("s1", 7), "⏳", "queued work uses the shared queued glyph")
+  H.assert_eq(require("plurnk.statusline").text(), "⏳", "queued work is not presented as active inference")
+  handled, gauge = runtime_status.reduce(gauge, {
+    type = "STATE_DELTA",
     delta = { { op = "replace", path = "/plurnk/status/lifecycle", value = "failed" } },
   })
   state.set_runtime_gauge("s1", gauge)
