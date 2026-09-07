@@ -120,6 +120,22 @@ local ok, err = pcall(function()
   local status = state.get_runtime_status(workspace)
   assert_truthy(status.model == "journey" and status.packet_count >= 2,
     "authoritative state names the fixture model and complete packet sequence")
+
+  local replies, field_prompts = { "", "0", "typed-through-nvim" }, {}
+  local original_input = vim.ui.input
+  vim.ui.input = function(opts, cb)
+    field_prompts[#field_prompts + 1] = opts.prompt
+    cb(table.remove(replies, 1))
+  end
+  vim.cmd("AI Ask for branch details.")
+  wait_for(function()
+    return table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n"):match("The named%-field answer arrived") ~= nil
+  end, 30000, "question WAIT resumes through the native fields")
+  vim.ui.input = original_input
+  assert_truthy(#replies == 0 and #field_prompts == 3, "every question field was presented")
+  assert_match(field_prompts[1], "branch", "optional branch field")
+  assert_match(field_prompts[2], "count", "required count field")
+  assert_match(field_prompts[3], "notes", "optional notes field")
   print("PASS " .. NAME .. ": " .. workspace .. " · P" .. tostring(status.packet_count))
 end)
 

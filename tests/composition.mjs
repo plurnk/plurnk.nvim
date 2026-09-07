@@ -249,8 +249,12 @@ vim.cmd("qa!")
     if (`${journey.stdout}\n${journey.stderr}`.includes("vim.schedule callback:")) {
         throw new Error(`installed plugin raised an asynchronous callback failure\n${journey.stdout}\n${journey.stderr}`);
     }
-    if (fixture.requests.length !== 2) {
-        throw new Error(`installed journey made ${fixture.requests.length} inference requests instead of exactly two`);
+    if (fixture.requests.length !== 4) {
+        throw new Error(`installed journey made ${fixture.requests.length} inference requests instead of exactly four`);
+    }
+    const continuedQuestion = JSON.stringify(fixture.requests[3]?.messages ?? []);
+    if (!continuedQuestion.includes("typed-through-nvim") || !continuedQuestion.includes("count")) {
+        throw new Error("the continued WAIT packet did not receive the native named-field answer");
     }
     const firstRequest = JSON.stringify(fixture.requests[0]?.messages ?? []);
     if (!firstRequest.includes("Create a reviewed acceptance marker.")

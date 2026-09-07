@@ -344,9 +344,14 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Only client-owned proposals prompt** — AG-UI projects proposal review only
   when the durable disposition owner is the client. Loop-owned accept/reject
   settles in Core; the client never re-derives ownership from policy fields.
-- **[300] questions elicit** — a SEND carrying `attrs.question`
-  picks via `vim.ui.select` (+ a Free Response escape) or `vim.ui.input`, resolving
-  with `decision=accept` and the answer as body.
+- §nvim-question-forms **Questions collect named fields** — AG-UI
+  `request_user_input` interrupts present the message and each response-schema
+  field through `vim.ui.input` or string-enum `vim.ui.select` with free response.
+  Fields show type, required/optional status, and description; Enter skips an
+  optional field. Non-string values use JSON notation. Invalid input explains
+  the expected value and re-prompts without losing earlier answers. Complete
+  forms resume with `{action:"accept",content}`; dismissal sends cancellation.
+  Empty forms explicitly submit an empty object, and resolution errors surface.
 
 ## §8 Config and policy
 

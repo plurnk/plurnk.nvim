@@ -25,6 +25,22 @@ const programs = Object.freeze([
             "The reviewed multiline journey is complete.",
         ].join("\n"),
     },
+    {
+        reasoning: "I will ask for the named fields and await the answer.",
+        content: [
+            "## PLAN0", "[]", "### EXEC0 [question] (question)",
+            JSON.stringify({ message: "Which branch details?", requestedSchema: {
+                type: "object", properties: {
+                    branch: { type: "string" }, count: { type: "integer" }, notes: { type: "string" },
+                }, required: ["count"],
+            } }),
+            "### SEND0 (WAIT)", "Awaiting branch details.",
+        ].join("\n"),
+    },
+    {
+        reasoning: "The question result has arrived in the continued loop.",
+        content: "## PLAN0\n[]\n### SEND0 (TERM)\nThe named-field answer arrived.",
+    },
 ]);
 
 const readJson = async (request) => {
