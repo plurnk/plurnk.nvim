@@ -81,7 +81,7 @@ the notify says to reopen the worker to catch up.
 
 The input split (bottom, 3 lines): `<CR>` in normal mode submits. Prefixes
 match :AI — `? ` narrows policy, `: ` uses ordinary policy, `! ` execs;
-`# PLAN0` / `## OP0` enter raw
+`# PLAN_` / `## OP0` enter raw
 PLURNK.
 
 Readable provider reasoning appears before its SEND as a distinct `💭` block.
