@@ -99,7 +99,9 @@ function M.workers()
     local rows = directory.topology(workers, require("plurnk.state").get_worker_id(workspace))
     vim.ui.select(rows, {
       prompt = "Plurnk conversation (workspace " .. workspace .. ")",
-      format_item = directory.row_label,
+      format_item = function(row)
+        return row.tree .. "  " .. (row.worker.created_at or "?")
+      end,
     }, function(choice)
       if not choice then return end
       context.switch_worker(workspace, choice.worker.id, function()

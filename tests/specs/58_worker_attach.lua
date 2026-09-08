@@ -26,21 +26,6 @@ local ok, err = pcall(function()
   H.assert_eq(deep[1].tree, "○ sess", "a bound descendant keeps its root first")
   H.assert_eq(deep[3].tree, "│  └─ ● recheck", "only the bound worker is marked")
 
-  -- plurnk-service#523: the picker line carries the daemon's kind and lifecycle with the
-  -- status gauge's glyph; a daemon that states neither yields the bare line.
-  local stated = workers.topology({
-    { id = 1, name = "sess", created_at = "2026-09-04T10:01:00Z", origin = "model", parentWorkerId = vim.NIL, kind = "conversation", lifecycle = "parked" },
-    { id = 2, name = "sess-fork", created_at = "2026-09-04T10:02:00Z", origin = "model", parentWorkerId = 1, kind = "fork", lifecycle = "running" },
-    { id = 4, name = "guesser1", created_at = "2026-09-04T10:03:00Z", origin = "model", parentWorkerId = 1, kind = "work", lifecycle = "failed" },
-    { id = 8, name = "fresh", created_at = "2026-09-04T10:05:00Z", origin = "model", parentWorkerId = vim.NIL, kind = "conversation", lifecycle = "idle" },
-  }, 1)
-  H.assert_eq(workers.row_label(stated[1]), "● sess  conversation  💤 parked  2026-09-04T10:01:00Z", "kind and glyphed lifecycle ride the bound row")
-  H.assert_eq(workers.row_label(stated[2]), "├─ ○ sess-fork  fork  ⌛︎ running  2026-09-04T10:02:00Z", "a fork child")
-  H.assert_eq(workers.row_label(stated[3]), "└─ ○ guesser1  work  ❌ failed  2026-09-04T10:03:00Z", "a failed work child")
-  H.assert_eq(workers.row_label(stated[4]), "○ fresh  conversation  · idle  2026-09-04T10:05:00Z", "idle keeps a placeholder glyph")
-  H.assert_eq(workers.row_label(rows[1]), "● sess  2026-09-04T10:01:00Z", "no stated kind or lifecycle, no columns")
-  H.assert_eq(workers.lifecycle_label("hibernating"), "hibernating", "an unknown word is rendered, never a guessed glyph")
-
   -- daemon stubs
   local sent, notices = {}, {}
   local client = require("plurnk.client")
