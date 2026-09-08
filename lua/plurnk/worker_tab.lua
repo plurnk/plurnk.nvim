@@ -297,6 +297,35 @@ M.workspace_for_tabpage = function(tabpage)
   return nil
 end
 
+-- {§nvim-active-worker} — the worker a tabpage is bound to: its workspace and worker id, or nil
+-- for a tab that is not a worker tab (a pending record has no worker yet).
+M.binding_for_tabpage = function(tabpage)
+  for workspace, recs in pairs(records) do
+    for key, rec in pairs(recs) do
+      if rec.tabpage == tabpage and vim.api.nvim_tabpage_is_valid(tabpage) and type(key) == "number" then
+        return workspace, key
+      end
+    end
+  end
+  return nil
+end
+
+-- {§nvim-active-worker} — entering a worker tab makes its worker the workspace's active worker: the
+-- one every plurnk command speaks to, from inside the tab or from any other buffer, until the user
+-- enters another worker tab. Nothing is inferred; the binding is the tab's own record.
+M.activate_current_tab = function()
+  local workspace, worker_id = M.binding_for_tabpage(vim.api.nvim_get_current_tabpage())
+  if not workspace then return nil end
+  local state = require("plurnk.state")
+  state.set_active_workspace_name(workspace)
+  if state.get_worker_id(workspace) ~= worker_id then
+    state.set_worker_id(workspace, worker_id)
+    M.refresh_winbar(workspace)
+  end
+  pcall(vim.cmd.redrawstatus)
+  return workspace, worker_id
+end
+
 -- Open (or focus) the tab for a worker — defaults to the workspace's current
 -- worker (pending when the id isn't known yet). Focuses the input split.
 M.open = function(workspace, worker_id)
@@ -620,6 +649,11 @@ end
 M.setup = function()
   require("plurnk.markdown").setup()
   local group = vim.api.nvim_create_augroup("plurnk_waterfall_projection", { clear = true })
+  -- {§nvim-active-worker}
+  vim.api.nvim_create_autocmd("TabEnter", {
+    group = group,
+    callback = function() M.activate_current_tab() end,
+  })
   vim.api.nvim_create_autocmd("WinResized", {
     group = group,
     callback = function()

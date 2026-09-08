@@ -254,6 +254,17 @@ what this client guarantees. Tests are organized by observable behavior under
   `[/~main]` at a root, `[/main/fork-1/~recheck]` two hops down, `[/~]` before the
   worker is known; a child always shows that it is a child — followed by the sibling
   position `(2/3)`, newest first, when there is one.
+- §nvim-active-worker **The tab you are in is the active worker** — a workspace has
+  one active worker: the worker of the last worker tab the user entered. Entering a
+  worker tab (`TabEnter`) makes its worker active; hops and `:PlurnkAttach` open or
+  focus the target's tab and so activate it. A plurnk command issued inside a worker
+  tab speaks to that tab's worker; a command issued from any other buffer — a code
+  buffer, `:AI?` from anywhere — speaks to the active workspace's active worker, and
+  that buffer's statusline component names the destination as `~<worker>` so the user
+  sees where a command goes without switching tabs. Inside a worker tab the winbar's
+  lineage already says it, and the statusline does not repeat it; a reconnecting or
+  stale transport stands alone, since no destination is reachable. Nothing is inferred:
+  the binding is the tab's own record, and a tab that is not a worker tab binds nothing.
 - §nvim-status-children **The ant is the daemon's count** — `status.children` from the
   AG-UI gauge, the bound worker's alive direct children (queued, running, parked),
   renders as `🐜<n>` after the packet count; an older daemon that states none shows
