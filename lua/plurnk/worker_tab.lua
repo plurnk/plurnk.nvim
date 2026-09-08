@@ -391,8 +391,7 @@ waterfall_width = function(rec)
 end
 
 local function is_answer(entry)
-  return entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil
-    and entry.origin == "model" and (entry.signal == 200 or entry.signal == 499)
+  return (entry.op == "DONE" or entry.op == "FAIL") and entry.origin == "model"
 end
 
 local function schedule_reproject(rec)

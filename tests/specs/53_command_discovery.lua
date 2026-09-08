@@ -64,7 +64,7 @@ local ok, err = pcall(function()
   H.assert_eq(#sent, before + 1, "the failed lookup remains one bounded read")
 
   local path = vim.fn.tempname() .. ".plk"
-  vim.fn.writefile({ "# PLAN_" }, path)
+  vim.fn.writefile({ "```PLAN", "[]", "```" }, path)
   local prefix = path:sub(1, #path - 2)
   H.assert_truthy(#language.complete("", "AI /script " .. prefix, 0) > 0,
     "path-consuming commands use native file completion")

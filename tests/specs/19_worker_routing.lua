@@ -11,7 +11,7 @@ local function entry(id, worker_id, path)
   return {
     id = id, worker_id = worker_id, loop_id = 1, turn_id = 1,
     loop_seq = 1, turn_seq = 1, sequence = 1,
-    op = "READ", suffix = "", origin = "model", signal = nil,
+    op = "READ", origin = "model", signal = nil,
     scheme = "known", pathname = path or ("/e" .. id), hostname = nil,
     fragment = nil, status_rx = 200,
     tx = { op = "READ", body = nil }, rx = { status = 200 },

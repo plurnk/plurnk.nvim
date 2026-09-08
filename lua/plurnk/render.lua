@@ -14,9 +14,17 @@ M.OP_GLYPHS = {
   WORK = "🐜",
   FORK = "👥",
   SEND = "💬",
+  NEXT = "▶️",
+  WAIT = "💤",
+  DONE = "⏹️",
+  FAIL = "✋",
   EXEC = "🔧",
   BARE = "🔮",
 }
+
+M.is_disposition = function(op)
+  return op == "NEXT" or op == "WAIT" or op == "DONE" or op == "FAIL"
+end
 
 M.PLAN_STATUS_GLYPHS = {
   completed = "✅",
@@ -43,10 +51,8 @@ M.send_lifecycle_glyph = function(status)
   return "⏹️"
 end
 
--- Aligned to the grammar's terminal SEND set [102, 200, 202, 300, 499]
--- (plurnk-grammar plurnk.md) + directed-SEND/error families. The glyph carries
--- the state, the color carries the class. Converged with @plurnk/plurnk
--- sendSubGlyph. All EAW width-2, VS16-free (column-stable).
+-- Receipt/error glyphs align with @plurnk/plurnk's sendSubGlyph.
+-- The glyph carries the state; color carries the status class.
 local STATUS_GLYPHS = {
   [102] = "⏳",   -- continuing — more turns coming
   [120] = "⏳",
@@ -256,7 +262,7 @@ local function broadcast_content(entry)
   -- One actor or lifecycle glyph, converged with the TUI. The exact status
   -- remains on the wire; repeating it beside the lifecycle glyph is noise.
   local signal = type(entry.signal) == "number" and entry.signal or entry.status_rx
-  local glyph = M.send_lifecycle_glyph(signal)
+  local glyph = M.is_disposition(entry.op) and M.send_lifecycle_glyph(signal) or M.OP_GLYPHS.SEND
   local note = annotation(entry)
   local header = glyph
   if note ~= "" then header = header .. " — " .. note end
@@ -320,7 +326,7 @@ end
 
 -- Render a regular (non-broadcast) trace line.
 M.render_log_entry = function(entry)
-  if entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil then
+  if M.is_disposition(entry.op) or entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil then
     return M.render_broadcast(entry)
   end
   if M.is_prompt_entry(entry) then
@@ -333,10 +339,7 @@ M.render_log_entry = function(entry)
   -- Operation rows retain an outcome slot. SEND rows use only their actor or
   -- lifecycle glyph: adding a second state repeats one fact.
   local op_glyph = M.OP_GLYPHS[entry.op] or "?"
-  local signal = type(entry.signal) == "number" and entry.signal or entry.status_rx
-  local primary_glyph = entry.op == "SEND"
-    and M.send_lifecycle_glyph(signal)
-    or op_glyph
+  local primary_glyph = op_glyph
   local sub_glyph = M.status_glyph(entry.status_rx)
   local status = tostring(entry.status_rx or "?")
 
@@ -370,10 +373,9 @@ M.render_log_entry = function(entry)
 
   -- SEND lifecycle glyphs suppress routine protocol codes. A failed directed
   -- SEND retains its code like any other failed operation.
-  local directed_send = entry.op == "SEND" and entry.pathname ~= nil
   local show_status = type(entry.status_rx) == "number" and entry.status_rx >= 400
-    and (entry.op ~= "SEND" or directed_send)
-  local parts = entry.op == "SEND" and { primary_glyph } or { primary_glyph, sub_glyph }
+    and not M.is_disposition(entry.op)
+  local parts = { primary_glyph, sub_glyph }
   if show_status then table.insert(parts, status) end
   if path ~= "" then table.insert(parts, path) end
   if scope ~= "" then table.insert(parts, scope) end
@@ -389,7 +391,7 @@ end
 -- state from styling later control rows. The caller owns the source entry and
 -- may project it again at a different live window width.
 M.render_log_block = function(entry, width, on_change)
-  if entry.op ~= "SEND" or entry.scheme ~= nil or entry.pathname ~= nil then
+  if not M.is_disposition(entry.op) and (entry.op ~= "SEND" or entry.scheme ~= nil or entry.pathname ~= nil) then
     return { lines = M.render_log_entry(entry) }
   end
 
@@ -405,9 +407,7 @@ M.render_log_block = function(entry, width, on_change)
   return content
 end
 
--- Per-loop summary line (still used by callers; the worker_tab waterfall no
--- longer emits "loop terminated" since the terminal SEND already carries
--- signal 200).
+-- Per-loop summary; the worker_tab waterfall already carries the disposition.
 -- Terminal loop status → label (converge client #70). plurnk-service 0.42.0
 -- split the flat 499 into distinct verdicts: 499 is the model/actor give-up or
 -- external KILL/cancel; 413/429/500/508 are ENGINE verdicts. Labelled so a

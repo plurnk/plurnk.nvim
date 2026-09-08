@@ -8,38 +8,43 @@ const programs = Object.freeze([
     {
         reasoning: "I will make one reviewed local change, then verify the settled result.",
         content: [
-            "## PLAN_",
+            "```PLAN",
             '[{"content":"Create the requested acceptance marker through review.","priority":"high","status":"in_progress"}]',
-            "### EXEC_",
+            "```",
+            "```sh",
             "printf 'accepted\\n' > journey.txt",
-            "### SEND_ (NEXT)",
+            "```",
+            "```NEXT",
             "Next: Confirm the reviewed command completed.",
+            "```",
         ].join("\n"),
     },
     {
         reasoning: "The reviewed command succeeded, so I can conclude the requested journey.",
         content: [
-            "## PLAN_",
+            "```PLAN",
             '[{"content":"Create the requested acceptance marker through review.","priority":"high","status":"completed"}]',
-            "### SEND_ (TERM)",
+            "```",
+            "```DONE",
             "The reviewed multiline journey is complete.",
+            "```",
         ].join("\n"),
     },
     {
         reasoning: "I will ask for the named fields and await the answer.",
         content: [
-            "## PLAN_", "[]", "### EXEC_ [question] (question)",
+            "```PLAN", "[]", "```", "```question (question)",
             JSON.stringify({ message: "Which branch details?", requestedSchema: {
                 type: "object", properties: {
                     branch: { type: "string" }, count: { type: "integer" }, notes: { type: "string" },
                 }, required: ["count"],
             } }),
-            "### SEND_ (WAIT)", "Awaiting branch details.",
+            "```", "```WAIT", "Awaiting branch details.", "```",
         ].join("\n"),
     },
     {
         reasoning: "The question result has arrived in the continued loop.",
-        content: "## PLAN_\n[]\n### SEND_ (TERM)\nThe named-field answer arrived.",
+        content: "```PLAN\n[]\n```\n```DONE\nThe named-field answer arrived.\n```",
     },
 ]);
 

@@ -7,20 +7,10 @@
 
 local M = {}
 local INPUT_HEIGHT = 3
-local H2_OPS = {
-  "FIND", "READ", "EDIT", "COPY", "MOVE",
-  "KILL", "EXEC", "BARE", "WORK", "FORK", "SEND", "LOOK",
-}
-
 -- Coarse dispatch classification only. The daemon remains the grammar owner
--- and returns exact diagnostics for malformed headings/modifiers/bodies.
-local function operation_heading(text)
-  if text:sub(1, 6) == "# PLAN" then return "PLAN" end
-  for _, op in ipairs(H2_OPS) do
-    local prefix = "## " .. op
-    if text:sub(1, #prefix) == prefix then return op end
-  end
-  return nil
+-- and owns registration and diagnostics for malformed fences/modifiers/bodies.
+local function operation_name(text)
+  return text:match("^```+([%w_.+%-]+)")
 end
 
 local function buffer_name(workspace_name, worker_id)
@@ -37,7 +27,7 @@ local function submit(buf, workspace_name)
   local text = vim.fn.trim(table.concat(lines, "\n"))
   if text == "" then return end
 
-  local op = operation_heading(text)
+  local op = operation_name(text)
 
   -- LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, not the
   -- model. Routed to op.look (the module rewrites LOOK→READ; Engine.look mints no
@@ -56,7 +46,7 @@ local function submit(buf, workspace_name)
     return
   end
 
-  -- Raw PLURNK passthrough (TUI parity): a recognized operation heading goes
+  -- Raw PLURNK passthrough (TUI parity): a named executable fence goes
   -- to op.parse. The daemon parses and dispatches; results arrive as log/entry.
   if op ~= nil then
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })

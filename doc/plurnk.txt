@@ -80,11 +80,11 @@ the daemon (and still completes) — you just stop seeing its live events, so
 the notify says to reopen the worker to catch up.
 
 The input split (bottom, 3 lines): `<CR>` in normal mode submits. Prefixes
-match :AI — `? ` narrows policy, `: ` uses ordinary policy, `! ` execs;
-`# PLAN_` / `## OP0` enter raw
-PLURNK.
+match :AI — `? ` narrows policy, `: ` uses ordinary policy, `! ` execs.
+Named executable backtick fences enter raw PLURNK; a LOOK fence inspects
+without adding to the worker's log. Prefix `: ` to prompt with a literal example.
 
-Readable provider reasoning appears before its SEND as a distinct `💭` block.
+Readable provider reasoning appears before its operations as a distinct `💭` block.
 Multiline reasoning begins in a native closed fold. PLAN remains the model's
 durable working-memory inventory: ✅ completed, 🚧 in progress, 💾 memory,
 ⬜ pending.

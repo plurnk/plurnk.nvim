@@ -183,7 +183,7 @@ local ok, err = pcall(function()
     local deadline = vim.uv.hrtime() + 20 * 1000 * 1000 * 1000
     while vim.uv.hrtime() < deadline do
       local settled, outcome = false, nil
-      client.send("op.look", { text = "### LOOK_ (file:///" .. file .. ")" }, false, function(result)
+      client.send("op.look", { text = "```LOOK (file:///" .. file .. ")```" }, false, function(result)
         outcome, settled = result, true
       end, { quiet = true })
       H.wait_for(function() return settled end, 20000, "look " .. file)

@@ -22,16 +22,24 @@ local ok, err = pcall(function()
   local buf = vim.api.nvim_get_current_buf()
   H.assert_match(vim.api.nvim_buf_get_name(buf), "plurnk%-nvim://input/smoke", "input focused")
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "## SEND_ (TERM)", "hi" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "```DONE", "hi", "```" })
   vim.api.nvim_feedkeys("\r", "x", false)
-  H.assert_eq(sent[1].method, "op.parse", "operation heading routes to op.parse")
-  H.assert_eq(sent[1].params.text, "## SEND_ (TERM)\nhi", "raw PLURNK passes verbatim")
+  H.assert_eq(sent[1].method, "op.parse", "operation fence routes to op.parse")
+  H.assert_eq(sent[1].params.text, "```DONE\nhi\n```", "raw PLURNK passes verbatim")
   H.assert_eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1], "", "input cleared after submit")
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "## BARE_", "What is the capital of Germany?" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "```BARE", "What is the capital of Germany?", "```" })
   vim.api.nvim_feedkeys("\r", "x", false)
   H.assert_eq(sent[#sent].method, "op.parse", "BARE routes to op.parse")
-  H.assert_eq(sent[#sent].params.text, "## BARE_\nWhat is the capital of Germany?", "BARE passes verbatim")
+  H.assert_eq(sent[#sent].params.text, "```BARE\nWhat is the capital of Germany?\n```", "BARE passes verbatim")
+
+  for _, name in ipairs({ "sh", "gitea", "unregistered", "LOOKUP" }) do
+    local program = "````" .. name .. " (tool)\n{}\n````"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(program, "\n"))
+    vim.api.nvim_feedkeys("\r", "x", false)
+    H.assert_eq(sent[#sent].method, "op.parse", "the daemon owns registration of " .. name)
+    H.assert_eq(sent[#sent].params.text, program, "the whole fence passes verbatim")
+  end
 
   -- LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, routed
   -- to op.look (never op.parse — LOOK isn't a journaled op), content rendered
@@ -42,10 +50,10 @@ local ok, err = pcall(function()
     table.insert(sent, { method = method, params = params })
     if cb then cb({ status = 200, content = "line one\nline two" }) end
   end
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "## LOOK_ (worker:///notes.md)" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "```LOOK (worker:///notes.md)```" })
   vim.api.nvim_feedkeys("\r", "x", false)
   H.assert_eq(sent[#sent].method, "op.look", "LOOK routes to op.look, not op.parse")
-  H.assert_eq(sent[#sent].params.text, "## LOOK_ (worker:///notes.md)", "the raw statement passes; the module rewrites LOOK->READ")
+  H.assert_eq(sent[#sent].params.text, "```LOOK (worker:///notes.md)```", "the raw statement passes; the module rewrites LOOK->READ")
   H.assert_truthy(#appended >= 2, "the content rendered into the waterfall (" .. #appended .. " lines)")
   H.assert_match(table.concat(appended, "\n"), "line two", "content lines land verbatim")
 
@@ -64,11 +72,11 @@ local ok, err = pcall(function()
   H.assert_eq(last.method, "loop.run", "an unrelated Markdown heading stays a prompt")
   H.assert_eq(last.params.prompt, "## Results\nordinary Markdown", "Markdown prompt passes verbatim")
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { ": ## EDIT_ is prose" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { ": ```sh", "echo example", "```" })
   vim.api.nvim_feedkeys("\r", "x", false)
   last = sent[#sent]
-  H.assert_eq(last.method, "loop.run", ": forces a reserved heading prefix to remain a prompt")
-  H.assert_eq(last.params.prompt, "## EDIT_ is prose", ": is stripped from the forced prompt")
+  H.assert_eq(last.method, "loop.run", ": forces an executable fence to remain a prompt")
+  H.assert_eq(last.params.prompt, "```sh\necho example\n```", ": is stripped from the forced prompt")
 
   -- `? ` prefix composes the shared capability policy.
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "? what changed" })

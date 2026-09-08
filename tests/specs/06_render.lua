@@ -13,6 +13,11 @@ local function R(t)
   return r.render_log_entry(t)
 end
 local ok, err = pcall(function()
+  for _, pair in ipairs({ { "NEXT", 102, "▶️" }, { "WAIT", 202, "💤" }, { "DONE", 200, "⏹️" }, { "FAIL", 499, "✋" } }) do
+    local lines = R({ op = pair[1], origin = "model", status_rx = pair[2], signal = pair[2], tx = { body = { raw = "Update." } } })
+    H.assert_eq(lines[1], pair[3] .. " Update.", "native disposition carries its lifecycle and body")
+  end
+  H.assert_eq(R({ op = "SEND", origin = "model", status_rx = 200, tx = { body = { raw = "Update." } } })[1], "💬 Update.", "SEND remains messaging")
   local reasoning = r.render_reasoning("first line\nsecond line")
   H.assert_eq(#reasoning, 2, "reasoning preserves its line structure")
   H.assert_eq(reasoning[1], "💭 first line", "reasoning has its own compact identity")
@@ -137,7 +142,7 @@ local ok, err = pcall(function()
 
   -- Broadcast SEND lifecycle is one glyph with no repeated protocol code.
   local bc_short = R({
-    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    op = "DONE", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "Paris" } },
   })
@@ -146,14 +151,14 @@ local ok, err = pcall(function()
   H.assert_truthy(not bc_short[1]:match("200"), "wire status is not repeated in the human waterfall")
 
   local bc_annotated = R({
-    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    op = "DONE", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { annotation = "Answer ready", body = { raw = "Paris" } },
   })
   H.assert_eq(bc_annotated[1], "⏹️ — Answer ready Paris", "broadcast annotation stays on its header")
 
   local bc_continuing = R({
-    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
     status_rx = 102, signal = 102,
     tx = { body = { raw = "Continuing." } },
   })
@@ -162,7 +167,7 @@ local ok, err = pcall(function()
   H.assert_eq(vim.fn.strdisplaywidth("⏹️"), 2, "completion lifecycle sequence is width-stable in Neovim")
 
   local runtime_continuing = R({
-    op = "SEND", origin = "_plurnk", scheme = nil, pathname = nil,
+    op = "NEXT", origin = "_plurnk", scheme = nil, pathname = nil,
     status_rx = 102, signal = 102,
     tx = { body = { raw = "Next: Address the prompt." } },
   })
@@ -170,7 +175,7 @@ local ok, err = pcall(function()
     "every SEND uses lifecycle regardless of producer")
 
   local bc_arrow = R({
-    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    op = "DONE", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "loading $\\rightarrow$ running" } },
   })
@@ -179,7 +184,7 @@ local ok, err = pcall(function()
 
   -- Broadcast SEND carrying signal 200, multi-line body — header + indented body lines.
   local bc_multi = R({
-    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    op = "DONE", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "hi\nthere" } },
   })
@@ -190,7 +195,7 @@ local ok, err = pcall(function()
 
   -- Broadcast SEND with no body — header only.
   local empty = R({
-    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    op = "DONE", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
   })
   H.assert_eq(#empty, 1, "empty broadcast = header only")
@@ -219,13 +224,13 @@ local ok, err = pcall(function()
     op = "SEND", origin = "model", scheme = "worker", pathname = "/child",
     status_rx = 200, signal = 200, tx = { body = { raw = "Continue." } },
   })
-  H.assert_match(directed[1], "^⏹️", "directed SEND shares the lifecycle primary glyph")
+  H.assert_match(directed[1], "^💬", "directed SEND is a message, not a disposition")
   H.assert_truthy(not directed[1]:match("200"), "routine directed SEND suppresses its numeric status")
   local directed_failure = R({
     op = "SEND", origin = "model", scheme = "worker", pathname = "/gone",
     status_rx = 410, signal = 410, tx = { body = { raw = "Gone." } },
   })
-  H.assert_match(directed_failure[1], "^❌ 410", "failed directed SEND retains its diagnostic status")
+  H.assert_match(directed_failure[1], "^💬 💥 410", "failed directed SEND retains its diagnostic status")
 
   -- The service's actionless prompt row renders as user speech, not an op trace.
   local prompt_block = R({
@@ -263,7 +268,7 @@ local ok, err = pcall(function()
   -- The pure renderer preserves authored Mermaid source. Width-aware visual
   -- projection belongs to the worker-tab presentation, never the log row.
   local mermaid_source = R({
-    op = "SEND", origin = "model", scheme = nil, pathname = nil,
+    op = "DONE", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "before\n```mermaid\ngraph TD\n  a --> b\n```\nafter" } },
   })

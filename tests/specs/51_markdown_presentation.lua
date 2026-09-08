@@ -92,7 +92,7 @@ local ok, err = pcall(function()
     {
       id = 1, worker_id = 7, loop_id = 1, turn_id = 1,
       loop_seq = 1, turn_seq = 1, sequence = 1,
-      op = "SEND", origin = "model", status_rx = 200, signal = 200,
+      op = "DONE", origin = "model", status_rx = 200, signal = 200,
       tx = { body = { raw = source } }, rx = {},
     },
     {

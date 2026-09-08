@@ -103,11 +103,11 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Visual ranges wrap** — `:'<,'>AI: explain` folds the
   selection into the prompt; the `??` new-workspace form wraps the same way (the v0.3.0
   regression stays pinned).
-- **Raw PLURNK passes through** — input beginning with a recognized operation
-  heading (`# PLAN…` or `## OP…`) goes to `op.parse` verbatim; plain text routes
-  to a conversation worker. Prefix `: ` to force prompt treatment when prose
-  intentionally begins with a reserved operation heading.
-- **`## LOOK…` inspects off-worker** — a READ for the human, not the model:
+- **Raw PLURNK passes through** — named executable backtick fences go to
+  `op.parse` verbatim. Native OPs and executor/MCP names share this entry point;
+  the daemon owns parsing, resolution, and diagnostics. Plain text routes to a
+  conversation worker; prefix `: ` to prompt with a literal fenced example.
+- **A LOOK fence inspects off-worker** — a READ for the human, not the model:
   routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
   rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
 - §nvim-command-discovery **One command contract** — one registry owns `:AI/`
@@ -281,10 +281,10 @@ what this client guarantees. Tests are organized by observable behavior under
   waterfall on top, input at the bottom; submitting populates the waterfall and leaves
   focus on the input; an actionless `prompt` row renders as `❯` speech from `rx.content`.
 - **The waterfall shares one visual language with the terminal client** — every
-  glyph-bearing row begins at column zero. Non-SEND operations carry their operation
-  glyph and a secondary-status slot; SENDs carry one lifecycle glyph regardless of
-  producer. SEND lifecycle glyphs are `▶️` (102), `⏹️` (200), 💤 (202), 🤔 (300), and ✋
-  (499). Broadcast and routine directed SEND codes remain wire truth without
+  glyph-bearing row begins at column zero. Non-disposition operations carry their
+  operation glyph and a secondary-status slot. Native dispositions carry one
+  lifecycle glyph regardless of producer: `▶️` (NEXT), `⏹️` (DONE), 💤 (WAIT), and ✋
+  (FAIL). SEND messages use 💬. Disposition and routine directed SEND codes remain wire truth without
   repeating in human output; a failed directed SEND and any other failed operation
   retain their diagnostic code.
   Targets, scopes, previews, and literal annotations use one-space separators.
@@ -431,7 +431,7 @@ what this client guarantees. Tests are organized by observable behavior under
   multiline input against the built daemon and a deterministic standards-compatible
   provider. The specimen must stop a real side effect for review, resume the same
   logical loop, complete its second inference, and render reasoning, operations,
-  PLAN, SEND, and settled authoritative lifecycle without asynchronous callback
+  PLAN, messages, dispositions, and settled authoritative lifecycle without asynchronous callback
   failures. The gate admits daemon-backed specimens only after worldless AG-UI+
   `discover` succeeds; listener ownership during durable recovery is not readiness.
   Stochastic real-model dogfooding remains a separate opt-in tier.

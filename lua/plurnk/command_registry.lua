@@ -262,7 +262,7 @@ function M.render_help(name)
     end
     lines[#lines + 1] = string.format("  %-15s%s", group.label, table.concat(names, " "))
   end
-  lines[#lines + 1] = "  language       ## PLAN_ · ### OP_ · ### LOOK_"
+  lines[#lines + 1] = "  language       ```PLAN · ```OP · ```LOOK"
   lines[#lines + 1] = "  :AI/help <verb> for exact usage"
   return table.concat(lines, "\n")
 end
