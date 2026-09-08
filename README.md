@@ -52,6 +52,7 @@ while pre-1.0, a minor bump may carry breaking changes (see the tag message).
 | `:AI????` | new worker in the current workspace (fork) |
 | `:AI... {text}` | inject into the running loop (a mid-loop prompt steers too) |
 | `:AI/attach {name}` | bind this tab to a conversation worker by name (`:AI/workers` picks from the topology) |
+| `:AI/parent` `:AI/enter` `:AI/older` `:AI/newer` | hop the worker tree — parent, newest child, older/newer sibling (`<leader>ah` `al` `aj` `ak`); the tab then speaks to that worker, the winbar shows its path `[~/fork-1/recheck]` |
 | `:AI/` | show the compact grouped command index |
 | `:AI/help {verb}` | show one command's exact usage and purpose |
 

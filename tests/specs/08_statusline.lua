@@ -48,6 +48,7 @@ local ok, err = pcall(function()
         loopId = 7,
         packetCount = 2,
         activity = vim.NIL,
+        children = 2,
       } },
       budget = {},
     },
@@ -77,6 +78,14 @@ local ok, err = pcall(function()
   H.assert_match(wb, "loop: %$0%.0700", "per-loop cost, labelled 'loop:'")
   local lifecycle_at, model_at, packet_at = wb:find("⌛︎"), wb:find("🤖 claude"), wb:find("P2")
   H.assert_truthy(lifecycle_at < model_at and model_at < packet_at, "winbar status order is lifecycle → model → packet count")
+  -- {§nvim-status-children}: the ant is the daemon's alive-children count, after the packet count
+  H.assert_match(wb, "P2 · 🐜2", "the daemon's alive-children count rides the winbar as the ant")
+  local _, older = runtime_status.reduce(nil, { type = "STATE_SNAPSHOT", snapshot = { plurnk = { status = {
+    lifecycle = "idle", model = vim.NIL, loopId = vim.NIL, packetCount = 0, activity = vim.NIL } }, budget = {} } })
+  H.assert_truthy(runtime_status.project(older).children == nil, "an older daemon states no count")
+  state.set_runtime_gauge("s1", older)
+  H.assert_truthy(not worker_tab.winbar_text("s1", 7):match("🐜"), "no count, no ant")
+  state.set_runtime_gauge("s1", gauge)
 
   handled, gauge = runtime_status.reduce(gauge, {
     type = "STATE_DELTA",

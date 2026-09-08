@@ -114,6 +114,38 @@ end
 -- Bind this tab to a conversation worker by name (nvim#27). The bridge's thread
 -- is the workspace and the worker is selected by id, so an unknown name is not
 -- minted here — :PlurnkFork <name> is this client's mint.
+-- {§nvim-worker-hops} — one hop over the tree is a full attach: the tab then speaks to that worker.
+-- The directory is re-read on every hop; an edge names why nothing moved.
+function M.hop(direction)
+  local client = require("plurnk.client")
+  local workspace = context.active()
+  if not workspace then
+    client.notify("No active workspace", vim.log.levels.WARN)
+    return
+  end
+  local state = require("plurnk.state")
+  local workspace_id = state.get_workspace_id(workspace)
+  if not workspace_id then
+    client.notify("Workspace " .. workspace .. " not resolved", vim.log.levels.WARN)
+    return
+  end
+  client.send("workspace.workers", { id = workspace_id }, false, function(result)
+    if type(result) ~= "table" or type(result.workers) ~= "table" then return end
+    local directory = require("plurnk.workers")
+    directory.remember_names(workspace, result.workers)
+    local target, reason = directory.hop(result.workers, state.get_worker_id(workspace), direction)
+    if not target then
+      client.notify("(" .. reason .. ")", vim.log.levels.INFO)
+      return
+    end
+    context.switch_worker(workspace, target.id, function()
+      require("plurnk.worker_tab").open(workspace)
+      context.hydrate_worker(workspace)
+      client.notify("worker: " .. target.name .. " " .. directory.position_label(workspace), vim.log.levels.INFO)
+    end)
+  end)
+end
+
 function M.attach(args)
   local name = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
   local client = require("plurnk.client")

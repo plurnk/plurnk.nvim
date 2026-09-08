@@ -4,9 +4,10 @@
 -- plurnk-service#523; nothing is inferred from row coordinates.
 local M = {}
 
+-- Newest first (nvim#27): the child you just spawned is the one `<leader>al` enters.
 local function by_created(a, b)
-  if a.created_at ~= b.created_at then return (a.created_at or "") < (b.created_at or "") end
-  return a.id < b.id
+  if a.created_at ~= b.created_at then return (a.created_at or "") > (b.created_at or "") end
+  return a.id > b.id
 end
 
 -- Model-origin workers are the attachable conversations; client and _plurnk
@@ -64,6 +65,98 @@ function M.topology(workers, bound_id)
   return rows
 end
 
+-- {§nvim-worker-hops} — one hop over the tree (plurnk-service#523): "parent" climbs, "enter"
+-- descends to the newest child, "next"/"prev" walk siblings (older/newer) and wrap. Places are
+-- conversations and their descendants; the daemon's and a connection's scratch workers are not.
+-- Returns the target worker, or nil and the reason nothing moved.
+local function by_recency(a, b)
+  if a.created_at ~= b.created_at then return (a.created_at or "") > (b.created_at or "") end
+  return a.id > b.id
+end
+
+local function index_directory(workers)
+  local by_id = {}
+  for _, worker in ipairs(workers) do by_id[worker.id] = worker end
+  local function parent_of(worker)
+    local parent = worker.parentWorkerId
+    if parent ~= nil and parent ~= vim.NIL and by_id[parent] then return by_id[parent] end
+    return nil
+  end
+  return by_id, parent_of
+end
+
+local function siblings_of(workers, current, parent_of)
+  local parent = parent_of(current)
+  local out = {}
+  for _, worker in ipairs(workers) do
+    local same_parent = parent_of(worker)
+    if (worker.origin == "model" or worker.id == current.id)
+      and ((same_parent and same_parent.id) == (parent and parent.id)) then
+      out[#out + 1] = worker
+    end
+  end
+  table.sort(out, by_recency)
+  return out
+end
+
+function M.hop(workers, bound_id, direction)
+  local _, parent_of = index_directory(workers)
+  local current
+  for _, worker in ipairs(workers) do if worker.id == bound_id then current = worker end end
+  if not current then return nil, "no bound worker yet" end
+  if direction == "parent" then
+    local parent = parent_of(current)
+    if not parent then return nil, "at the root: no parent" end
+    return parent
+  end
+  if direction == "enter" then
+    local children = {}
+    for _, worker in ipairs(workers) do
+      local parent = parent_of(worker)
+      if worker.origin == "model" and parent and parent.id == current.id then children[#children + 1] = worker end
+    end
+    table.sort(children, by_recency)
+    if #children == 0 then return nil, "no children" end
+    return children[1]
+  end
+  local siblings = siblings_of(workers, current, parent_of)
+  if #siblings < 2 then return nil, "no siblings" end
+  local index
+  for i, worker in ipairs(siblings) do if worker.id == current.id then index = i end end
+  local step = direction == "next" and 1 or -1
+  return siblings[((index - 1 + step) % #siblings) + 1]
+end
+
+-- `~` at a root, `~/fork-1/recheck` two hops down: the path from the tree root to the bound
+-- worker — the prompt prefix's truth wherever the session started.
+function M.path(workers, bound_id)
+  local _, parent_of = index_directory(workers)
+  local current
+  for _, worker in ipairs(workers) do if worker.id == bound_id then current = worker end end
+  if not current then return "~" end
+  local segments = {}
+  local parent = parent_of(current)
+  while parent do
+    table.insert(segments, 1, current.name)
+    current = parent
+    parent = parent_of(current)
+  end
+  if #segments == 0 then return "~" end
+  return "~/" .. table.concat(segments, "/")
+end
+
+-- The bound worker's place among its siblings, newest first, or nil when it has none.
+function M.position(workers, bound_id)
+  local _, parent_of = index_directory(workers)
+  local current
+  for _, worker in ipairs(workers) do if worker.id == bound_id then current = worker end end
+  if not current then return nil end
+  local siblings = siblings_of(workers, current, parent_of)
+  if #siblings < 2 then return nil end
+  for i, worker in ipairs(siblings) do if worker.id == current.id then return { index = i, count = #siblings } end end
+  return nil
+end
+
 -- Conversation names for completion: the cached directory, refreshed once
 -- when empty (the same demand-loading the model alias completion uses).
 function M.name_candidates(prefix)
@@ -94,7 +187,20 @@ end
 function M.remember_names(workspace, workers)
   local names = {}
   for _, worker in ipairs(M.conversations(workers)) do names[#names + 1] = worker.name end
-  require("plurnk.state").set_worker_names(workspace, names)
+  local state = require("plurnk.state")
+  state.set_worker_names(workspace, names)
+  state.set_worker_directory(workspace, workers)
+end
+
+-- The winbar's position segments from the cached directory: `[~/fork-1/recheck]` and `(2/3)`.
+function M.position_label(workspace)
+  local state = require("plurnk.state")
+  local rows = state.get_worker_directory(workspace)
+  local bound = state.get_worker_id(workspace)
+  local label = "[" .. M.path(rows, bound) .. "]"
+  local position = M.position(rows, bound)
+  if position then label = label .. " (" .. position.index .. "/" .. position.count .. ")" end
+  return label
 end
 
 return M

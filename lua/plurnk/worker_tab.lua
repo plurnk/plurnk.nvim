@@ -73,7 +73,8 @@ end
 local function build_winbar(workspace, key)
   local state = require("plurnk.state")
   local rid = type(key) == "number" and key or nil
-  local parts = { "plurnk · " .. workspace .. " · " .. worker_label(workspace, rid) }
+  -- {§nvim-worker-hops} — where this tab is in the tree, then whose it is.
+  local parts = { "plurnk · " .. workspace .. " · " .. require("plurnk.workers").position_label(workspace) .. " " .. worker_label(workspace, rid) }
 
   local runtime = state.get_runtime_status(workspace)
   local transport = state.get_transport_status(workspace)
@@ -89,6 +90,8 @@ local function build_winbar(workspace, key)
   local model = runtime and runtime.model or state.get_active_model(workspace)
   if model then parts[#parts + 1] = "🤖 " .. model end
   if runtime then parts[#parts + 1] = "P" .. tostring(runtime.packet_count) end
+  -- The ant is the daemon's count of alive direct children ({§nvim-status-children}).
+  if runtime and runtime.children ~= nil then parts[#parts + 1] = "🐜" .. tostring(runtime.children) end
 
   local reasoning = state.get_reasoning_policy(workspace)
   if reasoning then parts[#parts + 1] = "🧠 " .. reasoning end

@@ -22,6 +22,11 @@ local MAPS = {
   { modes = { "n" }, lhs = "<leader>am", rhs = ":PlurnkModels<CR>", desc = describe("models") },
   { modes = { "n" }, lhs = "<leader>as", rhs = ":PlurnkWorkspaces<CR>", desc = describe("workspaces") },
   { modes = { "n" }, lhs = "<leader>aR", rhs = ":PlurnkWorkspaceWorkers<CR>", desc = describe("workers") },
+  -- {§nvim-worker-hops} — vim's tree orientation: h parent, l newest child, j/k older/newer sibling.
+  { modes = { "n" }, lhs = "<leader>ah", rhs = ":PlurnkParent<CR>", desc = describe("parent") },
+  { modes = { "n" }, lhs = "<leader>al", rhs = ":PlurnkEnter<CR>", desc = describe("enter") },
+  { modes = { "n" }, lhs = "<leader>aj", rhs = ":PlurnkOlder<CR>", desc = describe("older") },
+  { modes = { "n" }, lhs = "<leader>ak", rhs = ":PlurnkNewer<CR>", desc = describe("newer") },
   { modes = { "n" }, lhs = "<leader>aL", rhs = ":PlurnkLog<CR>", desc = describe("log") },
   { modes = { "n" }, lhs = "<leader>aO", rhs = ":PlurnkOpen<CR>", desc = describe("open") },
   { modes = { "n" }, lhs = "<leader>aY", rhs = ":PlurnkYolo<CR>", desc = describe("yolo") },

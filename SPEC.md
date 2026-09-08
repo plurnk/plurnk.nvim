@@ -235,10 +235,28 @@ what this client guarantees. Tests are organized by observable behavior under
   with the pointer to `:PlurnkFork <name>`, this client's mint (nvim#27).
 - **The workers picker is the topology** — `:PlurnkWorkspaceWorkers` / `:AI/workers`
   renders conversations as a forest from `parentWorkerId`, the bound conversation's
-  tree first and marked `●`, tree connectors, creation time per row; a worker whose
-  parent is not in the directory stands as a root. Lifecycle glyphs for workers other
-  than the bound one arrive with plurnk-service#523 and are never inferred. This is
-  navigation; supervising concurrent descendants is #25.
+  tree first and marked `●`, tree connectors, siblings newest first, creation time per
+  row; a worker whose parent is not in the directory stands as a root. The map carries
+  no lifecycle: a worker's state is seen by being in it.
+- §nvim-worker-hops **Topology is navigation, not a dashboard** (plurnk-service#523) —
+  a child worker is a first-class place the tab goes to, prompts, forks, or opens as
+  the root of another session. One hop is a full `workspace.attach` of the target,
+  never a read-only visit. Hops follow vim's tree orientation, depth horizontal and
+  siblings vertical, under the `<leader>a` prefix: `<leader>ah` / `:PlurnkParent` /
+  `:AI/parent` climbs to the parent; `<leader>al` / `:PlurnkEnter` / `:AI/enter` enters
+  the newest child; `<leader>aj` / `:PlurnkOlder` / `:AI/older` and `<leader>ak` /
+  `:PlurnkNewer` / `:AI/newer` walk siblings, wrapping. Places are conversations and
+  their descendants; the daemon's maintenance worker and a connection's scratch worker
+  are never targets. Every hop re-reads the directory; an edge reports why nothing
+  moved (`(at the root: no parent)`, `(no children)`, `(no siblings)`). The winbar
+  leads with the path from the tree root to the bound worker — `[~]` at a root,
+  `[~/fork-1/recheck]` two hops down, `~` being the tree root wherever the tab
+  started — followed by the sibling position `(2/3)`, newest first, when there is one.
+- §nvim-status-children **The ant is the daemon's count** — `status.children` from the
+  AG-UI gauge, the bound worker's alive direct children (queued, running, parked),
+  renders as `🐜<n>` after the packet count; an older daemon that states none shows
+  no ant. The count is never derived from the directory: the user hops to a child
+  rather than watching it.
 - **Rename is a mutable handle on the world** — `workspace.rename`
   rekeys local state and the worker tab in place; a worker's name is immutable.
 - **Project root defaults to the editor cwd** — `workspace.create`

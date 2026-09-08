@@ -22,6 +22,11 @@ function M.setup()
     complete = function(arglead) return require("plurnk.workers").name_candidates(arglead) end,
   })
   command("PlurnkWorkspaceWorkers", workspaces.workers, {})
+  -- {§nvim-worker-hops}
+  command("PlurnkParent", function() workspaces.hop("parent") end, {})
+  command("PlurnkEnter", function() workspaces.hop("enter") end, {})
+  command("PlurnkOlder", function() workspaces.hop("next") end, {})
+  command("PlurnkNewer", function() workspaces.hop("prev") end, {})
   command("PlurnkModels", generation.models, { nargs = "*" })
   command("PlurnkReasoning", function(opts)
     generation.set_reasoning(opts.args)

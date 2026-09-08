@@ -64,12 +64,22 @@ function M.project(gauge)
     }
   end
 
+  -- {§nvim-status-children} — the daemon's alive-children count; an older daemon states none.
+  local children
+  if not is_null(raw.children) then
+    if type(raw.children) ~= "number" or raw.children ~= math.floor(raw.children) or raw.children < 0 then
+      error("invalid AG-UI runtime children count: " .. tostring(raw.children))
+    end
+    children = raw.children
+  end
+
   return {
     lifecycle = raw.lifecycle,
     model = model_selector(raw.model),
     loop_id = is_null(raw.loopId) and nil or raw.loopId,
     packet_count = raw.packetCount,
     activity = activity,
+    children = children,
   }
 end
 

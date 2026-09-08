@@ -20,11 +20,31 @@ local ok, err = pcall(function()
   local rows = workers.topology(workers.conversations(directory), 1)
   local trees = {}
   for _, row in ipairs(rows) do trees[#trees + 1] = row.tree end
-  H.assert_eq(table.concat(trees, "|"), "● sess|├─ ○ sess-fork|│  └─ ○ recheck|└─ ○ guesser1|○ stray",
-    "bound tree first with connectors; orphan parent stands as a root; scratch workers excluded")
+  H.assert_eq(table.concat(trees, "|"), "● sess|├─ ○ guesser1|└─ ○ sess-fork|   └─ ○ recheck|○ stray",
+    "bound tree first with connectors, siblings newest first; orphan parent stands as a root; scratch workers excluded")
   local deep = workers.topology(workers.conversations(directory), 3)
   H.assert_eq(deep[1].tree, "○ sess", "a bound descendant keeps its root first")
-  H.assert_eq(deep[3].tree, "│  └─ ● recheck", "only the bound worker is marked")
+  H.assert_eq(deep[4].tree, "   └─ ● recheck", "only the bound worker is marked")
+
+  -- {§nvim-worker-hops}: pure hops over the directory, the path, and the sibling position
+  local hop = function(bound, direction) local target, reason = workers.hop(directory, bound, direction); return target and target.name or ("(" .. reason .. ")") end
+  H.assert_eq(hop(1, "enter"), "guesser1", "l enters the newest child")
+  H.assert_eq(hop(4, "parent"), "sess", "h climbs")
+  H.assert_eq(hop(4, "next"), "sess-fork", "j walks to the older sibling")
+  H.assert_eq(hop(2, "next"), "guesser1", "and wraps")
+  H.assert_eq(hop(4, "prev"), "sess-fork", "k wraps the other way")
+  H.assert_eq(hop(2, "enter"), "recheck", "enter descends one level")
+  H.assert_eq(hop(3, "enter"), "(no children)", "an edge names why")
+  H.assert_eq(hop(3, "next"), "(no siblings)", "an only child has no siblings")
+  H.assert_eq(hop(1, "parent"), "(at the root: no parent)", "the root has no parent")
+  H.assert_eq(hop(1, "next"), "stray", "root conversations are siblings; scratch workers are not places")
+  H.assert_eq(hop(99, "enter"), "(no bound worker yet)", "nothing bound, nowhere to hop")
+  H.assert_eq(workers.path(directory, 1), "~", "the root is home")
+  H.assert_eq(workers.path(directory, 3), "~/sess-fork/recheck", "the path from the tree root")
+  H.assert_eq(workers.path(directory, 99), "~", "unknown reads as home until the directory learns it")
+  local position = workers.position(directory, 2)
+  H.assert_eq(position.index .. "/" .. position.count, "2/2", "sibling position, newest first")
+  H.assert_truthy(workers.position(directory, 3) == nil, "an only child has no position")
 
   -- daemon stubs
   local sent, notices = {}, {}
@@ -80,7 +100,20 @@ local ok, err = pcall(function()
   H.assert_truthy(shown ~= nil, "the picker opened")
   -- the earlier attach bound sess-fork: its tree still heads the picker, the mark moves to it
   H.assert_match(shown.format(shown.items[1]), "^○ sess  2026", "the bound conversation's tree heads the picker, rows carry creation time")
-  H.assert_match(shown.format(shown.items[2]), "^├─ ● sess%-fork", "the bound conversation is marked where it sits in the tree")
+  H.assert_match(shown.format(shown.items[3]), "^└─ ● sess%-fork", "the bound conversation is marked where it sits in the tree, newest sibling first")
+
+  -- a hop is a full attach through the same path: the daemon names the target, the tab rebinds,
+  -- and the report carries the path and sibling position
+  local before_hop = #sent
+  cmds.hop("parent")
+  local hopped
+  for i = before_hop + 1, #sent do if sent[i].method == "workspace.attach" then hopped = sent[i] end end
+  H.assert_truthy(hopped ~= nil, "a hop attaches")
+  H.assert_eq(hopped.params.workerId, 1, "h from sess-fork lands on sess")
+  H.assert_eq(workers.position_label("s"), "[~] (2/2)", "the winbar's position: home, the older of two root conversations (stray is newer)")
+  cmds.hop("parent")
+  H.assert_match(notices[#notices].msg, "^%(at the root: no parent%)$", "an edge reports why nothing moved")
+  H.assert_match(require("plurnk.worker_tab").winbar_text("s", 1), "%[~%] %(2/2%) ", "the winbar leads with where the tab is in the tree")
 end)
 if not ok then H.fail(NAME, err) end
 H.finish(NAME)

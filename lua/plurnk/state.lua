@@ -57,6 +57,11 @@ M.get_available_aliases = function() return available_aliases end
 local worker_names = {}              -- per workspace: conversation names for /attach completion
 M.get_worker_names = function(name) return worker_names[name] or {} end
 M.set_worker_names = function(name, names) worker_names[name] = names or {} end
+-- {§nvim-worker-hops} — the last `workspace.workers` directory, re-read on every hop or rebind;
+-- the winbar's path prefix and sibling position are drawn from it, never from row coordinates.
+local worker_directory = {}
+M.get_worker_directory = function(name) return worker_directory[name] or {} end
+M.set_worker_directory = function(name, rows) worker_directory[name] = rows or {} end
 M.set_available_aliases = function(aliases) available_aliases = aliases or {} end
 
 M.set_selected_model_selector = function(selector) selected_model_selector = selector end
