@@ -113,9 +113,12 @@ local ok, err = pcall(function()
   assert_match(content, "🚧 Create the requested acceptance marker", "the active PLAN renders")
   assert_match(content, "🔧", "the executed operation renders")
   assert_match(content, "printf 'accepted", "the executed command renders")
-  assert_match(content, "▶️ Next: Confirm the reviewed command completed%.", "the continuing SEND renders")
+  assert_match(content, "▶️\n🚧 Create the requested acceptance marker", "NEXT renders its continuing inventory")
   assert_match(content, "✅ Create the requested acceptance marker", "the completed PLAN renders")
-  assert_match(content, "⏹️ The reviewed multiline journey is complete%.", "the terminal SEND renders")
+  assert_match(content, "💬 The reviewed multiline journey is complete%.", "SEND renders the user-facing conclusion")
+  assert_match(content, "💤\n✅ Create the requested acceptance marker", "the settled WAIT preserves its completed inventory")
+  assert_truthy(match_count(content, "💭 The reviewed command succeeded") == 1,
+    "one turn's reasoning is not repeated for its SEND and WAIT\n" .. content)
 
   local status = state.get_runtime_status(workspace)
   assert_truthy(status.model == "journey" and status.packet_count >= 2,

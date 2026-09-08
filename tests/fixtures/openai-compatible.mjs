@@ -8,43 +8,40 @@ const programs = Object.freeze([
     {
         reasoning: "I will make one reviewed local change, then verify the settled result.",
         content: [
-            "```PLAN",
-            '[{"content":"Create the requested acceptance marker through review.","priority":"high","status":"in_progress"}]',
-            "```",
             "```sh",
             "printf 'accepted\\n' > journey.txt",
             "```",
             "```NEXT",
-            "Next: Confirm the reviewed command completed.",
+            '[{"content":"Create the requested acceptance marker through review.","status":"in_progress"}]',
             "```",
         ].join("\n"),
     },
     {
         reasoning: "The reviewed command succeeded, so I can conclude the requested journey.",
         content: [
-            "```PLAN",
-            '[{"content":"Create the requested acceptance marker through review.","priority":"high","status":"completed"}]',
-            "```",
-            "```DONE",
+            "```SEND",
             "The reviewed multiline journey is complete.",
+            "```",
+            "```WAIT",
+            '[{"content":"Create the requested acceptance marker through review.","status":"completed"}]',
             "```",
         ].join("\n"),
     },
     {
         reasoning: "I will ask for the named fields and await the answer.",
         content: [
-            "```PLAN", "[]", "```", "```question (question)",
+            "```question (question)",
             JSON.stringify({ message: "Which branch details?", requestedSchema: {
                 type: "object", properties: {
                     branch: { type: "string" }, count: { type: "integer" }, notes: { type: "string" },
                 }, required: ["count"],
             } }),
-            "```", "```WAIT", "Awaiting branch details.", "```",
+            "```", "```WAIT", '[{"content":"Awaiting branch details.","status":"pending"}]', "```",
         ].join("\n"),
     },
     {
         reasoning: "The question result has arrived in the continued loop.",
-        content: "```PLAN\n[]\n```\n```DONE\nThe named-field answer arrived.\n```",
+        content: "```DONE\nThe named-field answer arrived.\n```",
     },
 ]);
 

@@ -14,8 +14,11 @@ local function R(t)
 end
 local ok, err = pcall(function()
   for _, pair in ipairs({ { "NEXT", 102, "▶️" }, { "WAIT", 202, "💤" }, { "DONE", 200, "⏹️" }, { "FAIL", 499, "✋" } }) do
-    local lines = R({ op = pair[1], origin = "model", status_rx = pair[2], signal = pair[2], tx = { body = { raw = "Update." } } })
-    H.assert_eq(lines[1], pair[3] .. " Update.", "native disposition carries its lifecycle and body")
+    local continuation = pair[1] == "NEXT" or pair[1] == "WAIT"
+    local body = continuation and { entries = { { content = "Update.", priority = "medium", status = "pending" } } } or { raw = "Update." }
+    local lines = R({ op = pair[1], origin = "model", status_rx = pair[2], signal = pair[2], tx = { body = body } })
+    H.assert_eq(lines[1], pair[3] .. (continuation and "" or " Update."), "native disposition carries its lifecycle")
+    if continuation then H.assert_eq(lines[2], "⬜ Update.", "continuation carries its inventory") end
   end
   H.assert_eq(R({ op = "SEND", origin = "model", status_rx = 200, tx = { body = { raw = "Update." } } })[1], "💬 Update.", "SEND remains messaging")
   local reasoning = r.render_reasoning("first line\nsecond line")
@@ -78,10 +81,10 @@ local ok, err = pcall(function()
   H.assert_truthy(not incomplete_move[1]:match("deleted"),
     "an invalid transfer invents no retired destination-body semantics")
 
-  -- PLAN → one ordered status-glyph line per canonical entry.
+  -- NEXT → lifecycle header followed by one line per canonical inventory entry.
   local plan_lines = R({
-    op = "PLAN", origin = "model", scheme = nil, pathname = nil,
-    status_rx = 200,
+    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 102,
     tx = { body = { entries = {
       { content = "Contract settled.", priority = "medium", status = "completed" },
       { content = "Memory: One baseline owns the schema.", priority = "medium", status = "completed" },
@@ -89,39 +92,41 @@ local ok, err = pcall(function()
       { content = "Run drills.", priority = "low", status = "pending" },
     } } },
   })
-  H.assert_eq(#plan_lines, 4, "PLAN has one line per entry")
-  H.assert_eq(plan_lines[1], "✅ Contract settled.", "completed entry owns the first line — no coordinate, no routine code")
-  H.assert_eq(plan_lines[2], "✅ Memory: One baseline owns the schema.", "content cannot change a task's status or lose a prefix")
-  H.assert_eq(plan_lines[3], "🚧 [high] Update clients.", "in-progress entry aligns below it")
-  H.assert_eq(plan_lines[4], "⬜ [low] Run drills.", "pending entry aligns below it")
+  H.assert_eq(#plan_lines, 5, "continuation has a header and one line per entry")
+  H.assert_eq(plan_lines[1], "▶️", "continuation header owns its lifecycle")
+  H.assert_eq(plan_lines[2], "✅ Contract settled.", "completed entry owns its line — no coordinate, no routine code")
+  H.assert_eq(plan_lines[3], "✅ Memory: One baseline owns the schema.", "content cannot change a task's status or lose a prefix")
+  H.assert_eq(plan_lines[4], "🚧 [high] Update clients.", "in-progress entry aligns below it")
+  H.assert_eq(plan_lines[5], "⬜ [low] Run drills.", "pending entry aligns below it")
   H.assert_truthy(not table.concat(plan_lines, "\n"):match("🧠"), "structured PLAN has no opaque brain glyph")
   H.assert_eq(vim.fn.strdisplaywidth("✅"), 2, "completed glyph is width-stable")
   H.assert_eq(vim.fn.strdisplaywidth("🚧"), 2, "in-progress glyph is width-stable")
   H.assert_eq(vim.fn.strdisplaywidth("⬜"), 2, "pending glyph is width-stable")
 
   local literal_content = R({
-    op = "PLAN", origin = "model", scheme = nil, pathname = nil,
-    status_rx = 200,
+    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 102,
     tx = { body = { entries = {
       { content = "Memory: One baseline owns the schema.", priority = "medium", status = "completed" },
     } } },
   })
-  H.assert_eq(literal_content[1], "✅ Memory: One baseline owns the schema.",
+  H.assert_eq(literal_content[2], "✅ Memory: One baseline owns the schema.",
     "the client preserves literal task content")
 
   H.assert_truthy(not pcall(R, {
-    op = "PLAN", origin = "model", scheme = nil, pathname = nil,
-    status_rx = 200,
+    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 102,
     tx = { body = { entries = {
       { content = "Internal memory", priority = "medium", status = "memory" },
     } } },
   }), "the client rejects non-ACP task statuses")
 
   local empty_plan = R({
-    op = "PLAN", origin = "model", scheme = nil, pathname = nil,
-    status_rx = 200, tx = { body = { entries = {} } },
+    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
+    status_rx = 102, tx = { body = { entries = {} } },
   })
-  H.assert_eq(empty_plan[1], "📭 no entries", "empty PLAN remains visible without coordinate or routine code")
+  H.assert_eq(empty_plan[1], "▶️", "empty continuation retains its lifecycle")
+  H.assert_eq(empty_plan[2], "📭 no entries", "empty inventory remains visible without coordinate or routine code")
 
   local bare_lines = R({
     op = "BARE", origin = "model", scheme = nil, pathname = nil,
@@ -160,19 +165,20 @@ local ok, err = pcall(function()
   local bc_continuing = R({
     op = "NEXT", origin = "model", scheme = nil, pathname = nil,
     status_rx = 102, signal = 102,
-    tx = { body = { raw = "Continuing." } },
+    tx = { body = { entries = { { content = "Continuing.", priority = "medium", status = "in_progress" } } } },
   })
-  H.assert_eq(bc_continuing[1], "▶️ Continuing.", "102 uses the continuing lifecycle glyph without its code")
+  H.assert_eq(bc_continuing[1], "▶️", "102 uses the continuing lifecycle glyph without its code")
+  H.assert_eq(bc_continuing[2], "🚧 Continuing.", "continuing inventory is structured")
   H.assert_eq(vim.fn.strdisplaywidth("▶️"), 2, "continuing lifecycle sequence is width-stable in Neovim")
   H.assert_eq(vim.fn.strdisplaywidth("⏹️"), 2, "completion lifecycle sequence is width-stable in Neovim")
 
   local runtime_continuing = R({
     op = "NEXT", origin = "_plurnk", scheme = nil, pathname = nil,
     status_rx = 102, signal = 102,
-    tx = { body = { raw = "Next: Address the prompt." } },
+    tx = { body = { entries = { { content = "Address the prompt.", priority = "medium", status = "pending" } } } },
   })
-  H.assert_eq(runtime_continuing[1], "▶️ Next: Address the prompt.",
-    "every SEND uses lifecycle regardless of producer")
+  H.assert_eq(runtime_continuing[1], "▶️", "continuations use lifecycle regardless of producer")
+  H.assert_eq(runtime_continuing[2], "⬜ Address the prompt.", "runtime inventory follows the same projection")
 
   local bc_arrow = R({
     op = "DONE", origin = "model", scheme = nil, pathname = nil,

@@ -26,6 +26,10 @@ M.is_disposition = function(op)
   return op == "NEXT" or op == "WAIT" or op == "DONE" or op == "FAIL"
 end
 
+M.is_continuation = function(op)
+  return op == "NEXT" or op == "WAIT"
+end
+
 M.PLAN_STATUS_GLYPHS = {
   completed = "✅",
   in_progress = "🚧",
@@ -213,10 +217,10 @@ end
 local function plan_entry(entry)
   local glyph = M.PLAN_STATUS_GLYPHS[entry.status]
   if glyph == nil or type(entry.content) ~= "string" then
-    error("PLAN row carries a noncanonical Plan entry")
+    error("Continuation row carries a noncanonical Plan entry")
   end
   if entry.priority ~= "medium" and entry.priority ~= "high" and entry.priority ~= "low" then
-    error("PLAN row carries a noncanonical ACP Plan priority")
+    error("Continuation row carries a noncanonical ACP Plan priority")
   end
   local content = entry.content:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
   if entry.priority ~= "medium" then content = "[" .. entry.priority .. "] " .. content end
@@ -227,10 +231,10 @@ local function render_plan(entry)
   local tx = type(entry.tx) == "table" and entry.tx or nil
   local plan = tx and type(tx.body) == "table" and tx.body or nil
   if plan == nil or type(plan.entries) ~= "table" then
-    error("PLAN row must carry its canonical Plan body")
+    error("Continuation row must carry its canonical Plan body")
   end
 
-  -- A routine PLAN carries no code; a failed one keeps its glyph + code on
+  -- A routine inventory carries no code; a failed one keeps its glyph + code on
   -- the first row.
   local status = tostring(entry.status_rx or "?")
   local failed = type(entry.status_rx) == "number" and entry.status_rx >= 400
@@ -253,8 +257,6 @@ local function render_plan(entry)
     end
     lines[index] = prefix .. row.text
   end
-  local note = annotation(entry)
-  if note ~= "" then lines[1] = lines[1] .. " — " .. note end
   return lines
 end
 
@@ -326,14 +328,17 @@ end
 
 -- Render a regular (non-broadcast) trace line.
 M.render_log_entry = function(entry)
+  if M.is_continuation(entry.op) then
+    local header = broadcast_content(entry)
+    local lines = { header }
+    for _, line in ipairs(render_plan(entry)) do lines[#lines + 1] = line end
+    return lines
+  end
   if M.is_disposition(entry.op) or entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil then
     return M.render_broadcast(entry)
   end
   if M.is_prompt_entry(entry) then
     return M.render_prompt(entry)
-  end
-  if entry.op == "PLAN" then
-    return render_plan(entry)
   end
 
   -- Operation rows retain an outcome slot. SEND rows use only their actor or
@@ -391,7 +396,7 @@ end
 -- state from styling later control rows. The caller owns the source entry and
 -- may project it again at a different live window width.
 M.render_log_block = function(entry, width, on_change)
-  if not M.is_disposition(entry.op) and (entry.op ~= "SEND" or entry.scheme ~= nil or entry.pathname ~= nil) then
+  if M.is_continuation(entry.op) or not M.is_disposition(entry.op) and (entry.op ~= "SEND" or entry.scheme ~= nil or entry.pathname ~= nil) then
     return { lines = M.render_log_entry(entry) }
   end
 
