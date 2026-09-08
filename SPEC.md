@@ -249,9 +249,11 @@ what this client guarantees. Tests are organized by observable behavior under
   their descendants; the daemon's maintenance worker and a connection's scratch worker
   are never targets. Every hop re-reads the directory; an edge reports why nothing
   moved (`(at the root: no parent)`, `(no children)`, `(no siblings)`). The winbar
-  leads with the path from the tree root to the bound worker — `[~]` at a root,
-  `[~/fork-1/recheck]` two hops down, `~` being the tree root wherever the tab
-  started — followed by the sibling position `(2/3)`, newest first, when there is one.
+  leads with the lineage from the tree root to the bound worker, `~` marking the
+  worker the tab is in — the same `~` that means "this worker" in `worker://~/`:
+  `[/~main]` at a root, `[/main/fork-1/~recheck]` two hops down, `[/~]` before the
+  worker is known; a child always shows that it is a child — followed by the sibling
+  position `(2/3)`, newest first, when there is one.
 - §nvim-status-children **The ant is the daemon's count** — `status.children` from the
   AG-UI gauge, the bound worker's alive direct children (queued, running, parked),
   renders as `🐜<n>` after the packet count; an older daemon that states none shows

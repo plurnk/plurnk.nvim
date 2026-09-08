@@ -127,22 +127,23 @@ function M.hop(workers, bound_id, direction)
   return siblings[((index - 1 + step) % #siblings) + 1]
 end
 
--- `~` at a root, `~/fork-1/recheck` two hops down: the path from the tree root to the bound
--- worker — the prompt prefix's truth wherever the session started.
+-- The lineage from the tree root to the bound worker, `~` marking the worker the tab is in —
+-- the same `~` that means "this worker" in `worker://~/`: `/~main` at a root,
+-- `/main/fork-1/~recheck` two hops down, `/~` before the worker is known. A child always
+-- shows that it is a child.
 function M.path(workers, bound_id)
   local _, parent_of = index_directory(workers)
   local current
   for _, worker in ipairs(workers) do if worker.id == bound_id then current = worker end end
-  if not current then return "~" end
-  local segments = {}
+  if not current then return "/~" end
+  local segments = { "~" .. current.name }
   local parent = parent_of(current)
   while parent do
-    table.insert(segments, 1, current.name)
     current = parent
+    table.insert(segments, 1, current.name)
     parent = parent_of(current)
   end
-  if #segments == 0 then return "~" end
-  return "~/" .. table.concat(segments, "/")
+  return "/" .. table.concat(segments, "/")
 end
 
 -- The bound worker's place among its siblings, newest first, or nil when it has none.
