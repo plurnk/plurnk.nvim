@@ -236,8 +236,11 @@ what this client guarantees. Tests are organized by observable behavior under
 - **The workers picker is the topology** — `:PlurnkWorkspaceWorkers` / `:AI/workers`
   renders conversations as a forest from `parentWorkerId`, the bound conversation's
   tree first and marked `●`, tree connectors, creation time per row; a worker whose
-  parent is not in the directory stands as a root. Lifecycle glyphs for workers other
-  than the bound one arrive with plurnk-service#523 and are never inferred. This is
+  parent is not in the directory stands as a root. Each line carries the daemon's own
+  mint kind (`conversation`, `fork`, `work`) and lifecycle as the status gauge's glyph
+  beside the word (`⌛︎ running`, `💤 parked`, `⏹️ completed`, `❌ failed`, `· idle`;
+  plurnk-service#523); a daemon that states neither yields the bare line, and neither
+  is ever inferred from row coordinates. This is
   navigation; supervising concurrent descendants is #25.
 - **Rename is a mutable handle on the world** — `workspace.rename`
   rekeys local state and the worker tab in place; a worker's name is immutable.

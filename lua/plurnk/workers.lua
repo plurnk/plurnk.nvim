@@ -1,8 +1,33 @@
 -- Worker directory helpers (nvim#27): the topology projection of
 -- `workspace.workers` and the conversation-name candidates for `/attach`.
--- Lifecycle glyphs for workers other than the bound one arrive with
--- plurnk-service#523; nothing is inferred from row coordinates.
+-- Each row carries the daemon's own mint kind and lifecycle
+-- (plurnk-service#523); nothing is inferred from row coordinates.
 local M = {}
+
+local function present(value)
+  return type(value) == "string" and value ~= "" and value or nil
+end
+
+-- `⌛︎ running` with the status gauge's glyph; an unknown word renders as itself.
+function M.lifecycle_label(lifecycle)
+  local word = present(lifecycle)
+  if not word then return nil end
+  local glyph = require("plurnk.runtime_status").lifecycle_glyph(word)
+  if glyph == "" then glyph = word == "idle" and "·" or "" end
+  return glyph ~= "" and (glyph .. " " .. word) or word
+end
+
+-- One picker line: tree, then the daemon's kind and lifecycle when it states
+-- them, then creation time.
+function M.row_label(row)
+  local parts = { row.tree }
+  local kind = present(row.worker.kind)
+  if kind then parts[#parts + 1] = kind end
+  local lifecycle = M.lifecycle_label(row.worker.lifecycle)
+  if lifecycle then parts[#parts + 1] = lifecycle end
+  parts[#parts + 1] = row.worker.created_at or "?"
+  return table.concat(parts, "  ")
+end
 
 local function by_created(a, b)
   if a.created_at ~= b.created_at then return (a.created_at or "") < (b.created_at or "") end
