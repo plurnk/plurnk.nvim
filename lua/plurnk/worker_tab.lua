@@ -391,7 +391,7 @@ waterfall_width = function(rec)
 end
 
 local function is_answer(entry)
-  return (entry.op == "DONE" or entry.op == "FAIL") and entry.origin == "model"
+  return require("plurnk.render").is_response_message(entry)
 end
 
 local function schedule_reproject(rec)

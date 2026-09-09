@@ -22,10 +22,10 @@ local ok, err = pcall(function()
   local buf = vim.api.nvim_get_current_buf()
   H.assert_match(vim.api.nvim_buf_get_name(buf), "plurnk%-nvim://input/smoke", "input focused")
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "```DONE", "hi", "```" })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "```SEND", "hi", "```" })
   vim.api.nvim_feedkeys("\r", "x", false)
   H.assert_eq(sent[1].method, "op.parse", "operation fence routes to op.parse")
-  H.assert_eq(sent[1].params.text, "```DONE\nhi\n```", "raw PLURNK passes verbatim")
+  H.assert_eq(sent[1].params.text, "```SEND\nhi\n```", "raw PLURNK passes verbatim")
   H.assert_eq(vim.api.nvim_buf_get_lines(buf, 0, -1, false)[1], "", "input cleared after submit")
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "```BARE", "What is the capital of Germany?", "```" })

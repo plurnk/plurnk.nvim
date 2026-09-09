@@ -11,7 +11,7 @@ const programs = Object.freeze([
             "```sh",
             "printf 'accepted\\n' > journey.txt",
             "```",
-            "```NEXT",
+            "```TASK",
             '[{"content":"Create the requested acceptance marker through review.","status":"in_progress"}]',
             "```",
         ].join("\n"),
@@ -22,7 +22,7 @@ const programs = Object.freeze([
             "```SEND",
             "The reviewed multiline journey is complete.",
             "```",
-            "```WAIT",
+            "```TASK",
             '[{"content":"Create the requested acceptance marker through review.","status":"completed"}]',
             "```",
         ].join("\n"),
@@ -36,12 +36,12 @@ const programs = Object.freeze([
                     branch: { type: "string" }, count: { type: "integer" }, notes: { type: "string" },
                 }, required: ["count"],
             } }),
-            "```", "```WAIT", '[{"content":"Awaiting branch details.","status":"pending"}]', "```",
+            "```", "```TASK", '[{"content":"Awaiting branch details.","status":"waiting"}]', "```",
         ].join("\n"),
     },
     {
         reasoning: "The question result has arrived in the continued loop.",
-        content: "```DONE\nThe named-field answer arrived.\n```",
+        content: "```SEND\nThe named-field answer arrived.\n```\n```TASK\n[{\"content\":\"Question answered.\",\"status\":\"completed\"}]\n```",
     },
 ]);
 

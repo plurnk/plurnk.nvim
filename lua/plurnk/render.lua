@@ -14,20 +14,20 @@ M.OP_GLYPHS = {
   WORK = "🐜",
   FORK = "👥",
   SEND = "💬",
-  NEXT = "▶️",
-  WAIT = "💤",
-  DONE = "⏹️",
-  FAIL = "✋",
+  TASK = "▶️",
   EXEC = "🔧",
   BARE = "🔮",
 }
 
 M.is_disposition = function(op)
-  return op == "NEXT" or op == "WAIT" or op == "DONE" or op == "FAIL"
+  return op == "TASK"
 end
 
-M.is_continuation = function(op)
-  return op == "NEXT" or op == "WAIT"
+M.is_response_message = function(entry)
+  return entry.op == "SEND" and entry.origin == "model"
+    and type(entry.status_rx) == "number" and entry.status_rx >= 200 and entry.status_rx < 300
+    and (entry.source == nil or entry.source == vim.NIL) and entry.inherited_history ~= 1
+    and entry.scheme == nil and entry.pathname == nil
 end
 
 M.PLAN_STATUS_GLYPHS = {
@@ -199,7 +199,7 @@ local function normalize_prose(text)
   return text:gsub("%$\\rightarrow%$", "→")
 end
 
--- Provider reasoning is neither PLAN nor speech. Preserve its line structure
+-- Provider reasoning is neither task inventory nor speech. Preserve its line structure
 -- in one quiet block without inventing a log coordinate or status code.
 M.render_reasoning = function(content)
   if type(content) ~= "string" or content == "" then return {} end
@@ -222,6 +222,9 @@ local function plan_entry(entry)
   if entry.priority ~= "medium" and entry.priority ~= "high" and entry.priority ~= "low" then
     error("Continuation row carries a noncanonical ACP Plan priority")
   end
+  local subtype = type(entry._meta) == "table" and entry._meta["plurnk.xyz/status"] or nil
+  if subtype == "waiting" and entry.status == "in_progress" then glyph = "💤" end
+  if subtype == "failed" and entry.status == "completed" then glyph = "✋" end
   local content = entry.content:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
   if entry.priority ~= "medium" then content = "[" .. entry.priority .. "] " .. content end
   return glyph, content
@@ -231,7 +234,7 @@ local function render_plan(entry)
   local tx = type(entry.tx) == "table" and entry.tx or nil
   local plan = tx and type(tx.body) == "table" and tx.body or nil
   if plan == nil or type(plan.entries) ~= "table" then
-    error("Continuation row must carry its canonical Plan body")
+    error("TASK row must carry its canonical Plan body")
   end
 
   -- A routine inventory carries no code; a failed one keeps its glyph + code on
@@ -267,6 +270,9 @@ local function broadcast_content(entry)
   local glyph = M.is_disposition(entry.op) and M.send_lifecycle_glyph(signal) or M.OP_GLYPHS.SEND
   local note = annotation(entry)
   local header = glyph
+  if not M.is_disposition(entry.op) and type(entry.status_rx) == "number" and entry.status_rx >= 400 then
+    header = header .. " " .. M.status_glyph(entry.status_rx) .. " " .. tostring(entry.status_rx)
+  end
   if note ~= "" then header = header .. " — " .. note end
 
   local body_text = ""
@@ -328,13 +334,13 @@ end
 
 -- Render a regular (non-broadcast) trace line.
 M.render_log_entry = function(entry)
-  if M.is_continuation(entry.op) then
+  if M.is_disposition(entry.op) then
     local header = broadcast_content(entry)
     local lines = { header }
     for _, line in ipairs(render_plan(entry)) do lines[#lines + 1] = line end
     return lines
   end
-  if M.is_disposition(entry.op) or entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil then
+  if entry.op == "SEND" and entry.scheme == nil and entry.pathname == nil then
     return M.render_broadcast(entry)
   end
   if M.is_prompt_entry(entry) then
@@ -396,7 +402,7 @@ end
 -- state from styling later control rows. The caller owns the source entry and
 -- may project it again at a different live window width.
 M.render_log_block = function(entry, width, on_change)
-  if M.is_continuation(entry.op) or not M.is_disposition(entry.op) and (entry.op ~= "SEND" or entry.scheme ~= nil or entry.pathname ~= nil) then
+  if M.is_disposition(entry.op) or entry.op ~= "SEND" or entry.scheme ~= nil or entry.pathname ~= nil then
     return { lines = M.render_log_entry(entry) }
   end
 

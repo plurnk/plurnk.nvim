@@ -13,14 +13,18 @@ local function R(t)
   return r.render_log_entry(t)
 end
 local ok, err = pcall(function()
-  for _, pair in ipairs({ { "NEXT", 102, "▶️" }, { "WAIT", 202, "💤" }, { "DONE", 200, "⏹️" }, { "FAIL", 499, "✋" } }) do
-    local continuation = pair[1] == "NEXT" or pair[1] == "WAIT"
-    local body = continuation and { entries = { { content = "Update.", priority = "medium", status = "pending" } } } or { raw = "Update." }
-    local lines = R({ op = pair[1], origin = "model", status_rx = pair[2], signal = pair[2], tx = { body = body } })
-    H.assert_eq(lines[1], pair[3] .. (continuation and "" or " Update."), "native disposition carries its lifecycle")
-    if continuation then H.assert_eq(lines[2], "⬜ Update.", "continuation carries its inventory") end
+  for _, case in ipairs({
+    { 102, "▶️", "in_progress", "🚧" }, { 202, "💤", "in_progress", "💤", "waiting" },
+    { 200, "⏹️", "completed", "✅" }, { 499, "✋", "completed", "✋", "failed" },
+  }) do
+    local body = { entries = { { content = "Update.", priority = "medium", status = case[3], _meta = { ["plurnk.xyz/status"] = case[5] } } } }
+    local lines = R({ op = "TASK", origin = "model", status_rx = case[1], signal = case[1], tx = { body = body } })
+    H.assert_eq(lines[1], case[2], "TASK carries its lifecycle")
+    H.assert_eq(lines[2]:sub(1, #case[4]), case[4], "TASK carries the native entry status through ACP")
   end
   H.assert_eq(R({ op = "SEND", origin = "model", status_rx = 200, tx = { body = { raw = "Update." } } })[1], "💬 Update.", "SEND remains messaging")
+  H.assert_eq(R({ op = "SEND", origin = "model", status_rx = 400, tx = { body = { raw = "Undelivered." } } })[1],
+    "💬 ❌ 400 Undelivered.", "an unsuccessful targetless SEND retains its diagnostic status")
   local reasoning = r.render_reasoning("first line\nsecond line")
   H.assert_eq(#reasoning, 2, "reasoning preserves its line structure")
   H.assert_eq(reasoning[1], "💭 first line", "reasoning has its own compact identity")
@@ -81,9 +85,9 @@ local ok, err = pcall(function()
   H.assert_truthy(not incomplete_move[1]:match("deleted"),
     "an invalid transfer invents no retired destination-body semantics")
 
-  -- NEXT → lifecycle header followed by one line per canonical inventory entry.
+  -- TASK → lifecycle header followed by one line per canonical inventory entry.
   local plan_lines = R({
-    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
+    op = "TASK", origin = "model", scheme = nil, pathname = nil,
     status_rx = 102,
     tx = { body = { entries = {
       { content = "Contract settled.", priority = "medium", status = "completed" },
@@ -104,7 +108,7 @@ local ok, err = pcall(function()
   H.assert_eq(vim.fn.strdisplaywidth("⬜"), 2, "pending glyph is width-stable")
 
   local literal_content = R({
-    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
+    op = "TASK", origin = "model", scheme = nil, pathname = nil,
     status_rx = 102,
     tx = { body = { entries = {
       { content = "Memory: One baseline owns the schema.", priority = "medium", status = "completed" },
@@ -113,8 +117,26 @@ local ok, err = pcall(function()
   H.assert_eq(literal_content[2], "✅ Memory: One baseline owns the schema.",
     "the client preserves literal task content")
 
+  local native_statuses = R({ op = "TASK", origin = "model", status_rx = 102, tx = { body = { entries = {
+    { content = "Waiting: Child results", priority = "medium", status = "in_progress", _meta = { ["plurnk.xyz/status"] = "waiting" } },
+    { content = "Failed: Command failed", priority = "high", status = "completed", _meta = { ["plurnk.xyz/status"] = "failed" } },
+    { content = "Failed: is literal prose", priority = "medium", status = "completed" },
+  } } } })
+  H.assert_eq(native_statuses[2], "💤 Waiting: Child results", "waiting remains waiting")
+  H.assert_eq(native_statuses[3], "✋ [high] Failed: Command failed", "failed is never presented as successfully completed")
+  H.assert_eq(native_statuses[4], "✅ Failed: is literal prose", "content does not infer a subtype")
+  H.assert_truthy(r.is_response_message({ op = "SEND", origin = "model", status_rx = 200 }), "own delivered SEND is a response")
+  for _, row in ipairs({
+    { op = "TASK", origin = "model", status_rx = 200 },
+    { op = "SEND", origin = "_plurnk", status_rx = 200 },
+    { op = "SEND", origin = "model", status_rx = 400 },
+    { op = "SEND", origin = "model", status_rx = 200, source = 9 },
+    { op = "SEND", origin = "model", status_rx = 200, inherited_history = 1 },
+    { op = "SEND", origin = "model", status_rx = 200, scheme = "worker", pathname = "/" },
+  }) do H.assert_truthy(not r.is_response_message(row), "not an own delivered response: " .. vim.inspect(row)) end
+
   H.assert_truthy(not pcall(R, {
-    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
+    op = "TASK", origin = "model", scheme = nil, pathname = nil,
     status_rx = 102,
     tx = { body = { entries = {
       { content = "Internal memory", priority = "medium", status = "memory" },
@@ -122,7 +144,7 @@ local ok, err = pcall(function()
   }), "the client rejects non-ACP task statuses")
 
   local empty_plan = R({
-    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
+    op = "TASK", origin = "model", scheme = nil, pathname = nil,
     status_rx = 102, tx = { body = { entries = {} } },
   })
   H.assert_eq(empty_plan[1], "▶️", "empty continuation retains its lifecycle")
@@ -147,23 +169,23 @@ local ok, err = pcall(function()
 
   -- Broadcast SEND lifecycle is one glyph with no repeated protocol code.
   local bc_short = R({
-    op = "DONE", origin = "model", scheme = nil, pathname = nil,
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "Paris" } },
   })
   H.assert_eq(#bc_short, 1, "short broadcast inline")
-  H.assert_eq(bc_short[1], "⏹️ Paris", "model SEND 200 uses one lifecycle glyph and one body separator")
+  H.assert_eq(bc_short[1], "💬 Paris", "model SEND uses its message glyph and one body separator")
   H.assert_truthy(not bc_short[1]:match("200"), "wire status is not repeated in the human waterfall")
 
   local bc_annotated = R({
-    op = "DONE", origin = "model", scheme = nil, pathname = nil,
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { annotation = "Answer ready", body = { raw = "Paris" } },
   })
-  H.assert_eq(bc_annotated[1], "⏹️ — Answer ready Paris", "broadcast annotation stays on its header")
+  H.assert_eq(bc_annotated[1], "💬 — Answer ready Paris", "broadcast annotation stays on its header")
 
   local bc_continuing = R({
-    op = "NEXT", origin = "model", scheme = nil, pathname = nil,
+    op = "TASK", origin = "model", scheme = nil, pathname = nil,
     status_rx = 102, signal = 102,
     tx = { body = { entries = { { content = "Continuing.", priority = "medium", status = "in_progress" } } } },
   })
@@ -173,7 +195,7 @@ local ok, err = pcall(function()
   H.assert_eq(vim.fn.strdisplaywidth("⏹️"), 2, "completion lifecycle sequence is width-stable in Neovim")
 
   local runtime_continuing = R({
-    op = "NEXT", origin = "_plurnk", scheme = nil, pathname = nil,
+    op = "TASK", origin = "_plurnk", scheme = nil, pathname = nil,
     status_rx = 102, signal = 102,
     tx = { body = { entries = { { content = "Address the prompt.", priority = "medium", status = "pending" } } } },
   })
@@ -181,7 +203,7 @@ local ok, err = pcall(function()
   H.assert_eq(runtime_continuing[2], "⬜ Address the prompt.", "runtime inventory follows the same projection")
 
   local bc_arrow = R({
-    op = "DONE", origin = "model", scheme = nil, pathname = nil,
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "loading $\\rightarrow$ running" } },
   })
@@ -190,22 +212,22 @@ local ok, err = pcall(function()
 
   -- Broadcast SEND carrying signal 200, multi-line body — header + indented body lines.
   local bc_multi = R({
-    op = "DONE", origin = "model", scheme = nil, pathname = nil,
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "hi\nthere" } },
   })
   H.assert_eq(#bc_multi, 3, "multi broadcast header + 2 body lines")
-  H.assert_eq(bc_multi[1], "⏹️", "multi broadcast header is one lifecycle glyph")
+  H.assert_eq(bc_multi[1], "💬", "multi broadcast header is one message glyph")
   H.assert_eq(bc_multi[2], "   hi", "body line 1 indented 3")
   H.assert_eq(bc_multi[3], "   there", "body line 2 indented 3")
 
   -- Broadcast SEND with no body — header only.
   local empty = R({
-    op = "DONE", origin = "model", scheme = nil, pathname = nil,
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
   })
   H.assert_eq(#empty, 1, "empty broadcast = header only")
-  H.assert_eq(empty[1], "⏹️", "empty broadcast repeats no protocol code")
+  H.assert_eq(empty[1], "💬", "empty broadcast repeats no protocol code")
 
   -- Two lanes: the OP is the identity (the origin lane is gone — converged 2026-07-10)
   local client_line = R({
@@ -274,7 +296,7 @@ local ok, err = pcall(function()
   -- The pure renderer preserves authored Mermaid source. Width-aware visual
   -- projection belongs to the worker-tab presentation, never the log row.
   local mermaid_source = R({
-    op = "DONE", origin = "model", scheme = nil, pathname = nil,
+    op = "SEND", origin = "model", scheme = nil, pathname = nil,
     status_rx = 200, signal = 200,
     tx = { body = { raw = "before\n```mermaid\ngraph TD\n  a --> b\n```\nafter" } },
   })

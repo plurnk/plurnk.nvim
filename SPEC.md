@@ -283,8 +283,8 @@ what this client guarantees. Tests are organized by observable behavior under
 - **The waterfall shares one visual language with the terminal client** — every
   glyph-bearing row begins at column zero. Non-disposition operations carry their
   operation glyph and a secondary-status slot. Native dispositions carry one
-  lifecycle glyph regardless of producer: `▶️` (NEXT), `⏹️` (DONE), 💤 (WAIT), and ✋
-  (FAIL). SEND messages use 💬. Disposition and routine directed SEND codes remain wire truth without
+  TASK lifecycle glyph regardless of producer: `▶️` continuing, `⏹️` completed, 💤 waiting,
+  ✋ failed/cancelled, or ❌ error. SEND messages use 💬. Disposition and routine SEND codes remain wire truth without
   repeating in human output; a failed directed SEND and any other failed operation
   retain their diagnostic code.
   Targets, scopes, previews, and literal annotations use one-space separators.
@@ -314,13 +314,15 @@ what this client guarantees. Tests are organized by observable behavior under
   when a waterfall window reprojects; fold text preserves the block's first row
   without Neovim's default gutter decoration. Ordinary fold motions (za, zR) reopen
   blocks.
-- **Plan entries remain structured** — NEXT and WAIT consume the ACP Plan projection and
-  display their lifecycle header followed by the inventory. Each continuation
+- **Plan entries remain structured** — TASK consumes the ACP Plan projection and
+  displays its lifecycle header followed by the inventory. Each TASK
   renders its complete entry list in source order, one line each: ✅ `completed`,
   🚧 `in_progress`, and ⬜ `pending`. Task content is literal, without
-  prefix-based status inference or stripping.
-  The first entry carries a failed continuation's glyph and code (routine entries carry neither); later lines
-  align beneath it. Entry whitespace collapses to one line, neutral `medium` priority
+  prefix-based status inference or stripping. Explicit `_meta["plurnk.xyz/status"]`
+  with the matching ACP base status projects `waiting` as 💤 and `failed` as ✋;
+  the visible `Waiting:` and `Failed:` labels remain intact.
+  An unsuccessful TASK receipt retains its diagnostic status on the first inventory row.
+  Entry whitespace collapses to one line, neutral `medium` priority
   is implicit, and non-neutral priority renders as `[high]` or `[low]`. An empty Plan
   renders `📭 no entries`.
 - **Operation annotations stay labels** — a present durable annotation follows the
@@ -334,7 +336,7 @@ what this client guarantees. Tests are organized by observable behavior under
   becomes a native closed fold; absent, empty, and encrypted reasoning invent no
   readable transcript. Replaying a completed message identity is idempotent; malformed
   ordering within a live message fails at the client boundary.
-  NEXT and WAIT carry the model's durable task inventory.
+  TASK carries the model's durable task inventory.
 - **Stream windows** — channel prefixes + interleave, batched
   flush (one `entry.read` per tick burst), partial-line hold, a conclusion footer, and
   `BufWipeout` → an `op.send` cancellation carrying status 499.
