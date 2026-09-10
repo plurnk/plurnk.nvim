@@ -62,8 +62,7 @@ local function submit(buf, workspace_name)
     return
   end
 
-  -- Prefix language, same as :AI. `?` is a client projection that denies EXEC
-  -- for this loop and retains proposal review; `:` carries ordinary policy.
+  -- Prefix language, same as :AI. `?` selects proposal review; `:` uses the base policy.
   local first = text:sub(1, 1)
   if first == "!" then
     local cmd = text:gsub("^!+%s*", "")

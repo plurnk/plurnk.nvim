@@ -44,7 +44,7 @@ while pre-1.0, a minor bump may carry breaking changes (see the tag message).
 |---|---|
 | `:AI` | toggle workspace tab ⇄ where you came from |
 | `:AI {text}` | prompt with the configured loop policy |
-| `:AI? {text}` | ask profile — deny EXEC for this loop; review any admitted side effect |
+| `:AI? {text}` | review proposals for this prompt |
 | `:AI: {text}` | ordinary configured loop policy |
 | `:AI! {cmd}` | exec `{cmd}` via the daemon; bare `:AI!` execs the visual selection |
 | `:AI??` / `::` | new workspace, then prompt |
@@ -60,8 +60,8 @@ Visual mode prepends the selection: `'<,'>AI? explain this`. No-space forms (`:A
 `/model <selector>` selects the parent; `/child <selector>` selects WORK/FORK/BARE calls, and `/child inherit` follows the spawning loop. A selector is a declared alias or exact `provider/model`. `/models [search]` lazily searches the daemon's bounded model catalog; it is never loaded at startup.
 `/reasoning` reports the worker's durable policy and supported choices;
 `/reasoning <policy>` persists a daemon-validated selection.
-`/capabilities` reports the service/workspace/inherited/Worker capability cascade and effective intersection;
-`/capabilities <json>` replaces its mutable Worker layer through the daemon's canonical policy contract.
+`/capabilities` reports the service/workspace capability cascade and effective intersection;
+`/capabilities <json>` replaces the workspace policy through the daemon's canonical policy contract.
 
 Command routing, completion, contextual help, and default key descriptions use
 one registry. Completion demand-loads model and Functionality choices only at

@@ -8,7 +8,7 @@ local defaults = {
   port = 1066,
   log_path = log_dir .. "/plurnk_client.log",
   background_log_path = log_dir .. "/plurnk_background.log",
-  loop_policy = { capabilities = {}, proposals = "review" },
+  loop_policy = { proposals = "review" },
   workspace_capabilities = nil,
 }
 

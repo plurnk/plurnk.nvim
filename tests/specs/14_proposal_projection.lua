@@ -17,7 +17,7 @@ local ok, err = pcall(function()
     target = { scheme = nil, pathname = "/tmp/x" },
     body = "",
     attrs = {},
-    policy = { capabilities = {}, proposals = "review" },
+    policy = { proposals = "review" },
   }
 
   dispatch.handle_loop_proposal(proposal, "smoke")

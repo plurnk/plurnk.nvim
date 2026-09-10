@@ -13,8 +13,7 @@ local ok, err = pcall(function()
   local orig = dispatch.handle_loop_terminated
   dispatch.handle_loop_terminated = function(p, sn) terminated = p; orig(p, sn) end
 
-  -- The `?` specimen exercises one ordinary per-loop capability attenuation:
-  -- deny EXEC while retaining client review for admitted side effects.
+  -- The `?` specimen selects client review without altering workspace access.
   vim.cmd("AI ? What is the capital of France? Answer in one word.")
   -- 9 minutes: dramatically generous so a failure is unambiguously a real hang,
   -- never "the model was slow" (under the runner's 600s SIGKILL).

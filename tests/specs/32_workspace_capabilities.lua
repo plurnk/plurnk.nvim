@@ -5,8 +5,8 @@ H.setup()
 local ok, err = pcall(function()
   local context = require("plurnk.workspace_context")
   H.assert_eq(context.settings().capabilities, nil, "workspace capabilities are optional")
-  H.assert_truthy(vim.json.encode(require("plurnk.policy").base()):match('"capabilities":{}') ~= nil,
-    "the default CapabilityPolicy crosses JSON as an object, never an empty array")
+  H.assert_eq(require("plurnk.policy").base().capabilities, nil,
+    "loop proposal posture does not carry workspace capability restrictions")
 
   require("plurnk.config").setup({ workspace_capabilities = {} })
   H.assert_truthy(vim.json.encode(context.settings()):match('"capabilities":{}') ~= nil,

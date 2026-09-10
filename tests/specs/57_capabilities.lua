@@ -11,15 +11,15 @@ local ok, err = pcall(function()
     sent[#sent + 1] = { method = method, params = params }
     local worker = params.policy or {}
     if callback then callback({
-      service = {}, workspace = {}, workerBound = {}, worker = worker, effective = worker,
+      service = {}, workspace = worker, effective = worker,
     }) end
   end
 
   require("plurnk.capabilities").run("")
-  H.assert_eq(sent[1].method, "worker.capabilities.get", "empty command inspects the effective capability cascade")
+  H.assert_eq(sent[1].method, "workspace.capabilities.get", "empty command inspects the effective capability cascade")
 
   require("plurnk.capabilities").run('{"deny":[{"tool":"issue_write"}]}')
-  H.assert_eq(sent[2].method, "worker.capabilities.set", "JSON command changes durable worker capabilities")
+  H.assert_eq(sent[2].method, "workspace.capabilities.set", "JSON command changes durable workspace capabilities")
   H.assert_eq(sent[2].params.policy.deny[1].tool, "issue_write", "selector rides without a local policy dialect")
 end)
 

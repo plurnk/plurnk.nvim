@@ -10,7 +10,7 @@ local FAMILIES = {
   members = "plurnk.members",
 }
 
-local aliases_by_worker = {}
+local aliases_by_workspace = {}
 local pending = {}
 local CACHE_TTL_NS = 5 * 1000 * 1000 * 1000
 
@@ -20,9 +20,7 @@ local function active_key(family)
   local state = require("plurnk.state")
   local workspace = state.get_active_workspace_name()
   if not workspace then return nil end
-  local worker = state.get_worker_id(workspace)
-  if not worker then return nil end
-  return table.concat({ workspace, tostring(worker), family }, "\0")
+  return table.concat({ workspace, family }, "\0")
 end
 
 local function project_aliases(definitions)
@@ -44,12 +42,12 @@ end
 
 function M.remember_aliases(family, definitions)
   local key = active_key(family)
-  if key then aliases_by_worker[key] = { values = project_aliases(definitions), at = now() } end
+  if key then aliases_by_workspace[key] = { values = project_aliases(definitions), at = now() } end
 end
 
 function M.invalidate_aliases(family)
   local key = active_key(family)
-  if key then aliases_by_worker[key] = nil end
+  if key then aliases_by_workspace[key] = nil end
 end
 
 function M.complete_aliases(family, prefix)
@@ -57,14 +55,14 @@ function M.complete_aliases(family, prefix)
   local key = active_key(family)
   if not key then return {} end
 
-  local cached = aliases_by_worker[key]
+  local cached = aliases_by_workspace[key]
   if (cached == nil or now() - cached.at >= CACHE_TTL_NS) and not pending[key] then
     pending[key] = true
     local ok = pcall(function()
-      require("plurnk.client").send("worker." .. family .. ".list", {}, false, function(result, problem)
+      require("plurnk.client").send("workspace." .. family .. ".list", {}, false, function(result, problem)
         pending[key] = nil
         if problem ~= nil or type(result) ~= "table" or type(result.definitions) ~= "table" then return end
-        aliases_by_worker[key] = { values = project_aliases(result.definitions), at = now() }
+        aliases_by_workspace[key] = { values = project_aliases(result.definitions), at = now() }
       end)
     end)
     if not ok then pending[key] = nil end

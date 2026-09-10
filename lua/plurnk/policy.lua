@@ -1,14 +1,12 @@
 local M = {}
 
 local DEFAULT = {
-  capabilities = {},
   proposals = "review",
 }
 
 function M.base()
   local configured = require("plurnk.config").get("loop_policy")
   local policy = vim.deepcopy(type(configured) == "table" and configured or DEFAULT)
-  policy.capabilities = M.capabilities(policy.capabilities)
   return policy
 end
 
@@ -25,9 +23,6 @@ function M.prompt(text, base)
   local policy = vim.deepcopy(base or M.base())
   local prefix = text:sub(1, 1)
   if prefix == "?" then
-    policy.capabilities = M.capabilities(policy.capabilities)
-    policy.capabilities.deny = policy.capabilities.deny or {}
-    policy.capabilities.deny[#policy.capabilities.deny + 1] = { operation = "EXEC" }
     policy.proposals = "review"
   end
   local prompt = text

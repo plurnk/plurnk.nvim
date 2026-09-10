@@ -1,4 +1,4 @@
--- Agent Skills management is a thin :AI/ projection over the Worker's common
+-- Agent Skills management is a thin :AI/ projection over the workspace's common
 -- Functionality actions: no package manager, no registry, no local copy.
 local NAME = "43_skills"
 local root = os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim"
@@ -8,20 +8,20 @@ H.setup()
 local ok, err = pcall(function()
   local sent, notices = {}, {}
   local results = {
-    ["worker.skills.list"] = {
+    ["workspace.skills.list"] = {
       definitions = {
         { alias = "grep", origin = "service", state = "active", definition = { name = "grep", scope = "project" }, detail = { scope = "project", description = "Find text" } },
-        { alias = "review", origin = "worker", state = "disabled", definition = { name = "review", scope = "global", source = "acme/kit" } },
+        { alias = "review", origin = "workspace", state = "disabled", definition = { name = "review", scope = "global", source = "acme/kit" } },
         { alias = "bad", origin = "service", state = "unavailable", definition = { name = "bad", scope = "global" }, problem = { detail = "requires YAML frontmatter" } },
       },
     },
-    ["worker.skills.discover"] = {
+    ["workspace.skills.discover"] = {
       candidates = { { alias = "changelog", summary = "1200 installs", definition = { name = "changelog", scope = "project", source = "acme/kit" }, provenance = { kind = "registry", source = "acme/kit", reference = "https://skills.sh/acme/kit/changelog" } } },
     },
-    ["worker.skills.add"] = { status = 201, alias = "changelog", definition = { alias = "changelog", state = "active" } },
-    ["worker.skills.enable"] = { status = 200, alias = "changelog", definition = { alias = "changelog", state = "active" } },
-    ["worker.skills.disable"] = { status = 200, alias = "changelog", definition = { alias = "changelog", state = "disabled" } },
-    ["worker.skills.remove"] = { status = 200, alias = "changelog", removed = true },
+    ["workspace.skills.add"] = { status = 201, alias = "changelog", definition = { alias = "changelog", state = "active" } },
+    ["workspace.skills.enable"] = { status = 200, alias = "changelog", definition = { alias = "changelog", state = "active" } },
+    ["workspace.skills.disable"] = { status = 200, alias = "changelog", definition = { alias = "changelog", state = "disabled" } },
+    ["workspace.skills.remove"] = { status = 200, alias = "changelog", removed = true },
   }
   local client = require("plurnk.client")
   client.check_daemon_once = function() end
@@ -38,18 +38,18 @@ local ok, err = pcall(function()
   local ai = commands.run
 
   ai({ args = "/skills", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.skills.list", params = {} }), ":AI/skills lists the Worker's skills")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.skills.list", params = {} }), ":AI/skills lists the workspace's skills")
   H.assert_match(notices[#notices], "grep%s+active%s+project%s+Find text", "list renders active service skills with their description")
-  H.assert_match(notices[#notices], "review%s+disabled%s+global%s+acme/kit%s+%(worker%)", "list renders disabled Worker-owned skills with their source")
+  H.assert_match(notices[#notices], "review%s+disabled%s+global%s+acme/kit%s+%(workspace%)", "list renders disabled workspace-owned skills with their source")
   H.assert_match(notices[#notices], "bad%s+unavailable%s+global%s+— requires YAML frontmatter", "list renders unavailable skills with their problem")
 
   sent, notices = {}, {}
   ai({ args = "/skills discover react changelog", range = 0 })
   ai({ args = "/skills discover acme/kit", range = 0 })
   ai({ args = "/skills discover ./vendor/skills", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.skills.discover", params = { query = "react changelog" } }), "multi-word terms are registry queries")
-  H.assert_truthy(vim.deep_equal(sent[2], { method = "worker.skills.discover", params = { source = "acme/kit" } }), "a package reference is a source")
-  H.assert_truthy(vim.deep_equal(sent[3], { method = "worker.skills.discover", params = { source = "./vendor/skills" } }), "a path is a source")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.skills.discover", params = { query = "react changelog" } }), "multi-word terms are registry queries")
+  H.assert_truthy(vim.deep_equal(sent[2], { method = "workspace.skills.discover", params = { source = "acme/kit" } }), "a package reference is a source")
+  H.assert_truthy(vim.deep_equal(sent[3], { method = "workspace.skills.discover", params = { source = "./vendor/skills" } }), "a path is a source")
   H.assert_match(notices[#notices], "changelog%s+candidate%s+acme/kit%s+1200 installs%s+https://skills%.sh/acme/kit/changelog", "discover renders inert candidates")
 
   sent, notices = {}, {}
@@ -58,17 +58,17 @@ local ok, err = pcall(function()
   ai({ args = "/skills enable changelog", range = 0 })
   ai({ args = "/skills disable changelog", range = 0 })
   ai({ args = "/skills remove changelog", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.skills.add", params = { alias = "changelog", definition = { name = "changelog", scope = "project", source = "acme/kit" } } }), "add composes a project-scope definition")
-  H.assert_truthy(vim.deep_equal(sent[2], { method = "worker.skills.add", params = { alias = "changelog", definition = { name = "changelog", scope = "global", source = "acme/kit" } } }), "--global selects the global scope")
-  H.assert_truthy(vim.deep_equal(sent[3], { method = "worker.skills.enable", params = { alias = "changelog" } }), "enable action shape")
-  H.assert_truthy(vim.deep_equal(sent[4], { method = "worker.skills.disable", params = { alias = "changelog" } }), "disable action shape")
-  H.assert_truthy(vim.deep_equal(sent[5], { method = "worker.skills.remove", params = { alias = "changelog" } }), "remove action shape")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.skills.add", params = { alias = "changelog", definition = { name = "changelog", scope = "project", source = "acme/kit" } } }), "add composes a project-scope definition")
+  H.assert_truthy(vim.deep_equal(sent[2], { method = "workspace.skills.add", params = { alias = "changelog", definition = { name = "changelog", scope = "global", source = "acme/kit" } } }), "--global selects the global scope")
+  H.assert_truthy(vim.deep_equal(sent[3], { method = "workspace.skills.enable", params = { alias = "changelog" } }), "enable action shape")
+  H.assert_truthy(vim.deep_equal(sent[4], { method = "workspace.skills.disable", params = { alias = "changelog" } }), "disable action shape")
+  H.assert_truthy(vim.deep_equal(sent[5], { method = "workspace.skills.remove", params = { alias = "changelog" } }), "remove action shape")
   H.assert_match(notices[1], "added: changelog %(active%)", "add renders the daemon state")
   H.assert_match(notices[3], "enabled: changelog %(active%)", "enable renders the daemon state")
   H.assert_match(notices[4], "disabled: changelog %(disabled%)", "disable renders the daemon state")
   H.assert_match(notices[5], "removed: changelog", "remove confirms")
 
-  results["worker.skills.add"] = { status = 201, alias = "ghost", definition = { alias = "ghost", state = "unavailable", problem = { detail = "could not be installed" } } }
+  results["workspace.skills.add"] = { status = 201, alias = "ghost", definition = { alias = "ghost", state = "unavailable", problem = { detail = "could not be installed" } } }
   sent, notices = {}, {}
   ai({ args = "/skills add ghost acme/kit", range = 0 })
   H.assert_match(notices[#notices], "added: ghost %(unavailable%)%s+— could not be installed", "an unavailable outcome renders its Problem")

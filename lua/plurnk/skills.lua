@@ -1,6 +1,6 @@
 -- Thin client projection of the daemon-owned Agent Skills Functionality
 -- family: the common lifecycle (list | discover | add | enable | disable |
--- remove) over the Worker's `skills` actions. The client composes exact
+-- remove) over the workspace's `skills` actions. The client composes exact
 -- definitions and renders the daemon's states; it runs no package manager,
 -- reads no registry, and keeps no parallel package metadata.
 
@@ -28,7 +28,7 @@ local function definition_line(entry)
     scope,
     type(definition.source) == "string" and ("  " .. definition.source) or "",
     type(detail.description) == "string" and ("  " .. detail.description) or "",
-    entry.origin == "worker" and "  (worker)" or "",
+    entry.origin == "workspace" and "  (workspace)" or "",
     problem
   )
 end
@@ -71,7 +71,7 @@ M.run = function(args, with_workspace)
 
   if raw == "" then
     return with_workspace(function()
-      client.send("worker.skills.list", {}, false, function(result)
+      client.send("workspace.skills.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
         require("plurnk.functionality").remember_aliases("skills", result.definitions)
         if #result.definitions == 0 then
@@ -99,7 +99,7 @@ M.run = function(args, with_workspace)
     end
     local query = (#argv == 2 and M.is_source(term)) and { source = term } or { query = term }
     return with_workspace(function()
-      client.send("worker.skills.discover", query, false, function(result)
+      client.send("workspace.skills.discover", query, false, function(result)
         if type(result) ~= "table" or type(result.candidates) ~= "table" then return end
         if #result.candidates == 0 then
           client.notify("Skill candidates: none", vim.log.levels.INFO)
@@ -124,7 +124,7 @@ M.run = function(args, with_workspace)
     local alias, source = positional[1], positional[2]
     local params = { alias = alias, definition = { name = alias, scope = global and "global" or "project", source = source } }
     return with_workspace(function()
-      client.send("worker.skills.add", params, false, function(result)
+      client.send("workspace.skills.add", params, false, function(result)
         notify_mutation(result, "added", alias)
       end)
     end)
@@ -136,7 +136,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function()
-      client.send("worker.skills." .. command, { alias = name }, false, function(result)
+      client.send("workspace.skills." .. command, { alias = name }, false, function(result)
         notify_mutation(result, command == "enable" and "enabled" or "disabled", name)
       end)
     end)
@@ -148,7 +148,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function()
-      client.send("worker.skills.remove", { alias = name }, false, function(result)
+      client.send("workspace.skills.remove", { alias = name }, false, function(result)
         if type(result) == "table" then
           require("plurnk.functionality").invalidate_aliases("skills")
           client.notify("removed: " .. name, vim.log.levels.INFO)

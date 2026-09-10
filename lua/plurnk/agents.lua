@@ -1,6 +1,6 @@
 -- Thin client projection of the daemon-owned outbound A2A agents Functionality
 -- family: the common lifecycle (list | discover | add | enable | disable |
--- remove) over the Worker's `agents` actions. The client composes exact
+-- remove) over the workspace's `agents` actions. The client composes exact
 -- A2aAgentDefinitions and renders the daemon's states; card discovery,
 -- connection, and enablement policy live in the service.
 
@@ -89,7 +89,7 @@ M.run = function(args, with_workspace)
 
   if raw == "" then
     return with_workspace(function()
-      client.send("worker.agents.list", {}, false, function(result)
+      client.send("workspace.agents.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
         require("plurnk.functionality").remember_aliases("agents", result.definitions)
         if #result.definitions == 0 then
@@ -113,7 +113,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function()
-      client.send("worker.agents.discover", { source = alias }, false, function(result)
+      client.send("workspace.agents.discover", { source = alias }, false, function(result)
         if type(result) ~= "table" or type(result.candidates) ~= "table" then return end
         if #result.candidates == 0 then
           client.notify("Agent candidates: none", vim.log.levels.INFO)
@@ -135,7 +135,7 @@ M.run = function(args, with_workspace)
     if argv[4] ~= nil and options == nil then return end
     local params = { alias = alias, definition = M.compose_definition(alias, argv[3], options) }
     return with_workspace(function()
-      client.send("worker.agents.add", params, false, function(result)
+      client.send("workspace.agents.add", params, false, function(result)
         notify_mutation(result, "added", alias)
       end)
     end)
@@ -147,7 +147,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function()
-      client.send("worker.agents." .. command, { alias = alias }, false, function(result)
+      client.send("workspace.agents." .. command, { alias = alias }, false, function(result)
         notify_mutation(result, command == "enable" and "enabled" or "disabled", alias)
       end)
     end)
@@ -159,7 +159,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function()
-      client.send("worker.agents.remove", { alias = alias }, false, function(result)
+      client.send("workspace.agents.remove", { alias = alias }, false, function(result)
         if type(result) == "table" then
           require("plurnk.functionality").invalidate_aliases("agents")
           client.notify("removed: " .. alias, vim.log.levels.INFO)

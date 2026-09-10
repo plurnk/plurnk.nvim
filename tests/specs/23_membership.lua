@@ -11,22 +11,22 @@ H.setup()
 local ok, err = pcall(function()
   local sent, notices = {}, {}
   local results = {
-    ["worker.members.list"] = {
+    ["workspace.members.list"] = {
       definitions = {
         { alias = "docs", origin = "service", state = "active", definition = { glob = "docs/**", provenance = { kind = "service-configuration", source = "PLURNK_MEMBERS_DOCS" } }, detail = { effect = "include", pattern = "docs/**", matched = 12, files = { "docs/a.md" }, ignored = 3 } },
-        { alias = "no-tokenizer", origin = "worker", state = "active", definition = { glob = "!**/tokenizer.json" }, detail = { effect = "exclude", pattern = "**/tokenizer.json", matched = 4, files = { "a/tokenizer.json" }, ignored = 0 } },
-        { alias = "note", origin = "worker", state = "active", definition = { glob = "note.md" }, detail = { effect = "include", pattern = "note.md", matched = 1, files = { "note.md" }, ignored = 0 } },
-        { alias = "drafts", origin = "worker", state = "disabled", definition = { glob = "drafts/*.md" } },
-        { alias = "bad", origin = "worker", state = "unavailable", definition = { glob = "../x/**" }, problem = { detail = "outside the project root" } },
+        { alias = "no-tokenizer", origin = "workspace", state = "active", definition = { glob = "!**/tokenizer.json" }, detail = { effect = "exclude", pattern = "**/tokenizer.json", matched = 4, files = { "a/tokenizer.json" }, ignored = 0 } },
+        { alias = "note", origin = "workspace", state = "active", definition = { glob = "note.md" }, detail = { effect = "include", pattern = "note.md", matched = 1, files = { "note.md" }, ignored = 0 } },
+        { alias = "drafts", origin = "workspace", state = "disabled", definition = { glob = "drafts/*.md" } },
+        { alias = "bad", origin = "workspace", state = "unavailable", definition = { glob = "../x/**" }, problem = { detail = "outside the project root" } },
       },
     },
-    ["worker.members.discover"] = {
+    ["workspace.members.discover"] = {
       candidates = { { alias = "readme-md", definition = { glob = "README.md" }, provenance = { kind = "member", source = "README.md" }, summary = "member — tracked by git" } },
     },
-    ["worker.members.add"] = { status = 201, alias = "docs", definition = { alias = "docs", state = "active" } },
-    ["worker.members.enable"] = { status = 200, alias = "docs", definition = { alias = "docs", state = "active" } },
-    ["worker.members.disable"] = { status = 200, alias = "docs", definition = { alias = "docs", state = "disabled" } },
-    ["worker.members.remove"] = { status = 200, alias = "docs", removed = true },
+    ["workspace.members.add"] = { status = 201, alias = "docs", definition = { alias = "docs", state = "active" } },
+    ["workspace.members.enable"] = { status = 200, alias = "docs", definition = { alias = "docs", state = "active" } },
+    ["workspace.members.disable"] = { status = 200, alias = "docs", definition = { alias = "docs", state = "disabled" } },
+    ["workspace.members.remove"] = { status = 200, alias = "docs", removed = true },
   }
   local client = require("plurnk.client")
   local real_send, real_check = client.send, client.check_daemon_once
@@ -46,7 +46,7 @@ local ok, err = pcall(function()
   local ai = commands.run
 
   ai({ args = "/members", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.members.list", params = {} }), ":AI/members lists the Worker's file members")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.members.list", params = {} }), ":AI/members lists the Worker's file members")
   H.assert_match(notices[#notices], "docs%s+active%s+include docs/%*%* → 12 files %(3 ignored%)%s+%(service%)", "list renders a service inclusion with what it resolved to")
   H.assert_match(notices[#notices], "no%-tokenizer%s+active%s+exclude %*%*/tokenizer%.json → 4 members", "list renders an exclusion with the members it removed")
   H.assert_match(notices[#notices], "note%s+active%s+include note%.md → 1 file\n", "list counts one file singularly")
@@ -55,8 +55,8 @@ local ok, err = pcall(function()
 
   sent, notices = {}, {}
   vim.cmd("PlurnkMembers")
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.members.list", params = {} }), ":PlurnkMembers is the native spelling of :AI/members")
-  results["worker.members.list"] = { definitions = {} }
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.members.list", params = {} }), ":PlurnkMembers is the native spelling of :AI/members")
+  results["workspace.members.list"] = { definitions = {} }
   sent, notices = {}, {}
   ai({ args = "/members", range = 0 })
   H.assert_match(notices[#notices], "file members: none", "an empty list says so")
@@ -66,13 +66,13 @@ local ok, err = pcall(function()
   ai({ args = "/members discover docs/**", range = 0 })
   ai({ args = "/members discover !**/tokenizer.json", range = 0 })
   vim.cmd("PlurnkMembers discover !**/tokenizer.json")
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.members.discover", params = { query = "README.md" } }), "a path is the discover query")
-  H.assert_truthy(vim.deep_equal(sent[2], { method = "worker.members.discover", params = { query = "docs/**" } }), "a glob is the discover query")
-  H.assert_truthy(vim.deep_equal(sent[3], { method = "worker.members.discover", params = { query = "!**/tokenizer.json" } }), "a `!` glob passes through verbatim")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.members.discover", params = { query = "README.md" } }), "a path is the discover query")
+  H.assert_truthy(vim.deep_equal(sent[2], { method = "workspace.members.discover", params = { query = "docs/**" } }), "a glob is the discover query")
+  H.assert_truthy(vim.deep_equal(sent[3], { method = "workspace.members.discover", params = { query = "!**/tokenizer.json" } }), "a `!` glob passes through verbatim")
   H.assert_truthy(vim.deep_equal(sent[4], sent[3]), "the native command passes a `!` glob through verbatim")
   H.assert_match(notices[#notices], "readme%-md%s+member%s+README%.md%s+member — tracked by git", "discover renders the daemon's verdict")
 
-  results["worker.members.discover"] = {
+  results["workspace.members.discover"] = {
     candidates = { { alias = "docs", definition = { glob = "docs/**" }, provenance = { kind = "preview", source = "docs/**" }, summary = "would include 2 files (1 already members, 0 ignored): docs/a.md, docs/b.md" } },
   }
   sent, notices = {}, {}
@@ -86,7 +86,7 @@ local ok, err = pcall(function()
   vim.api.nvim_buf_set_name(buf, "/proj/src/widget.lua")
   vim.api.nvim_set_current_buf(buf)
   ai({ args = "/members discover", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.members.discover", params = { query = "src/widget.lua" } }), "a bare discover asks about the current file")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.members.discover", params = { query = "src/widget.lua" } }), "a bare discover asks about the current file")
   sent, notices = {}, {}
   local scratch = vim.api.nvim_create_buf(true, false)
   vim.api.nvim_buf_set_name(scratch, "plurnk-nvim://workspace/x")
@@ -102,17 +102,17 @@ local ok, err = pcall(function()
   ai({ args = "/members enable docs", range = 0 })
   ai({ args = "/members disable docs", range = 0 })
   ai({ args = "/members remove docs", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.members.add", params = { alias = "docs", definition = { glob = "docs/**" } } }), "add composes one exact { glob } definition")
-  H.assert_truthy(vim.deep_equal(sent[2], { method = "worker.members.add", params = { alias = "no-tokenizer", definition = { glob = "!**/tokenizer.json" } } }), "add passes a `!` glob through verbatim")
-  H.assert_truthy(vim.deep_equal(sent[3], { method = "worker.members.enable", params = { alias = "docs" } }), "enable action shape")
-  H.assert_truthy(vim.deep_equal(sent[4], { method = "worker.members.disable", params = { alias = "docs" } }), "disable action shape")
-  H.assert_truthy(vim.deep_equal(sent[5], { method = "worker.members.remove", params = { alias = "docs" } }), "remove action shape")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.members.add", params = { alias = "docs", definition = { glob = "docs/**" } } }), "add composes one exact { glob } definition")
+  H.assert_truthy(vim.deep_equal(sent[2], { method = "workspace.members.add", params = { alias = "no-tokenizer", definition = { glob = "!**/tokenizer.json" } } }), "add passes a `!` glob through verbatim")
+  H.assert_truthy(vim.deep_equal(sent[3], { method = "workspace.members.enable", params = { alias = "docs" } }), "enable action shape")
+  H.assert_truthy(vim.deep_equal(sent[4], { method = "workspace.members.disable", params = { alias = "docs" } }), "disable action shape")
+  H.assert_truthy(vim.deep_equal(sent[5], { method = "workspace.members.remove", params = { alias = "docs" } }), "remove action shape")
   H.assert_match(notices[1], "added: docs %(active%)", "add renders the daemon state")
   H.assert_match(notices[3], "enabled: docs %(active%)", "enable renders the daemon state")
   H.assert_match(notices[4], "disabled: docs %(disabled%)", "disable renders the daemon state")
   H.assert_match(notices[5], "removed: docs", "remove confirms")
 
-  results["worker.members.add"] = { status = 201, alias = "ghost", definition = { alias = "ghost", state = "unavailable", problem = { detail = "the workspace has no project root" } } }
+  results["workspace.members.add"] = { status = 201, alias = "ghost", definition = { alias = "ghost", state = "unavailable", problem = { detail = "the workspace has no project root" } } }
   sent, notices = {}, {}
   ai({ args = "/members add ghost docs/**", range = 0 })
   H.assert_match(notices[#notices], "added: ghost %(unavailable%)%s+— the workspace has no project root", "an unavailable outcome renders its Problem")
@@ -133,7 +133,7 @@ local ok, err = pcall(function()
   H.assert_eq(#notices, 7, "each malformed command has one usage diagnosis")
 
   H.assert_eq(table.concat(commands.complete("", "AI /members di", 0), ","), "disable,discover", "members verbs complete")
-  results["worker.members.list"] = { definitions = { { alias = "docs", state = "active", definition = { glob = "docs/**" } }, { alias = "drafts", state = "disabled", definition = { glob = "drafts/*.md" } } } }
+  results["workspace.members.list"] = { definitions = { { alias = "docs", state = "active", definition = { glob = "docs/**" } }, { alias = "drafts", state = "disabled", definition = { glob = "drafts/*.md" } } } }
   local aliases = commands.complete("", "AI /members enable d", 0)
   if #aliases == 0 then aliases = commands.complete("", "AI /members enable d", 0) end
   H.assert_eq(table.concat(aliases, ","), "docs,drafts", "an alias-taking members command lazily completes current definitions")
@@ -169,7 +169,7 @@ local ok, err = pcall(function()
   state.set_workspace_id(workspace, created.id)
   state.set_project_path(project)
   local function verdict(file)
-    return H.call("worker.members.discover", { query = file }, 20000).candidates[1].provenance.kind
+    return H.call("workspace.members.discover", { query = file }, 20000).candidates[1].provenance.kind
   end
   local function settle(input, pattern, label)
     notices = {}

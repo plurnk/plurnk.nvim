@@ -89,7 +89,7 @@ M.run = function(args, with_workspace)
 
   if raw == "" then
     return with_workspace(function()
-      client.send("worker.members.list", {}, false, function(result)
+      client.send("workspace.members.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
         require("plurnk.functionality").remember_aliases("members", result.definitions)
         if #result.definitions == 0 then
@@ -115,7 +115,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function()
-      client.send("worker.members.discover", { query = query }, false, function(result)
+      client.send("workspace.members.discover", { query = query }, false, function(result)
         if type(result) ~= "table" or type(result.candidates) ~= "table" then return end
         if #result.candidates == 0 then
           client.notify("file member candidates: none", vim.log.levels.INFO)
@@ -136,7 +136,7 @@ M.run = function(args, with_workspace)
     end
     local params = { alias = alias, definition = { glob = glob } }
     return with_workspace(function(workspace_name)
-      client.send("worker.members.add", params, false, function(result)
+      client.send("workspace.members.add", params, false, function(result)
         notify_mutation(result, "added", alias, workspace_name)
       end)
     end)
@@ -148,7 +148,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function(workspace_name)
-      client.send("worker.members." .. command, { alias = alias }, false, function(result)
+      client.send("workspace.members." .. command, { alias = alias }, false, function(result)
         notify_mutation(result, command == "enable" and "enabled" or "disabled", alias, workspace_name)
       end)
     end)
@@ -160,7 +160,7 @@ M.run = function(args, with_workspace)
       return
     end
     return with_workspace(function(workspace_name)
-      client.send("worker.members.remove", { alias = alias }, false, function(result)
+      client.send("workspace.members.remove", { alias = alias }, false, function(result)
         if type(result) == "table" then
           require("plurnk.functionality").invalidate_aliases("members")
           client.notify("removed: " .. alias, vim.log.levels.INFO)

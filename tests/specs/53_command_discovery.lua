@@ -10,7 +10,7 @@ local ok, err = pcall(function()
   local client = require("plurnk.client")
   client.send = function(method, params, _, callback)
     sent[#sent + 1] = { method = method, params = params }
-    if method == "worker.mcp.list" and callback then
+    if method == "workspace.mcp.list" and callback then
       callback({
         definitions = {
           { alias = "brave", state = "active", definition = {} },
@@ -18,7 +18,7 @@ local ok, err = pcall(function()
           { alias = "gitea", state = "active", definition = {} },
         },
       })
-    elseif method == "worker.skills.list" and callback then
+    elseif method == "workspace.skills.list" and callback then
       callback(nil, { detail = "unavailable" })
     end
   end
@@ -54,9 +54,17 @@ local ok, err = pcall(function()
   if #aliases == 0 then aliases = language.complete("", "AI /mcp enable br", 0) end
   H.assert_eq(table.concat(aliases, ","), "brave,browser",
     "an alias-taking MCP command lazily completes current definitions")
-  H.assert_eq(sent[1].method, "worker.mcp.list",
+  H.assert_eq(sent[1].method, "workspace.mcp.list",
     "alias completion demand-loads only its Functionality family")
   H.assert_eq(#sent, 1, "cached alias completion does not repeat catalog reads")
+
+  state.set_worker_id("discovery-test", nil)
+  H.assert_eq(table.concat(language.complete("", "AI /mcp enable br", 0), ","), "brave,browser",
+    "workspace Functionality completion does not require a selected conversation worker")
+  state.set_worker_id("discovery-test", 8)
+  H.assert_eq(table.concat(language.complete("", "AI /mcp enable br", 0), ","), "brave,browser",
+    "switching workers preserves the shared workspace catalog")
+  H.assert_eq(#sent, 1, "switching workers does not duplicate the workspace cache")
 
   local before = #sent
   H.assert_eq(#language.complete("", "AI /skills enable any", 0), 0,

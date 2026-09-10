@@ -318,7 +318,7 @@
         "durability"
       ]
     },
-    "worker.capabilities.get": {
+    "workspace.capabilities.get": {
       "posture": "generic",
       "evidence": [
         "tests/specs/35_agui.lua — generic action transport",
@@ -331,7 +331,7 @@
         "composition"
       ]
     },
-    "worker.capabilities.set": {
+    "workspace.capabilities.set": {
       "posture": "generic",
       "evidence": [
         "tests/specs/35_agui.lua — generic action transport",
@@ -346,7 +346,7 @@
         "composition"
       ]
     },
-    "worker.skills.list": {
+    "workspace.skills.list": {
       "posture": "native",
       "evidence": [
         "tests/specs/43_skills.lua"
@@ -360,7 +360,7 @@
         "composition"
       ]
     },
-    "worker.skills.discover": {
+    "workspace.skills.discover": {
       "posture": "native",
       "evidence": [
         "tests/specs/43_skills.lua"
@@ -374,7 +374,7 @@
         "composition"
       ]
     },
-    "worker.skills.add": {
+    "workspace.skills.add": {
       "posture": "native",
       "evidence": [
         "tests/specs/43_skills.lua",
@@ -389,7 +389,7 @@
         "durability"
       ]
     },
-    "worker.skills.enable": {
+    "workspace.skills.enable": {
       "posture": "native",
       "evidence": [
         "tests/specs/43_skills.lua",
@@ -404,7 +404,7 @@
         "durability"
       ]
     },
-    "worker.skills.disable": {
+    "workspace.skills.disable": {
       "posture": "native",
       "evidence": [
         "tests/specs/43_skills.lua",
@@ -419,7 +419,7 @@
         "durability"
       ]
     },
-    "worker.skills.remove": {
+    "workspace.skills.remove": {
       "posture": "native",
       "evidence": [
         "tests/specs/43_skills.lua",
@@ -434,7 +434,7 @@
         "durability"
       ]
     },
-    "worker.agents.list": {
+    "workspace.agents.list": {
       "posture": "native",
       "evidence": [
         "tests/specs/50_agents.lua"
@@ -448,7 +448,7 @@
         "composition"
       ]
     },
-    "worker.agents.discover": {
+    "workspace.agents.discover": {
       "posture": "native",
       "evidence": [
         "tests/specs/50_agents.lua"
@@ -462,7 +462,7 @@
         "composition"
       ]
     },
-    "worker.agents.add": {
+    "workspace.agents.add": {
       "posture": "native",
       "evidence": [
         "tests/specs/50_agents.lua",
@@ -477,7 +477,7 @@
         "durability"
       ]
     },
-    "worker.agents.enable": {
+    "workspace.agents.enable": {
       "posture": "native",
       "evidence": [
         "tests/specs/50_agents.lua",
@@ -492,7 +492,7 @@
         "durability"
       ]
     },
-    "worker.agents.disable": {
+    "workspace.agents.disable": {
       "posture": "native",
       "evidence": [
         "tests/specs/50_agents.lua",
@@ -507,7 +507,7 @@
         "durability"
       ]
     },
-    "worker.agents.remove": {
+    "workspace.agents.remove": {
       "posture": "native",
       "evidence": [
         "tests/specs/50_agents.lua",
@@ -522,7 +522,7 @@
         "durability"
       ]
     },
-    "worker.members.list": {
+    "workspace.members.list": {
       "posture": "native",
       "evidence": [
         "tests/specs/23_membership.lua",
@@ -537,7 +537,7 @@
         "composition"
       ]
     },
-    "worker.members.discover": {
+    "workspace.members.discover": {
       "posture": "native",
       "evidence": [
         "tests/specs/23_membership.lua"
@@ -551,7 +551,7 @@
         "composition"
       ]
     },
-    "worker.members.add": {
+    "workspace.members.add": {
       "posture": "native",
       "evidence": [
         "tests/specs/23_membership.lua",
@@ -567,7 +567,7 @@
         "durability"
       ]
     },
-    "worker.members.enable": {
+    "workspace.members.enable": {
       "posture": "native",
       "evidence": [
         "tests/specs/23_membership.lua",
@@ -582,7 +582,7 @@
         "durability"
       ]
     },
-    "worker.members.disable": {
+    "workspace.members.disable": {
       "posture": "native",
       "evidence": [
         "tests/specs/23_membership.lua",
@@ -597,7 +597,7 @@
         "durability"
       ]
     },
-    "worker.members.remove": {
+    "workspace.members.remove": {
       "posture": "native",
       "evidence": [
         "tests/specs/23_membership.lua",
@@ -612,7 +612,7 @@
         "durability"
       ]
     },
-    "worker.mcp.list": {
+    "workspace.mcp.list": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -627,7 +627,7 @@
         "composition"
       ]
     },
-    "worker.mcp.discover": {
+    "workspace.mcp.discover": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -642,7 +642,7 @@
         "composition"
       ]
     },
-    "worker.mcp.add": {
+    "workspace.mcp.add": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -657,7 +657,7 @@
         "durability"
       ]
     },
-    "worker.mcp.enable": {
+    "workspace.mcp.enable": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -672,7 +672,7 @@
         "durability"
       ]
     },
-    "worker.mcp.disable": {
+    "workspace.mcp.disable": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -687,7 +687,7 @@
         "durability"
       ]
     },
-    "worker.mcp.remove": {
+    "workspace.mcp.remove": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -702,7 +702,7 @@
         "durability"
       ]
     },
-    "worker.mcp.oauth.complete": {
+    "workspace.mcp.oauth.complete": {
       "posture": "native",
       "evidence": [
         "tests/specs/41_mcp.lua",
@@ -717,7 +717,7 @@
         "durability"
       ]
     },
-    "worker.mcp.complete": {
+    "workspace.mcp.complete": {
       "posture": "generic",
       "evidence": [
         "tests/specs/35_agui.lua — generic action transport"

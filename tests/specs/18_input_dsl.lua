@@ -64,7 +64,7 @@ local ok, err = pcall(function()
   H.assert_eq(last.method, "loop.run", "plain input routes to loop.run")
   H.assert_eq(last.params.prompt, "hello there", "prompt carries the text")
   H.assert_eq(last.params.policy.proposals, "review", "plain input carries ordinary policy")
-  H.assert_eq(next(last.params.policy.capabilities), nil, "plain input does not attenuate capabilities")
+  H.assert_eq(last.params.policy.capabilities, nil, "plain input does not change workspace capabilities")
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "## Results", "ordinary Markdown" })
   vim.api.nvim_feedkeys("\r", "x", false)
@@ -84,7 +84,7 @@ local ok, err = pcall(function()
   last = sent[#sent]
   H.assert_eq(last.method, "loop.run", "? input routes to loop.run")
   H.assert_eq(last.params.policy.proposals, "review", "? input retains client review")
-  H.assert_eq(last.params.policy.capabilities.deny[1].operation, "EXEC", "? input denies EXEC")
+  H.assert_eq(last.params.policy.capabilities, nil, "? input does not change workspace capabilities")
   H.assert_eq(last.params.prompt, "what changed", "? stripped from prompt")
 
   -- `! ` prefix execs through the daemon.

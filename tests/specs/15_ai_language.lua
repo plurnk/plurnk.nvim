@@ -68,20 +68,20 @@ local ok, err = pcall(function()
   local ask = find(sent, "loop.run")
   H.assert_truthy(ask, ":AI? runs a loop")
   H.assert_eq(ask.params.policy.proposals, "review", ":AI? retains client review")
-  H.assert_eq(ask.params.policy.capabilities.deny[1].operation, "EXEC", ":AI? denies EXEC")
+  H.assert_eq(ask.params.policy.capabilities, nil, ":AI? does not change workspace capabilities")
 
   sent = {}
   ai({ args = ": change things", range = 0 })
   local act = find(sent, "loop.run")
   H.assert_truthy(act, ":AI: runs a loop")
   H.assert_eq(act.params.policy.proposals, "review", ":AI: sends ordinary review policy")
-  H.assert_eq(next(act.params.policy.capabilities), nil, ":AI: does not attenuate capabilities")
+  H.assert_eq(act.params.policy.capabilities, nil, ":AI: does not change workspace capabilities")
 
   -- ask survives scope repetition: `??` = new workspace, still ask
   sent = {}
   ai({ args = "?? fresh ask", range = 0 })
   local ask2 = find(sent, "loop.run")
-  H.assert_eq(ask2.params.policy.capabilities.deny[1].operation, "EXEC", ":AI?? carries policy attenuation into the new workspace")
+  H.assert_eq(ask2.params.policy.capabilities, nil, ":AI?? does not restrict the new workspace")
 
   -- ── `/` routing ────────────────────────────────────────────────────
   sent = {}

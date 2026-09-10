@@ -6,7 +6,7 @@ local H = dofile(root .. "/tests/helpers.lua")
 H.setup()
 
 local ok, err = pcall(function()
-  -- A standard global Agent Skill present before the Worker's first Functionality demand.
+  -- A standard global Agent Skill present before the workspace's first Functionality demand.
   local daemon_home = os.getenv("PLURNK_NVIM_DAEMON_HOME")
   if daemon_home ~= nil and daemon_home ~= "" then
     vim.fn.mkdir(daemon_home .. "/.agents/skills/durable-skill", "p")
@@ -48,73 +48,73 @@ local ok, err = pcall(function()
   H.assert_eq(observe("worker.model.get").spawnModel.alias, "nvimtest", "separate connection observes child model")
   H.call("worker.reasoning.set", { policy = "adaptive" })
   H.assert_eq(observe("worker.reasoning.get").policy, "adaptive", "separate connection observes reasoning")
-  H.call("worker.capabilities.set", { policy = { deny = { { runtime = "sh" } } } })
-  H.assert_eq(observe("worker.capabilities.get").worker.deny[1].runtime, "sh", "separate connection observes capability settings")
+  H.call("workspace.capabilities.set", { policy = { deny = { { runtime = "sh" } } } })
+  H.assert_eq(observe("workspace.capabilities.get").workspace.deny[1].runtime, "sh", "separate connection observes capability settings")
 
   local service_root = os.getenv("PLURNK_SERVICE_DIR") or (root .. "/../plurnk-service")
   local fixture = service_root .. "/plurnk-mcp/src/fixtures/echo-server.mjs"
-  H.call("worker.mcp.add", {
+  H.call("workspace.mcp.add", {
     alias = "durable",
     definition = { name = "durable", transport = "stdio", command = vim.fn.exepath("node"), args = { fixture }, tools = { "echo" }, read = { "echo" } },
   }, 20000)
   local function server_state()
-    for _, entry in ipairs(observe("worker.mcp.list").definitions) do
+    for _, entry in ipairs(observe("workspace.mcp.list").definitions) do
       if entry.alias == "durable" then return entry.state end
     end
     return nil
   end
   H.assert_eq(server_state(), "active", "separate connection observes MCP add")
-  H.call("worker.mcp.disable", { alias = "durable" }, 20000)
+  H.call("workspace.mcp.disable", { alias = "durable" }, 20000)
   H.assert_eq(server_state(), "disabled", "separate connection observes MCP disable")
-  H.call("worker.mcp.enable", { alias = "durable" }, 20000)
+  H.call("workspace.mcp.enable", { alias = "durable" }, 20000)
   H.assert_eq(server_state(), "active", "separate connection observes MCP enable")
-  H.call("worker.mcp.remove", { alias = "durable" }, 20000)
+  H.call("workspace.mcp.remove", { alias = "durable" }, 20000)
   H.assert_eq(server_state(), nil, "separate connection observes MCP remove")
 
-  H.call("worker.members.add", { alias = "durable-glob", definition = { glob = "lua/**" } }, 20000)
+  H.call("workspace.members.add", { alias = "durable-glob", definition = { glob = "lua/**" } }, 20000)
   local function member_definition()
-    for _, entry in ipairs(observe("worker.members.list").definitions) do
+    for _, entry in ipairs(observe("workspace.members.list").definitions) do
       if entry.alias == "durable-glob" then return entry end
     end
     return nil
   end
   local added = member_definition()
   H.assert_eq(added and added.state, "active", "separate connection observes members add")
-  H.assert_eq(added and added.origin, "worker", "the added definition is Worker-owned")
+  H.assert_eq(added and added.origin, "workspace", "the added definition is workspace-owned")
   H.assert_eq(added and added.definition.glob, "lua/**", "separate connection observes the exact glob")
-  H.call("worker.members.disable", { alias = "durable-glob" }, 20000)
+  H.call("workspace.members.disable", { alias = "durable-glob" }, 20000)
   H.assert_eq(member_definition().state, "disabled", "separate connection observes members disable")
-  H.call("worker.members.enable", { alias = "durable-glob" }, 20000)
+  H.call("workspace.members.enable", { alias = "durable-glob" }, 20000)
   H.assert_eq(member_definition().state, "active", "separate connection observes members enable")
-  H.call("worker.members.remove", { alias = "durable-glob" }, 20000)
+  H.call("workspace.members.remove", { alias = "durable-glob" }, 20000)
   H.assert_eq(member_definition(), nil, "separate connection observes members remove")
 
   if daemon_home ~= nil and daemon_home ~= "" then
     local function skill_state()
-      for _, entry in ipairs(observe("worker.skills.list").definitions) do
+      for _, entry in ipairs(observe("workspace.skills.list").definitions) do
         if entry.alias == "durable-skill" then return entry.state end
       end
       return nil
     end
     H.assert_eq(skill_state(), "active", "separate connection observes the installed skill")
-    H.call("worker.skills.disable", { alias = "durable-skill" }, 20000)
+    H.call("workspace.skills.disable", { alias = "durable-skill" }, 20000)
     H.assert_eq(skill_state(), "disabled", "separate connection observes skill disable")
-    H.call("worker.skills.enable", { alias = "durable-skill" }, 20000)
+    H.call("workspace.skills.enable", { alias = "durable-skill" }, 20000)
     H.assert_eq(skill_state(), "active", "separate connection observes skill enable")
   end
 
   local agent_url = os.getenv("PLURNK_NVIM_A2A_URL")
   if agent_url ~= nil and agent_url ~= "" then
     local function agent_state()
-      for _, entry in ipairs(observe("worker.agents.list").definitions) do
+      for _, entry in ipairs(observe("workspace.agents.list").definitions) do
         if entry.alias == "demo" then return entry.state end
       end
       return nil
     end
     H.assert_eq(agent_state(), "active", "separate connection observes the configured outbound agent")
-    H.call("worker.agents.disable", { alias = "demo" }, 20000)
+    H.call("workspace.agents.disable", { alias = "demo" }, 20000)
     H.assert_eq(agent_state(), "disabled", "separate connection observes agent disable")
-    H.call("worker.agents.enable", { alias = "demo" }, 20000)
+    H.call("workspace.agents.enable", { alias = "demo" }, 20000)
     H.assert_eq(agent_state(), "active", "separate connection observes agent enable")
   end
 

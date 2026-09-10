@@ -7,20 +7,20 @@ H.setup()
 local ok, err = pcall(function()
   local sent, notices = {}, {}
   local results = {
-    ["worker.agents.list"] = {
+    ["workspace.agents.list"] = {
       definitions = {
         { alias = "researcher", origin = "service", state = "active", definition = { name = "researcher", url = "https://agent.example" }, detail = { name = "Research Assistant", version = "2.1", description = "Finds sources", skills = { "search", "summarize" } } },
-        { alias = "scribe", origin = "worker", state = "disabled", definition = { name = "scribe", url = "https://scribe.example" } },
+        { alias = "scribe", origin = "workspace", state = "disabled", definition = { name = "scribe", url = "https://scribe.example" } },
         { alias = "ghost", origin = "service", state = "unavailable", definition = { name = "ghost", url = "http://127.0.0.1:9" }, problem = { detail = "no discoverable standard Agent Card" } },
       },
     },
-    ["worker.agents.discover"] = {
+    ["workspace.agents.discover"] = {
       candidates = { { alias = "research-assistant", summary = "Finds sources", definition = { name = "research-assistant", url = "https://agent.example" }, provenance = { kind = "agent-card", source = "https://agent.example" } } },
     },
-    ["worker.agents.add"] = { status = 201, alias = "researcher", definition = { alias = "researcher", state = "active" } },
-    ["worker.agents.enable"] = { status = 200, alias = "researcher", definition = { alias = "researcher", state = "active" } },
-    ["worker.agents.disable"] = { status = 200, alias = "researcher", definition = { alias = "researcher", state = "disabled" } },
-    ["worker.agents.remove"] = { status = 200, alias = "researcher", removed = true },
+    ["workspace.agents.add"] = { status = 201, alias = "researcher", definition = { alias = "researcher", state = "active" } },
+    ["workspace.agents.enable"] = { status = 200, alias = "researcher", definition = { alias = "researcher", state = "active" } },
+    ["workspace.agents.disable"] = { status = 200, alias = "researcher", definition = { alias = "researcher", state = "disabled" } },
+    ["workspace.agents.remove"] = { status = 200, alias = "researcher", removed = true },
   }
   local client = require("plurnk.client")
   client.check_daemon_once = function() end
@@ -37,14 +37,14 @@ local ok, err = pcall(function()
   local ai = commands.run
 
   ai({ args = "/agents", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.agents.list", params = {} }), ":AI/agents lists the Worker's agents")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.agents.list", params = {} }), ":AI/agents lists the Worker's agents")
   H.assert_match(notices[#notices], "researcher%s+active%s+https://agent%.example%s+Research Assistant v2%.1%s+2 skills%s+%(service%)", "list renders active agents with card identity")
   H.assert_match(notices[#notices], "scribe%s+disabled%s+https://scribe%.example", "list renders disabled Worker-owned agents")
   H.assert_match(notices[#notices], "ghost%s+unavailable%s+http://127%.0%.0%.1:9%s+%(service%)%s+— no discoverable standard Agent Card", "list renders unavailable agents with their problem")
 
   sent, notices = {}, {}
   ai({ args = "/agents discover https://agent.example", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.agents.discover", params = { source = "https://agent.example" } }), "discover action shape")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.agents.discover", params = { source = "https://agent.example" } }), "discover action shape")
   H.assert_match(notices[#notices], "research%-assistant%s+candidate%s+https://agent%.example%s+Finds sources", "discover renders candidates")
 
   local options = { cardPath = "/cards/research.json", authorization = { type = "bearer", token = "${RESEARCH_TOKEN}" } }
@@ -56,11 +56,11 @@ local ok, err = pcall(function()
   ai({ args = "/agents enable researcher", range = 0 })
   ai({ args = "/agents disable researcher", range = 0 })
   ai({ args = "/agents remove researcher", range = 0 })
-  H.assert_truthy(vim.deep_equal(sent[1], { method = "worker.agents.add", params = { alias = "researcher", definition = { name = "researcher", url = "https://agent.example", cardPath = "/cards/research.json", authorization = { type = "bearer", token = "${RESEARCH_TOKEN}" } } } }), "add composes one exact definition from url and decoded options")
-  H.assert_truthy(vim.deep_equal(sent[2], { method = "worker.agents.add", params = { alias = "scribe", definition = { name = "scribe", url = "https://scribe.example" } } }), "add without options")
-  H.assert_truthy(vim.deep_equal(sent[3], { method = "worker.agents.enable", params = { alias = "researcher" } }), "enable action shape")
-  H.assert_truthy(vim.deep_equal(sent[4], { method = "worker.agents.disable", params = { alias = "researcher" } }), "disable action shape")
-  H.assert_truthy(vim.deep_equal(sent[5], { method = "worker.agents.remove", params = { alias = "researcher" } }), "remove action shape")
+  H.assert_truthy(vim.deep_equal(sent[1], { method = "workspace.agents.add", params = { alias = "researcher", definition = { name = "researcher", url = "https://agent.example", cardPath = "/cards/research.json", authorization = { type = "bearer", token = "${RESEARCH_TOKEN}" } } } }), "add composes one exact definition from url and decoded options")
+  H.assert_truthy(vim.deep_equal(sent[2], { method = "workspace.agents.add", params = { alias = "scribe", definition = { name = "scribe", url = "https://scribe.example" } } }), "add without options")
+  H.assert_truthy(vim.deep_equal(sent[3], { method = "workspace.agents.enable", params = { alias = "researcher" } }), "enable action shape")
+  H.assert_truthy(vim.deep_equal(sent[4], { method = "workspace.agents.disable", params = { alias = "researcher" } }), "disable action shape")
+  H.assert_truthy(vim.deep_equal(sent[5], { method = "workspace.agents.remove", params = { alias = "researcher" } }), "remove action shape")
   H.assert_match(notices[1], "added: researcher %(active%)", "add renders the daemon state")
   H.assert_match(notices[5], "removed: researcher", "remove confirms")
 

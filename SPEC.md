@@ -95,8 +95,7 @@ what this client guarantees. Tests are organized by observable behavior under
 - **One metacommand** — cmdline abbreviations (`:AI?` without a
   space), full `/` verb routing, and the bare `:AI` toggle; `:AI/` prints the language
   and sends nothing.
-- **Policy is projected per line** — `?` intersects the configured loop policy
-  with `{deny:[{operation:"EXEC"}]}` and selects proposal review; `:` sends the
+- **Policy is projected per line** — `?` selects proposal review; `:` sends the
   configured policy unchanged; `!` = exec. Core has no named ask/act mode.
 - **Repetition carries scope** — `??` new workspace, `???` new
   headless workspace, `????` fork-lite (new worker in the current workspace).
@@ -129,13 +128,13 @@ what this client guarantees. Tests are organized by observable behavior under
 
   | Input | AG-UI+ action |
   |---|---|
-  | `:AI/mcp` | `worker.mcp.list {}` |
-  | `:AI/mcp discover <url\|command>` | `worker.mcp.discover {source}` |
-  | `:AI/mcp add <alias> <target> [options.json]` | `worker.mcp.add {alias, definition}` — the client composes the exact `McpServerDefinition`: `name = alias`; an absolute `http(s)://` target is `{transport: "http", url}`, anything else `{transport: "stdio", command, args: {}}`; `options.json` supplies the remaining definition members |
-  | `:AI/mcp enable <alias> [options.json]` | Without options, `worker.mcp.enable {alias}`. With options, list the current definition and send `worker.mcp.add {alias, definition: {...current, ...options}}` to specialize it for this Worker. |
-  | `:AI/mcp disable <alias>` | `worker.mcp.disable {alias}` |
-  | `:AI/mcp remove <alias>` | `worker.mcp.remove {alias}` |
-  | `:AI/mcp oauth <alias> <callback-url>` | `worker.mcp.oauth.complete {alias, callbackUrl}` |
+  | `:AI/mcp` | `workspace.mcp.list {}` |
+  | `:AI/mcp discover <url\|command>` | `workspace.mcp.discover {source}` |
+  | `:AI/mcp add <alias> <target> [options.json]` | `workspace.mcp.add {alias, definition}` — the client composes the exact `McpServerDefinition`: `name = alias`; an absolute `http(s)://` target is `{transport: "http", url}`, anything else `{transport: "stdio", command, args: {}}`; `options.json` supplies the remaining definition members |
+  | `:AI/mcp enable <alias> [options.json]` | Without options, `workspace.mcp.enable {alias}`. With options, list the current definition and send `workspace.mcp.add {alias, definition: {...current, ...options}}` for the workspace. Reapplying the same definition is idempotent; a conflicting workspace definition is rejected. |
+  | `:AI/mcp disable <alias>` | `workspace.mcp.disable {alias}` |
+  | `:AI/mcp remove <alias>` | `workspace.mcp.remove {alias}` |
+  | `:AI/mcp oauth <alias> <callback-url>` | `workspace.mcp.oauth.complete {alias, callbackUrl}` |
 
   Interactive authorization prints the URL and exact completion command.
   Unreadable or invalid local JSON stops before dispatch. Daemon Problems,
@@ -143,7 +142,7 @@ what this client guarantees. Tests are organized by observable behavior under
   path and are neither rewritten nor retried.
 
 - §nvim-universal-agent-skills **Agent Skills are daemon actions** —
-  `:AI/skills` is a thin projection of the Worker's `skills` Functionality
+  `:AI/skills` is a thin projection of the workspace's `skills` Functionality
   family, the same common lifecycle as `:AI/mcp`. The client composes one
   exact `SkillDefinition` and renders the daemon's states; it runs no package
   manager, reads no registry, parses no frontmatter, and keeps no package
@@ -154,19 +153,19 @@ what this client guarantees. Tests are organized by observable behavior under
 
   | Input | AG-UI+ action |
   |---|---|
-  | `:AI/skills` | `worker.skills.list {}` |
-  | `:AI/skills discover <query>` | `worker.skills.discover {query}` — registry search |
-  | `:AI/skills discover <source>` | `worker.skills.discover {source}` — a single term holding `/`, `:`, or `\\`, or starting with `.` or `~`, is a package reference |
-  | `:AI/skills add <name> <source> [--global]` | `worker.skills.add {alias, definition: {name, scope, source}}` with `scope` `project` unless `--global` |
-  | `:AI/skills enable <name>` | `worker.skills.enable {alias}` |
-  | `:AI/skills disable <name>` | `worker.skills.disable {alias}` |
-  | `:AI/skills remove <name>` | `worker.skills.remove {alias}` |
+  | `:AI/skills` | `workspace.skills.list {}` |
+  | `:AI/skills discover <query>` | `workspace.skills.discover {query}` — registry search |
+  | `:AI/skills discover <source>` | `workspace.skills.discover {source}` — a single term holding `/`, `:`, or `\\`, or starting with `.` or `~`, is a package reference |
+  | `:AI/skills add <name> <source> [--global]` | `workspace.skills.add {alias, definition: {name, scope, source}}` with `scope` `project` unless `--global` |
+  | `:AI/skills enable <name>` | `workspace.skills.enable {alias}` |
+  | `:AI/skills disable <name>` | `workspace.skills.disable {alias}` |
+  | `:AI/skills remove <name>` | `workspace.skills.remove {alias}` |
 
   Daemon Problems use the existing lossless Problem path and are neither
   rewritten nor retried.
 
 - §nvim-outbound-agents **Outbound A2A agents are daemon actions** —
-  `:AI/agents` is a thin projection of the Worker's `agents` Functionality
+  `:AI/agents` is a thin projection of the workspace's `agents` Functionality
   family, the same common lifecycle as `:AI/mcp` and `:AI/skills`. The client
   composes one exact `A2aAgentDefinition` and renders the daemon's states; the
   remote Agent Card, connection, and enablement policy live in the service, and
@@ -174,18 +173,18 @@ what this client guarantees. Tests are organized by observable behavior under
 
   | Input | AG-UI+ action |
   |---|---|
-  | `:AI/agents` | `worker.agents.list {}` |
-  | `:AI/agents discover <url>` | `worker.agents.discover {source}` — one inert card-derived candidate |
-  | `:AI/agents add <alias> <url> [options.json]` | `worker.agents.add {alias, definition: {name: alias, url, ...options}}`; `options.json` supplies `cardPath`, `headers`, `authorization` |
-  | `:AI/agents enable <alias>` | `worker.agents.enable {alias}` |
-  | `:AI/agents disable <alias>` | `worker.agents.disable {alias}` |
-  | `:AI/agents remove <alias>` | `worker.agents.remove {alias}` |
+  | `:AI/agents` | `workspace.agents.list {}` |
+  | `:AI/agents discover <url>` | `workspace.agents.discover {source}` — one inert card-derived candidate |
+  | `:AI/agents add <alias> <url> [options.json]` | `workspace.agents.add {alias, definition: {name: alias, url, ...options}}`; `options.json` supplies `cardPath`, `headers`, `authorization` |
+  | `:AI/agents enable <alias>` | `workspace.agents.enable {alias}` |
+  | `:AI/agents disable <alias>` | `workspace.agents.disable {alias}` |
+  | `:AI/agents remove <alias>` | `workspace.agents.remove {alias}` |
 
   Unreadable or invalid local JSON stops before dispatch; daemon Problems use
   the existing lossless Problem path and are neither rewritten nor retried.
 
 - §nvim-file-members **File members are daemon actions** — `:AI/members`
-  (natively `:PlurnkMembers`) is a thin projection of the Worker's `members`
+  (natively `:PlurnkMembers`) is a thin projection of the workspace's `members`
   Functionality family, the same common lifecycle as `:AI/mcp`, `:AI/skills`,
   and `:AI/agents`. Git-tracked files are members on their own; a definition
   is one gitignore-style glob relative to the project root that includes
@@ -198,12 +197,12 @@ what this client guarantees. Tests are organized by observable behavior under
 
   | Input | AG-UI+ action |
   |---|---|
-  | `:AI/members` | `worker.members.list {}` — one line per definition with what its glob resolved to: `docs  active  include docs/** → 12 files (3 ignored)  (service)` |
-  | `:AI/members discover [path\|glob]` | `worker.members.discover {query}` — one candidate explaining why a file is or is not a member, or previewing what `add` would include or exclude; without an argument, the query is the current file buffer's project-relative path, and a non-file buffer diagnoses usage |
-  | `:AI/members add <alias> <glob>` | `worker.members.add {alias, definition: {glob}}` |
-  | `:AI/members enable <alias>` | `worker.members.enable {alias}` |
-  | `:AI/members disable <alias>` | `worker.members.disable {alias}` |
-  | `:AI/members remove <alias>` | `worker.members.remove {alias}` |
+  | `:AI/members` | `workspace.members.list {}` — one line per definition with what its glob resolved to: `docs  active  include docs/** → 12 files (3 ignored)  (service)` |
+  | `:AI/members discover [path\|glob]` | `workspace.members.discover {query}` — one candidate explaining why a file is or is not a member, or previewing what `add` would include or exclude; without an argument, the query is the current file buffer's project-relative path, and a non-file buffer diagnoses usage |
+  | `:AI/members add <alias> <glob>` | `workspace.members.add {alias, definition: {glob}}` |
+  | `:AI/members enable <alias>` | `workspace.members.enable {alias}` |
+  | `:AI/members disable <alias>` | `workspace.members.disable {alias}` |
+  | `:AI/members remove <alias>` | `workspace.members.remove {alias}` |
 
   Daemon Problems — a
   headless workspace, an invalid pattern, a service-owned definition that
@@ -397,8 +396,8 @@ what this client guarantees. Tests are organized by observable behavior under
   creation is atomic, nothing arrives later.
 - **One capability contract spans scopes** — `workspace_capabilities` narrows
   workspace creation, `/capabilities [json]` reads the complete durable cascade
-  or replaces its mutable Worker layer, and `loop_policy` supplies the base
-  policy for each loop. `?` is only a further loop attenuation.
+  or replaces the workspace policy. `loop_policy` supplies the proposal
+  disposition for each loop; `?` selects review without changing access.
 - §nvim-model-discovery **Model selection is server-backed and discovery is lazy** —
   the worker owns the model ({§worker-model-selection}). `/model <selector>` accepts
   either a declared alias or exact `provider/model`; `worker.model.set {selector}`
