@@ -1,4 +1,4 @@
--- {§question-tool}: collect named fields and resume with a standard ElicitResult.
+-- {§nvim-question-forms}: collect the exact response-schema payload.
 local M = {}
 
 function M.choices(schema)
@@ -47,7 +47,7 @@ function M.review(workspace_name, interaction)
   local function field(index)
     local key = keys[index]
     if key == nil and #keys > 0 then
-      send({ action = "accept", content = content })
+      send(content)
       return
     end
     local property = key ~= nil and properties[key] or {}
@@ -74,7 +74,7 @@ function M.review(workspace_name, interaction)
         end
         content[key] = value
       end
-      if key == nil then send({ action = "accept", content = content })
+      if key == nil then send(content)
       else field(index + 1) end
     end
     local function free_response()

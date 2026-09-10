@@ -386,7 +386,7 @@ what this client guarantees. Tests are organized by observable behavior under
   Fields show type, required/optional status, and description; Enter skips an
   optional field. Non-string values use JSON notation. Invalid input explains
   the expected value and re-prompts without losing earlier answers. Complete
-  forms resume with `{action:"accept",content}`; dismissal sends cancellation.
+  forms resume with the exact response-schema object; dismissal sends cancellation.
   Empty forms explicitly submit an empty object, and resolution errors surface.
 
 ## §8 Config and policy

@@ -34,26 +34,26 @@ local ok, err = pcall(function()
   review({ properties = { branch = { type = "string" }, credential = { type = "string" }, notes = { type = "string" } } },
     { "", "fixture-token", "" })
   H.assert_truthy(prompts[1]:match("branch") and prompts[2]:match("credential") and prompts[3]:match("notes"))
-  H.assert_truthy(vim.deep_equal(sent[1], { action = "accept", content = { credential = "fixture-token" } }))
+  H.assert_truthy(vim.deep_equal(sent[1], { credential = "fixture-token" }))
 
   review({ properties = { count = { type = "integer" }, enabled = { type = "boolean" } }, required = { "count" } },
     { "", "nope", "0", "false" })
   H.assert_match(notifications[1], "count is required")
   H.assert_match(notifications[2], "count requires a JSON integer")
-  H.assert_truthy(vim.deep_equal(sent[2].content, { count = 0, enabled = false }))
+  H.assert_truthy(vim.deep_equal(sent[2], { count = 0, enabled = false }))
 
   vim.ui.select = function(items, _, cb)
     H.assert_truthy(vim.deep_equal(items, { "main", "topic", "Free Response…" }))
     cb(items[2])
   end
   review({ properties = { branch = { type = "string", ["enum"] = { "main", "topic" } } } }, {})
-  H.assert_eq(sent[3].content.branch, "topic")
+  H.assert_eq(sent[3].branch, "topic")
 
   review({ properties = { branch = { type = "string" } } }, { vim.NIL })
   H.assert_eq(sent[4], "cancel", "dismissing the form resolves cancellation")
 
   review({ type = "object" }, { "unassigned text", "" })
-  H.assert_eq(vim.json.encode(sent[5].content), "{}", "empty content is an object, not a list")
+  H.assert_eq(vim.json.encode(sent[5]), "{}", "empty content is an object, not a list")
 
   transport_error = { detail = "Connection closed." }
   review({ properties = { branch = { type = "string" } } }, { "main" })
