@@ -127,10 +127,8 @@ function M.hop(workers, bound_id, direction)
   return siblings[((index - 1 + step) % #siblings) + 1]
 end
 
--- The lineage from the tree root to the bound worker, `~` marking the worker the tab is in —
--- the same `~` that means "this worker" in `worker://~/`: `/~main` at a root,
--- `/main/fork-1/~recheck` two hops down, `/~` before the worker is known. A child always
--- shows that it is a child.
+-- The lineage from the tree root to the bound worker. `~` is a display cursor,
+-- not a resource alias: `/~main`, `/main/fork-1/~recheck`, or `/~` before binding.
 function M.path(workers, bound_id)
   local _, parent_of = index_directory(workers)
   local current
