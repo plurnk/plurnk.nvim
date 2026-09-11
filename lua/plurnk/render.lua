@@ -90,9 +90,9 @@ local function ellipsize(s, n)
   return s:sub(1, n - 1) .. "…"
 end
 
-local function annotation(entry)
+local function aside(entry)
   local tx = type(entry.tx) == "table" and entry.tx or nil
-  local raw = tx and type(tx.annotation) == "string" and tx.annotation or ""
+  local raw = tx and type(tx.aside) == "string" and tx.aside or ""
   local plain = raw:gsub("\27%[[%d;?]*[ -/]*[@-~]", ""):gsub("%c+", " "):gsub("%s+", " ")
   return plain:gsub("^%s+", ""):gsub("%s+$", "")
 end
@@ -268,7 +268,7 @@ local function broadcast_content(entry)
   -- remains on the wire; repeating it beside the lifecycle glyph is noise.
   local signal = type(entry.signal) == "number" and entry.signal or entry.status_rx
   local glyph = M.is_disposition(entry.op) and M.send_lifecycle_glyph(signal) or M.OP_GLYPHS.SEND
-  local note = annotation(entry)
+  local note = aside(entry)
   local header = glyph
   if not M.is_disposition(entry.op) and type(entry.status_rx) == "number" and entry.status_rx >= 400 then
     header = header .. " " .. M.status_glyph(entry.status_rx) .. " " .. tostring(entry.status_rx)
@@ -391,7 +391,7 @@ M.render_log_entry = function(entry)
   if path ~= "" then table.insert(parts, path) end
   if scope ~= "" then table.insert(parts, scope) end
   if extra ~= "" then table.insert(parts, extra) end
-  local note = annotation(entry)
+  local note = aside(entry)
   if note ~= "" then table.insert(parts, "— " .. note) end
 
   return { table.concat(parts, " ") }

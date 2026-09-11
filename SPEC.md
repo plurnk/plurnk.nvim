@@ -286,7 +286,7 @@ what this client guarantees. Tests are organized by observable behavior under
   ✋ failed/cancelled, or ❌ error. SEND messages use 💬. Disposition and routine SEND codes remain wire truth without
   repeating in human output; a failed directed SEND and any other failed operation
   retain their diagnostic code.
-  Targets, scopes, previews, and literal annotations use one-space separators.
+  Targets, scopes, previews, and literal asides use one-space separators.
 - **Deliberate divergences are editor-native presentation only** — the
   durable prompt row remains visible because submission clears the input buffer;
   live streams use dedicated buffers and splits. The operation vocabulary, lifecycle
@@ -324,7 +324,7 @@ what this client guarantees. Tests are organized by observable behavior under
   Entry whitespace collapses to one line, neutral `medium` priority
   is implicit, and non-neutral priority renders as `[high]` or `[low]`. An empty Plan
   renders `📭 no entries`.
-- **Operation annotations stay labels** — a present durable annotation follows the
+- **Operation asides stay labels** — a present durable aside follows the
   canonical row as sanitized literal text; Markdown and HTML are not interpreted.
 - **Broadcast prose remains source-faithful except for exact terminal typography** —
   the common inline token `$\rightarrow$` renders as `→`; this is not general LaTeX
