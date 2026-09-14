@@ -612,6 +612,72 @@
         "durability"
       ]
     },
+    "worker.env.list": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure"
+      ]
+    },
+    "worker.env.discover": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure"
+      ]
+    },
+    "worker.env.add": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure"
+      ]
+    },
+    "worker.env.enable": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure"
+      ]
+    },
+    "worker.env.disable": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure"
+      ]
+    },
+    "worker.env.remove": {
+      "posture": "generic",
+      "evidence": [
+        "tests/specs/35_agui.lua — generic action transport"
+      ],
+      "dimensions": [
+        "projection",
+        "success",
+        "failure"
+      ]
+    },
     "workspace.mcp.list": {
       "posture": "native",
       "evidence": [
