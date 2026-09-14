@@ -390,6 +390,10 @@ what this client guarantees. Tests are organized by observable behavior under
 - **Only client-owned proposals prompt** — AG-UI projects proposal review only
   when the durable disposition owner is the client. Loop-owned accept/reject
   settles in Core; the client never re-derives ownership from policy fields.
+- §nvim-yolo-default **Auto-accept is the default** — `setup({ yolo = true })` is the
+  shipped setting and `:PlurnkYolo` toggles it; a `?`-prefixed prompt reviews that
+  loop's proposals even while yolo is on, and the standing setting alone drives the
+  idle 🔥.
 - §nvim-question-forms **Questions collect named fields** — AG-UI
   `request_user_input` interrupts present the message and each response-schema
   field through `vim.ui.input` or string-enum `vim.ui.select` with free response.

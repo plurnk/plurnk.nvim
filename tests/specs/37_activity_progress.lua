@@ -4,6 +4,7 @@ local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plur
 H.setup()
 
 local ok, err = pcall(function()
+  require("plurnk.diff").set_yolo(false) -- this spec pins the idle slot with review on
   local dispatch = require("plurnk.dispatch")
   local state = require("plurnk.state")
   local worker_tab = require("plurnk.worker_tab")

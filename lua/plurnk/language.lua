@@ -88,6 +88,7 @@ function M.run(opts)
   end
   local rest = raw:sub(prefix_length + 1):gsub("^%s+", "")
   local projected = require("plurnk.policy").prompt(raw)
+  require("plurnk.diff").request_review(first == "?")
   local context = require("plurnk.workspace_context")
   local loop = require("plurnk.loop")
 

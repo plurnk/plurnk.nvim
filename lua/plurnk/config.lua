@@ -9,6 +9,7 @@ local defaults = {
   log_path = log_dir .. "/plurnk_client.log",
   background_log_path = log_dir .. "/plurnk_background.log",
   loop_policy = { proposals = "review" },
+  yolo = true,                  -- auto-accept proposals; `:AI? …` reviews one prompt regardless
   workspace_capabilities = nil,
 }
 

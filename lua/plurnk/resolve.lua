@@ -278,7 +278,7 @@ end
 M.process = function(workspace_name, proposal)
   if not proposal or not proposal.logEntryId then return end
 
-  if diff.is_yolo() then
+  if diff.is_yolo() and not diff.review_requested() then
     send_resolve(proposal.logEntryId, "accept", { outcome = "client_yolo" })
     return
   end

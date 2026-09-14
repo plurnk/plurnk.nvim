@@ -3,6 +3,7 @@ local M = {}
 M.setup = function(opts)
   local cfg = require("plurnk.config")
   cfg.setup(opts)
+  require("plurnk.diff").set_yolo(cfg.get("yolo") ~= false)
   require("plurnk.commands").setup()
   require("plurnk.worker_tab").setup()
   require("plurnk.statusline").setup_highlights()

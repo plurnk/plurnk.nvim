@@ -162,6 +162,7 @@ end
 
 -- loop/terminated: the model loop is done. Reflect final state.
 M.handle_loop_terminated = function(params, workspace_name)
+  require("plurnk.diff").request_review(false)
   if not params or not workspace_name then return end
   state.set_loop_inflight(workspace_name, false)
   state.record_loop_usage(workspace_name, params.usage)  -- exact last-loop envelope; never a client tally

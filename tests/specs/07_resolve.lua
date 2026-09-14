@@ -5,6 +5,7 @@ local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plur
 H.setup()
 
 local ok, err = pcall(function()
+  require("plurnk.diff").set_yolo(false)
   local tmp = vim.fn.tempname()
   vim.fn.writefile({ "hello", "world" }, tmp)
   local original_udiff = "--- a/x\n+++ b/x\n@@ -1,2 +1,2 @@\n hello\n-world\n+universe\n"
@@ -50,6 +51,22 @@ local ok, err = pcall(function()
   H.assert_eq(captured[1].params.decision, "accept", "edits decision")
   H.assert_match(captured[1].params.body, "%-world", "regen udiff has -world")
   H.assert_match(captured[1].params.body, "%+PLANET", "regen udiff has +PLANET")
+
+  -- {§nvim-yolo-default}: yolo auto-accepts, and one prompt's review request outranks it.
+  require("plurnk.diff").set_yolo(true)
+  captured = {}
+  require("plurnk.resolve").process("smoke", {
+    logEntryId = 3, op = "EDIT", target = { scheme = nil, pathname = tmp }, body = original_udiff,
+  })
+  H.assert_eq(captured[1].params.outcome, "client_yolo", "yolo auto-accepts without a review request")
+  require("plurnk.diff").request_review(true)
+  captured = {}
+  require("plurnk.resolve").process("smoke", {
+    logEntryId = 4, op = "EDIT", target = { scheme = nil, pathname = tmp }, body = original_udiff,
+  })
+  H.assert_eq(#captured, 0, "a review request under yolo opens the review instead of auto-accepting")
+  require("plurnk.diff").request_review(false)
+  require("plurnk.diff").set_yolo(false)
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

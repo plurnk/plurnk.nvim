@@ -87,7 +87,7 @@ One tab per **worker** (a conversation); a **workspace** is the world containing
 
 ## Proposals
 
-Side-effecting ops pause for review. EDIT opens a diffsplit (left disk, right proposed): `<localleader>a` accept, `<localleader>e` accept-with-edits, `r` reject, `c` cancel. EXEC opens a scratch: `a`/`r`/`c`. Global: `<leader>ay/ae/an`, `<leader>a]`/`a[` cycle pending; `:AI/accept`, `/edit`, `/reject`, and `/cancel` expose the same decisions. `:PlurnkYolo` auto-accepts.
+Proposals are accepted automatically by default (`yolo = true` in `setup`); `:PlurnkYolo` toggles that, and `:AI? …` reviews one prompt regardless. Under review, side-effecting ops pause. EDIT opens a diffsplit (left disk, right proposed): `<localleader>a` accept, `<localleader>e` accept-with-edits, `r` reject, `c` cancel. EXEC opens a scratch: `a`/`r`/`c`. Global: `<leader>ay/ae/an`, `<leader>a]`/`a[` cycle pending; `:AI/accept`, `/edit`, `/reject`, and `/cancel` expose the same decisions.
 
 ## Statusline
 

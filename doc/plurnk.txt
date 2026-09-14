@@ -103,7 +103,9 @@ without the optional renderer, it remains visible verbatim.
 ==============================================================================
 4. Proposals                                                 *plurnk-proposals*
 
-Side-effecting ops pause for review. EDIT opens a diffsplit (left = disk,
+Proposals are accepted automatically by default (`yolo = true` in `setup`);
+`:PlurnkYolo` toggles that, and `:AI? …` reviews one prompt regardless. Under
+review, side-effecting ops pause. EDIT opens a diffsplit (left = disk,
 right = proposed):
 
   <localleader>a    accept as proposed
@@ -113,7 +115,7 @@ right = proposed):
 
 EXEC opens a scratch: `a` / `r` / `c`. From anywhere: `<leader>ay` accept,
 `<leader>ae` accept-with-edits, `<leader>an` reject, `<leader>a]` / `a[`
-cycle pending. `:PlurnkYolo` auto-accepts everything.
+cycle pending.
 
 ==============================================================================
 5. Streams                                                     *plurnk-streams*

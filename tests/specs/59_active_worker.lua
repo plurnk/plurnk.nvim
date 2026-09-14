@@ -6,6 +6,7 @@ local NAME = "59_active_worker"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")
 H.setup()
 local ok, err = pcall(function()
+  require("plurnk.diff").set_yolo(false) -- this spec pins the idle slot with review on
   local state = require("plurnk.state")
   local worker_tab = require("plurnk.worker_tab")
   local statusline = require("plurnk.statusline")
