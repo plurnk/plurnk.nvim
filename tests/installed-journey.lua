@@ -47,7 +47,7 @@ local function waterfall(workspace)
 end
 
 local ok, err = pcall(function()
-  require("plurnk").setup()
+  require("plurnk").setup({ yolo = false }) -- this journey exercises review; yolo is the shipped default
   require("plurnk").apply_default_keymaps()
 
   local mappings = require("plurnk.keymaps").inspect()
