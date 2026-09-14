@@ -11,11 +11,7 @@ local function active_activity(workspace)
   end
   local search = state.get_search_progress(workspace)
   if search ~= nil then return tostring(search) .. "%" end
-  local branch = state.get_branch_batch(workspace)
-  if type(branch) ~= "table" then return nil end
-  local completed, total = tonumber(branch.completed), tonumber(branch.total)
-  if completed == nil or total == nil or total <= 0 then return nil end
-  return tostring(math.floor((completed / total) * 100)) .. "%"
+  return nil
 end
 
 -- {§nvim-active-worker} — `~recheck`: the worker a plurnk command issued from this buffer speaks

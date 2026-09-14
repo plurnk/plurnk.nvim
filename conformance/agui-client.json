@@ -924,20 +924,6 @@
         "presentation"
       ]
     },
-    "workspace/branch-batch": {
-      "posture": "native",
-      "evidence": [
-        "tests/specs/38_branch_batch.lua",
-        "tests/specs/48_agui_conformance.lua — shared lifecycle corpus"
-      ],
-      "dimensions": [
-        "admission",
-        "framing",
-        "projection",
-        "lifecycle",
-        "presentation"
-      ]
-    },
     "loop/packet": {
       "posture": "native",
       "evidence": [
