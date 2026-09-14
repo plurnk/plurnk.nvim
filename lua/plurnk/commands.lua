@@ -40,6 +40,13 @@ function M.setup()
       return language.complete("", (cmdline:gsub("^%s*PlurnkMembers", "AI /members")), 0)
     end,
   })
+  -- The native form of :AI/env; the registry owns its routing and completion.
+  command("PlurnkEnv", function(opts) functionality.run("env", opts.args) end, {
+    nargs = "*",
+    complete = function(_, cmdline)
+      return language.complete("", (cmdline:gsub("^%s*PlurnkEnv", "AI /env")), 0)
+    end,
+  })
   command("PlurnkScript", controls.script, { nargs = 1, complete = "file" })
   command("PlurnkYolo", controls.yolo, {})
   command("PlurnkPing", controls.ping, {})

@@ -1,13 +1,17 @@
--- Common command routing for MCP, Agent Skills, outbound A2A agents, and file
--- members.
+-- Common command routing for MCP, Agent Skills, outbound A2A agents, file
+-- members, and the environment.
 
 local M = {}
 
+-- Each family's module and the action prefix its verbs live under. Env is worker-scoped — an
+-- environment is how one Worker's commands run, not a workspace capability — so its actions are
+-- `worker.env.*`.
 local FAMILIES = {
-  mcp = "plurnk.mcp",
-  skills = "plurnk.skills",
-  agents = "plurnk.agents",
-  members = "plurnk.members",
+  mcp = { module = "plurnk.mcp", actions = "workspace.mcp" },
+  skills = { module = "plurnk.skills", actions = "workspace.skills" },
+  agents = { module = "plurnk.agents", actions = "workspace.agents" },
+  members = { module = "plurnk.members", actions = "workspace.members" },
+  env = { module = "plurnk.env", actions = "worker.env" },
 }
 
 local aliases_by_workspace = {}
@@ -35,9 +39,9 @@ local function project_aliases(definitions)
 end
 
 function M.run(family, args)
-  local module = FAMILIES[family]
-  assert(module, "unknown Functionality family: " .. tostring(family))
-  return require(module).run(args, require("plurnk.workspace_context").resolve)
+  local family_spec = FAMILIES[family]
+  assert(family_spec, "unknown Functionality family: " .. tostring(family))
+  return require(family_spec.module).run(args, require("plurnk.workspace_context").resolve)
 end
 
 function M.remember_aliases(family, definitions)
@@ -59,7 +63,7 @@ function M.complete_aliases(family, prefix)
   if (cached == nil or now() - cached.at >= CACHE_TTL_NS) and not pending[key] then
     pending[key] = true
     local ok = pcall(function()
-      require("plurnk.client").send("workspace." .. family .. ".list", {}, false, function(result, problem)
+      require("plurnk.client").send(FAMILIES[family].actions .. ".list", {}, false, function(result, problem)
         pending[key] = nil
         if problem ~= nil or type(result) ~= "table" or type(result.definitions) ~= "table" then return end
         aliases_by_workspace[key] = { values = project_aliases(result.definitions), at = now() }

@@ -613,69 +613,81 @@
       ]
     },
     "worker.env.list": {
-      "posture": "generic",
+      "posture": "native",
       "evidence": [
-        "tests/specs/35_agui.lua — generic action transport"
+        "tests/specs/60_env.lua"
       ],
       "dimensions": [
+        "admission",
         "projection",
         "success",
-        "failure"
+        "failure",
+        "presentation"
       ]
     },
     "worker.env.discover": {
-      "posture": "generic",
+      "posture": "native",
       "evidence": [
-        "tests/specs/35_agui.lua — generic action transport"
+        "tests/specs/60_env.lua"
       ],
       "dimensions": [
+        "admission",
         "projection",
         "success",
-        "failure"
+        "failure",
+        "presentation"
       ]
     },
     "worker.env.add": {
-      "posture": "generic",
+      "posture": "native",
       "evidence": [
-        "tests/specs/35_agui.lua — generic action transport"
+        "tests/specs/60_env.lua"
       ],
       "dimensions": [
+        "admission",
         "projection",
         "success",
-        "failure"
+        "failure",
+        "presentation"
       ]
     },
     "worker.env.enable": {
-      "posture": "generic",
+      "posture": "native",
       "evidence": [
-        "tests/specs/35_agui.lua — generic action transport"
+        "tests/specs/60_env.lua"
       ],
       "dimensions": [
+        "admission",
         "projection",
         "success",
-        "failure"
+        "failure",
+        "presentation"
       ]
     },
     "worker.env.disable": {
-      "posture": "generic",
+      "posture": "native",
       "evidence": [
-        "tests/specs/35_agui.lua — generic action transport"
+        "tests/specs/60_env.lua"
       ],
       "dimensions": [
+        "admission",
         "projection",
         "success",
-        "failure"
+        "failure",
+        "presentation"
       ]
     },
     "worker.env.remove": {
-      "posture": "generic",
+      "posture": "native",
       "evidence": [
-        "tests/specs/35_agui.lua — generic action transport"
+        "tests/specs/60_env.lua"
       ],
       "dimensions": [
+        "admission",
         "projection",
         "success",
-        "failure"
+        "failure",
+        "presentation"
       ]
     },
     "workspace.mcp.list": {

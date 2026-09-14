@@ -56,14 +56,19 @@ command consumes them. `/open`, `/reconnect`, `/next`, `/prev`, and `/clear`
 are deliberate editor-native controls; other command vocabulary follows the
 terminal client.
 
-`:AI/mcp`, `:AI/skills`, `:AI/agents`, and `:AI/members` share one Worker
-Functionality lifecycle: bare lists, `discover`, `add`, `enable`, `disable`,
-`remove`. File members are what the model may see: git-tracked files are
+`:AI/mcp`, `:AI/skills`, `:AI/agents`, `:AI/members`, and `:AI/env` share one
+Worker Functionality lifecycle: bare lists, `discover`, `add`, `enable`,
+`disable`, `remove`. File members are what the model may see: git-tracked files are
 members on their own; `/members add <alias> <glob>` includes untracked files
 by a gitignore-style glob, and a leading `!` excludes matching members.
 `/members discover [path|glob]` explains one file's visibility (the current
 buffer's file by default) or previews a glob. `:PlurnkMembers` (`<leader>aM`)
 is the native spelling of the same command.
+
+`:AI/env` is this Worker's environment — what its commands receive. `/env add
+<NAME> <value>` sets a variable for every command this Worker runs, the value
+verbatim; `disable` withholds a name; `discover [query]` lists the names you
+may set with their owning package. `:PlurnkEnv` is the native spelling.
 
 ==============================================================================
 3. Layout: workspaces and workers                               *plurnk-layout*

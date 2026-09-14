@@ -49,6 +49,14 @@ local MEMBERS_SUBCOMMANDS = {
   { name = "remove", usage = "remove <alias>", summary = "Remove a current members glob.", alias = true },
 }
 
+local ENV_SUBCOMMANDS = {
+  { name = "discover", usage = "discover [query]", summary = "List the names you may set, with their owning package; a query matches a name or its comment." },
+  { name = "add", usage = "add <NAME> <value>", summary = "Set a variable for every command this Worker runs; the value is used verbatim." },
+  { name = "enable", usage = "enable <NAME>", summary = "Enable a current environment entry.", alias = true },
+  { name = "disable", usage = "disable <NAME>", summary = "Withhold a name from this Worker's commands, keeping the entry.", alias = true },
+  { name = "remove", usage = "remove <NAME>", summary = "Remove a current environment entry.", alias = true },
+}
+
 local GROUPS = {
   { id = "inspect", label = "inspect" },
   { id = "policy", label = "policy" },
@@ -109,6 +117,8 @@ local COMMANDS = {
     run = functionality("agents"), subcommands = AGENT_SUBCOMMANDS },
   { name = "members", usage = "/members [subcommand]", summary = "List or manage this worker's file members.", group = "functionality",
     run = functionality("members"), subcommands = MEMBERS_SUBCOMMANDS },
+  { name = "env", usage = "/env [subcommand]", summary = "List or manage this worker's environment.", group = "functionality",
+    run = functionality("env"), subcommands = ENV_SUBCOMMANDS },
 
   { name = "script", usage = "/script <path>", summary = "Submit a local .plk program through op.parse.", group = "compose",
     run = invoke("plurnk.controls", "script", "options"), path_arg = 1 },

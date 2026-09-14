@@ -195,6 +195,17 @@ what this client guarantees. Tests are organized by observable behavior under
   the service. The glob is tokenized exactly as the sibling families tokenize
   their arguments (quote it to keep whitespace).
 
+- §nvim-environment **The environment is daemon actions, for this Worker** —
+  `:AI/env` (natively `:PlurnkEnv`) is a thin projection of the `env`
+  Functionality family, the same common lifecycle as its siblings with one
+  difference the client respects: the family is worker-scoped, so its actions
+  are `worker.env.*` and the bridge binds the active Worker. `list` renders
+  each name with its state, value, and the Worker it was inherited from; a
+  definition is one exact `{value}` and `add` hands the rest of the line over
+  verbatim, never tokenized; `discover [query]` renders the names this Worker
+  may set with their owning package. Admission, the operator's ceiling, and
+  the composition at the spawn live in the service.
+
   | Input | AG-UI+ action |
   |---|---|
   | `:AI/members` | `workspace.members.list {}` — one line per definition with what its glob resolved to: `docs  active  include docs/** → 12 files (3 ignored)  (service)` |
