@@ -29,20 +29,11 @@ local function submit(buf, workspace_name)
 
   local op = operation_name(text)
 
-  -- LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, not the
-  -- model. Routed to op.look (the module rewrites LOOK→READ; Engine.look mints no
-  -- log row); content renders into the waterfall locally. A failed look SURFACES.
+  -- A LOOK fence is the human's inspection ({§nvim-inspection}): the same path as
+  -- :AI/look and K on a waterfall row — never a run, never a log row.
   if op == "LOOK" then
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
-    require("plurnk.client").send("op.look", { text = text }, false, function(result)
-      if type(result) ~= "table" or type(result.content) ~= "string" then
-        return
-      end
-      local worker_tab = require("plurnk.worker_tab")
-      for line in (result.content .. "\n"):gmatch("(.-)\n") do
-        worker_tab.append_line(workspace_name, "  " .. line)
-      end
-    end)
+    require("plurnk.look").inspect(text)
     return
   end
 

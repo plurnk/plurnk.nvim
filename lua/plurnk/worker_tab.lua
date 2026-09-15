@@ -168,6 +168,9 @@ local function ensure_record(workspace, key)
   vim.bo[buf].syntax = ""
   vim.b[buf].plurnk_workspace = workspace
   if type(key) == "number" then vim.b[buf].plurnk_worker_id = key end
+  -- {§nvim-inspection} — K on a row inspects that row's resource for the human.
+  vim.keymap.set("n", "K", function() require("plurnk.look").at_cursor() end,
+    { buffer = buf, desc = "Plurnk: inspect this row's resource (:AI/look)" })
   rec = rec or {}
   rec.waterfall_buf = buf
   rec.worker_id = type(key) == "number" and key or nil
@@ -729,6 +732,22 @@ M.conclude_execution = function(workspace, params)
   rec.greyed[params.target] = nil
   append_block(rec, { kind = "conclusion", launch = launch, params = params })
   autoscroll(rec)
+end
+
+-- The entry rendered on a waterfall line, for inspection: a row's own entry, a pending row's
+-- launch, or a conclusion's launch; nil on a line that is nobody's operation.
+M.entry_at = function(buf, line)
+  local workspace = vim.b[buf].plurnk_workspace
+  local recs = workspace and records[workspace]
+  local rec = recs and recs[vim.b[buf].plurnk_worker_id or "pending"]
+  for _, block in ipairs(rec and rec.blocks or {}) do
+    if block.first ~= nil and block.last ~= nil and line >= block.first and line <= block.last then
+      if block.kind == "entry" or block.kind == "pending" then return block.entry end
+      if block.kind == "conclusion" then return block.launch end
+      return nil
+    end
+  end
+  return nil
 end
 
 -- Free-text line (Notice headlines etc.) — current worker's waterfall.

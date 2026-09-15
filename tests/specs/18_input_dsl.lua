@@ -41,21 +41,23 @@ local ok, err = pcall(function()
     H.assert_eq(sent[#sent].params.text, program, "the whole fence passes verbatim")
   end
 
-  -- LOOK is the off-worker inspection (TUI parity): a READ for the HUMAN, routed
-  -- to op.look (never op.parse — LOOK isn't a journaled op), content rendered
-  -- into the waterfall locally. A failed look surfaces; never a silent nothing.
-  local appended = {}
-  require("plurnk.worker_tab").append_line = function(_, line) appended[#appended + 1] = line end
+  -- A LOOK fence is the human's inspection ({§nvim-inspection}): routed to op.look (never
+  -- op.parse — LOOK isn't a journaled op); the content opens in the look split, never the
+  -- waterfall. A failed look surfaces; never a silent nothing.
   require("plurnk.client").send = function(method, params, _, cb)
     table.insert(sent, { method = method, params = params })
     if cb then cb({ status = 200, content = "line one\nline two" }) end
   end
+  local input_win = vim.api.nvim_get_current_win()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "```LOOK (worker:///notes.md)```" })
   vim.api.nvim_feedkeys("\r", "x", false)
   H.assert_eq(sent[#sent].method, "op.look", "LOOK routes to op.look, not op.parse")
   H.assert_eq(sent[#sent].params.text, "```LOOK (worker:///notes.md)```", "the raw statement passes; the module rewrites LOOK->READ")
-  H.assert_truthy(#appended >= 2, "the content rendered into the waterfall (" .. #appended .. " lines)")
-  H.assert_match(table.concat(appended, "\n"), "line two", "content lines land verbatim")
+  vim.wait(500, function() return vim.fn.bufnr("plurnk-nvim://look/worker____notes.md") ~= -1 end, 10)
+  local looked = vim.fn.bufnr("plurnk-nvim://look/worker____notes.md")
+  H.assert_truthy(looked ~= -1, "the content opens in the look split")
+  H.assert_match(table.concat(vim.api.nvim_buf_get_lines(looked, 0, -1, false), "\n"), "line two", "content lines land verbatim")
+  vim.api.nvim_set_current_win(input_win)
 
   require("plurnk.state").set_workspace_id("smoke", 1)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "hello there" })

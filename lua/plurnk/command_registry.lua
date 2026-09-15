@@ -79,6 +79,8 @@ local COMMANDS = {
     run = invoke("plurnk.workspaces", "workers") },
   { name = "log", usage = "/log [limit]", summary = "Read recent log entries.", group = "inspect",
     run = invoke("plurnk.workspaces", "log", "options") },
+  { name = "look", usage = "/look <address> [scope] [pattern]", summary = "Inspect a resource for yourself: no loop, no log entry; K on a waterfall row does the same.", group = "inspect",
+    run = invoke("plurnk.look", "run", "argument") },
   { name = "ping", usage = "/ping", summary = "Check daemon reachability.", group = "inspect",
     run = invoke("plurnk.controls", "ping") },
 

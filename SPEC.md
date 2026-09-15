@@ -116,9 +116,15 @@ what this client guarantees. Tests are organized by observable behavior under
   `op.parse` verbatim. Native OPs and executor/MCP names share this entry point;
   the daemon owns parsing, resolution, and diagnostics. Plain text routes to a
   conversation worker; prefix `: ` to prompt with a literal fenced example.
-- **A LOOK fence inspects off-worker** — a READ for the human, not the model:
-  routed to `op.look` (the module rewrites LOOK→READ; no log row minted), content
-  rendered into the waterfall locally; a failed look surfaces, never a silent nothing.
+- §nvim-inspection **Inspection is the human's READ** — `:AI/look <address> [scope]
+  [pattern]`, `K` on a waterfall row (that row's authored target), and a typed LOOK fence
+  all submit one LOOK through `op.look`, which resolves it as the tab's conversation
+  (`log:///`, `reasoning:///`, and `ops:///` as the model sees them) and mints no log
+  row. The content opens in a scratch split named for the address, filetype by its
+  extension, and takes focus; an empty result says so in the daemon's words; an
+  unsuccessful one is a notice carrying the Problem's title, detail, and recovery, never a
+  silent nothing. Inspection touches no loop, lifecycle, or accounting, and is available
+  while a loop runs.
 - §nvim-command-discovery **One command contract** — one registry owns `:AI/`
   dispatch, the complete root inventory, concise `/help <verb>` guidance,
   contextual completion, and default key descriptions. Completion offers
