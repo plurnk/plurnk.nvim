@@ -110,13 +110,20 @@ local ok, err = pcall(function()
   assert_truthy(reasoning_count == 1,
     "reasoning delivered before review is not duplicated after resume (count="
       .. tostring(reasoning_count) .. ")\n" .. content)
-  assert_match(content, "🚧 Create the requested acceptance marker", "the active PLAN renders")
-  assert_match(content, "🔧", "the executed operation renders")
-  assert_match(content, "printf 'accepted", "the executed command renders")
-  assert_match(content, "▶️\n🚧 Create the requested acceptance marker", "TASK renders its continuing inventory")
-  assert_match(content, "✅ Create the requested acceptance marker", "the completed PLAN renders")
-  assert_match(content, "💬 The reviewed multiline journey is complete%.", "SEND renders the user-facing conclusion")
-  assert_match(content, "⏹️\n✅ Create the requested acceptance marker", "the settled TASK preserves its completed inventory")
+  -- {§nvim-waterfall-rows}: the inventory is a status-column table, the execution its
+  -- runtime's row at conclusion, the message its body under a blank lead line.
+  assert_match(content, "│ in_progress +│\n├", "the continuing TASK renders its in_progress column")
+  assert_match(content, "│ Create the requested acceptance marker through review%. +│", "the inventory entry sits in its cell")
+  assert_truthy(match_count(content, "\nsh\n") + match_count(content, "^sh\n") >= 1,
+    "the executed operation renders once, named by its runtime, with no body\n" .. content)
+  assert_truthy(not content:match("printf 'accepted"), "a row carries no command body")
+  assert_match(content, "│ completed +│\n├", "the settled TASK renders its completed column")
+  assert_match(content, "\nThe reviewed multiline journey is complete%.", "SEND renders the user-facing conclusion under a blank lead line")
+  -- Turn 0's runtime inventory ("Address the prompt.") is a third table; the model's entry
+  -- appears exactly twice: once continuing, once completed.
+  assert_truthy(match_count(content, "│ Create the requested acceptance marker through review%. +│") == 2
+    and match_count(content, "│ completed +│") == 1,
+    "the model's inventory stands once continuing and once completed\n" .. content)
   assert_truthy(match_count(content, "💭 The reviewed command succeeded") == 1,
     "one turn's reasoning is not repeated for its SEND and TASK\n" .. content)
 
