@@ -270,6 +270,9 @@ M.handle_notification = function(payload)
     pcall(function() require("plurnk.stream").on_event(params, workspace_name) end)
   elseif method == "stream/concluded" then
     pcall(function() require("plurnk.stream").on_concluded(params, workspace_name) end)
+    vim.schedule(function()
+      pcall(function() require("plurnk.worker_tab").conclude_execution(workspace_name, params) end)
+    end)
   elseif method == "workspace/created" then M.handle_workspace_created(params)
   end
 end

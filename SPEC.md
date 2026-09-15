@@ -80,8 +80,9 @@ what this client guarantees. Tests are organized by observable behavior under
   push-driven, never polled.
 - §nvim-worker-status **Worker status projects the authoritative AG-UI gauge** —
   each stream begins from `STATE_SNAPSHOT` and applies only its subsequent RFC
-  6902 `replace` deltas. The client presents lifecycle → model → exact packet
-  count before reasoning and terminal accounting; the editor statusline owns
+  6902 `replace` deltas. The client presents the loop and its exact packet count
+  in the winbar's place, `[~/worker(loop/packet)]`, then lifecycle → model → the ant
+  before reasoning and terminal accounting; the editor statusline owns
   replaceable activity. Rows, turns, and local callbacks never reconstruct
   status or masquerade as provider packets. Queued work retains `queued` (⏳),
   including during read-only stream recovery; it is not running, parked, or completed.
@@ -270,9 +271,10 @@ what this client guarantees. Tests are organized by observable behavior under
   moved (`(at the root: no parent)`, `(no children)`, `(no siblings)`). The winbar
   leads with the lineage from the tree root to the bound worker, `~` marking the
   worker the tab is in — the same `~` that means "this worker" in `worker://~/`:
-  `[/~main]` at a root, `[/main/fork-1/~recheck]` two hops down, `[/~]` before the
-  worker is known; a child always shows that it is a child — followed by the sibling
-  position `(2/3)`, newest first, when there is one.
+  `[/~main(25/10)]` at a root, in loop 25 at its tenth packet, `[/main/fork-1/~recheck]`
+  two hops down before a loop exists, `[/~]` before the worker is known; a child always
+  shows that it is a child — followed by the sibling position `(2/3)`, newest first, when
+  there is one.
 - §nvim-active-worker **The tab you are in is the active worker** — a workspace has
   one active worker: the worker of the last worker tab the user entered. Entering a
   worker tab (`TabEnter`) makes its worker active; hops and `:PlurnkAttach` open or
@@ -286,7 +288,7 @@ what this client guarantees. Tests are organized by observable behavior under
   the binding is the tab's own record, and a tab that is not a worker tab binds nothing.
 - §nvim-status-children **The ant is the daemon's count** — `status.children` from the
   AG-UI gauge, the bound worker's alive direct children (queued, running, parked),
-  renders as `🐜<n>` after the packet count; an older daemon that states none shows
+  renders as `🐜<n>` after the model; an older daemon that states none shows
   no ant. The count is never derived from the directory: the user hops to a child
   rather than watching it.
 - **Rename is a mutable handle on the world** — `workspace.rename`
@@ -299,14 +301,32 @@ what this client guarantees. Tests are organized by observable behavior under
 - **The worker tab** — `:AI` opens a workspace tabpage with two windows:
   waterfall on top, input at the bottom; submitting populates the waterfall and leaves
   focus on the input; an actionless `prompt` row renders as `❯` speech from `rx.content`.
-- **The waterfall shares one visual language with the terminal client** — every
-  glyph-bearing row begins at column zero. Non-disposition operations carry their
-  operation glyph and a secondary-status slot. Native dispositions carry one
-  TASK lifecycle glyph regardless of producer: `▶️` continuing, `⏹️` completed, 💤 waiting,
-  ✋ failed/cancelled, or ❌ error. SEND messages use 💬. Disposition and routine SEND codes remain wire truth without
-  repeating in human output; a failed directed SEND and any other failed operation
-  retain their diagnostic code.
-  Targets, scopes, previews, and literal asides use one-space separators.
+- §nvim-waterfall-rows **The waterfall shares one row grammar with the terminal client** —
+  an operation row is the authored heading, `OP (target) <scope> /pattern/ {n} aside —
+  problem title`, literal text at column zero with the client's own highlights (bold green
+  op on success, pink otherwise; dim italic aside; pink outcome) and never a Markdown pass.
+  An execution row is named by its runtime (`sh`, `python`). `{n}` is what the receipt
+  returned, in its own unit, on every READ and FIND row (a FIND's returned items, an exact
+  READ's returned lines, a pattern READ's matched lines, a collapsed glob READ's paths); a
+  204 FIND is `{0}`, and a glob READ that matched no path carries the daemon's detail. An
+  unsuccessful outcome names the result's own `problem.title` (else its detail, else the
+  bare status) at the right. COPY and MOVE render `(source) <scope> (destination) <scope>`.
+  No glyph, numeric code, body, preview, byte count, or log coordinate reaches a row.
+  Targetless SEND and TASK render as blocks: a lead line stands where the keyword was —
+  blank, or the Problem title in pink, or a deferral's `detail` — followed by the sanitized
+  aside; a SEND's body follows at column zero, bold when it is this run's delivered
+  response; a TASK's inventory follows as a status-column table.
+- §nvim-waterfall-turns **Rows arrive live; the turn ends with the response** — a row
+  renders as its entry arrives. When a turn's TASK lands, its table takes the head of that
+  turn (the buffer reprojects, folds preserved), so the model's response ends the turn
+  rather than its checklist. A started execution (`attrs.stream` on its row) renders
+  nothing until its `stream/concluded` arrives, then once as the launching fence's row
+  colored by the conclusion; an execution still open when the following turn begins shows
+  once in grey first. A conclusion whose launch was never seen renders as its scheme and
+  address. Hydrated history shows a started execution in grey: its row carries no
+  conclusion. A glob READ's fanned-out rows collapse to the authored statement when the
+  last one lands. Machine acquisition (`_plurnk` EDIT rows stamped `entry_materialized`)
+  is ambience and never a row. The user's durable prompt row remains `❯` speech.
 - **Deliberate divergences are editor-native presentation only** — the
   durable prompt row remains visible because submission clears the input buffer;
   live streams use dedicated buffers and splits. The operation vocabulary, lifecycle
@@ -327,23 +347,23 @@ what this client guarantees. Tests are organized by observable behavior under
   retained source at the new width.
 
 - §nvim-waterfall-folding **Multi-line blocks auto-fold** — every multi-line
-  waterfall block (reasoning, PLAN, prompt bodies, non-terminal broadcast
+  waterfall block (reasoning, TASK tables, prompt bodies, non-terminal broadcast
   bodies) is created as a closed manual fold except the model's broadcast
   answer, which stays open. Folds persist per worker record and are recreated
-  when a waterfall window reprojects; fold text preserves the block's first row
-  without Neovim's default gutter decoration. Ordinary fold motions (za, zR) reopen
-  blocks.
-- **Plan entries remain structured** — TASK consumes the ACP Plan projection and
-  displays its lifecycle header followed by the inventory. Each TASK
-  renders its complete entry list in source order, one line each: ✅ `completed`,
-  🚧 `in_progress`, and ⬜ `pending`. Task content is literal, without
-  prefix-based status inference or stripping. Explicit `_meta["plurnk.xyz/status"]`
-  with the matching ACP base status projects `waiting` as 💤 and `failed` as ✋;
-  the visible `Waiting:` and `Failed:` labels remain intact.
-  An unsuccessful TASK receipt retains its diagnostic status on the first inventory row.
-  Entry whitespace collapses to one line, neutral `medium` priority
-  is implicit, and non-neutral priority renders as `[high]` or `[low]`. An empty Plan
-  renders `📭 no entries`.
+  when a waterfall window reprojects; fold text names the block — a TASK by its
+  columns and their counts, a message by its first line of prose, anything else by its
+  first non-blank row — without Neovim's default gutter decoration. Ordinary fold motions
+  (za, zR) reopen blocks.
+- **The inventory is a status-column table** — TASK consumes the ACP Plan projection.
+  Columns are the native statuses present, in the stable order `todo`, `in_progress`,
+  `waiting`, `completed`, `failed` (ACP `pending` shown as `todo`; `waiting` and `failed`
+  recognized only from `_meta["plurnk.xyz/status"]` with the matching base status, never
+  from prose; the visible `Waiting:` and `Failed:` labels remain intact); each column lists
+  its entries in source order, whitespace collapsed to one line, `[high]` and `[low]`
+  marking non-neutral priority. The table is outlined green; a `completed` column is green
+  and a `failed` column pink; cells wrap to the live width. The lead line carries the
+  receipt's own words when it is not a plain 200. An empty inventory is the lead line
+  alone. A noncanonical entry is a client-boundary error, never a guess.
 - **Operation asides stay labels** — a present durable aside follows the
   canonical row as sanitized literal text; Markdown and HTML are not interpreted.
 - **Broadcast prose remains source-faithful except for exact terminal typography** —
@@ -378,7 +398,9 @@ what this client guarantees. Tests are organized by observable behavior under
   aggregate `inputTokens`/`outputTokens`, independent curation
   `curationWeight`/`curationBudget` and physical-context
   `contextTokens`/`contextCapacity` gauges, and exact decimal
-  `accounting.costUsd` or `$unknown`. Weight is never compared with tokens.
+  `accounting.costUsd` or `$unknown`. Weight is never compared with tokens. Tokens read
+  at a glance as `↓582k ↑12k` (input down, output up; `1.2M` above a million) and cost as
+  `loop: $3,333.3333`, the exact decimal shown to the hundredth of a cent.
   Ordered physical-request evidence remains in `accounting.requests`; the client
   has no accounting setter, floating-point conversion, projection, or workspace tally.
 

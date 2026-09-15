@@ -86,7 +86,7 @@ for the Worker; `/help mcp` shows the complete lifecycle.
 
 ## Layout
 
-One tab per **worker** (a conversation); a **workspace** is the world containing workers. One workspace is live per Neovim instance; switching notifies. Each worker tab: glyph waterfall on top (the worker's log, exactly what the model sees), 3-line input below — `<CR>` in normal mode submits; `? `/`: `/`! ` prefixes and raw `# PLAN_` / `## OP0` PLURNK work there too. Readable provider reasoning appears before its SEND as a distinct streaming `💭` block; multiline blocks begin folded. Each model body is independent, so its Markdown cannot style later Plurnk rows. When `plurnk render` is available, tables wrap with row separators, task boxes render once, code fences retain their language, and Mermaid uses Beautiful Mermaid; otherwise the semantic source remains visible. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.
+One tab per **worker** (a conversation); a **workspace** is the world containing workers. One workspace is live per Neovim instance; switching notifies. Each worker tab: the waterfall on top (the worker's log, exactly what the model sees), 3-line input below — `<CR>` in normal mode submits; `? `/`: `/`! ` prefixes and raw `# PLAN_` / `## OP0` PLURNK work there too. Readable provider reasoning appears before its SEND as a distinct streaming `💭` block; multiline blocks begin folded. Each model body is independent, so its Markdown cannot style later Plurnk rows. When `plurnk render` is available, tables wrap with row separators, task boxes render once, code fences retain their language, and Mermaid uses Beautiful Mermaid; otherwise the semantic source remains visible. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.
 
 ## Proposals
 
@@ -97,7 +97,7 @@ Proposals are accepted automatically by default (`yolo = true` in `setup`); `:Pl
 ```lua
 vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 -- active slot: 42% / ⌛︎ / 🔥 (progress / running / idle YOLO)
--- waterfall winbar: plurnk · workspace · worker · ⌛︎ · 🤖 model · L3·T2 · 🧠 adaptive · loop: $0.0042
+-- waterfall winbar: plurnk · workspace · [~/worker(25/10)] (2/3) label · ⌛︎ · 🤖 model · 🐜2 · 🧠 adaptive · ↓582k ↑12k · loop: $0.0042
 ```
 
 ## Internals (for agents)

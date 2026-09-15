@@ -191,12 +191,18 @@ function M.remember_names(workspace, workers)
   state.set_worker_directory(workspace, workers)
 end
 
--- The winbar's position segments from the cached directory: `[~/fork-1/recheck]` and `(2/3)`.
-function M.position_label(workspace)
+-- The winbar's position segments from the cached directory: `[~/fork-1/recheck(25/10)]` and
+-- `(2/3)`. The loop and its turn (the packet count) ride the place, as in the terminal
+-- client's prompt prefix; before a loop exists the brackets hold the lineage alone.
+function M.position_label(workspace, runtime)
   local state = require("plurnk.state")
   local rows = state.get_worker_directory(workspace)
   local bound = state.get_worker_id(workspace)
-  local label = "[" .. M.path(rows, bound) .. "]"
+  local place = ""
+  if type(runtime) == "table" and type(runtime.loop_id) == "number" then
+    place = "(" .. tostring(runtime.loop_id) .. "/" .. tostring(runtime.packet_count or 0) .. ")"
+  end
+  local label = "[" .. M.path(rows, bound) .. place .. "]"
   local position = M.position(rows, bound)
   if position then label = label .. " (" .. position.index .. "/" .. position.count .. ")" end
   return label

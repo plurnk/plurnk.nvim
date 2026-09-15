@@ -49,18 +49,18 @@ local ok, err = pcall(function()
   -- The rich gauge lives in the winbar now; the statusline is a lean glance.
   local wb = require("plurnk.worker_tab").winbar_text("gauge", nil)
   H.assert_match(wb, "plurnk · gauge", "winbar names the workspace")
-  H.assert_match(wb, "↑1%.0k ↓250", "shows the LAST loop's usage (snapshot), not the sum of both")
+  H.assert_match(wb, "↓1k ↑250", "shows the LAST loop's usage (snapshot), not the sum of both; input down, output up, at a glance")
   H.assert_eq(state.get_usage("gauge").accounting.costUsd, "0.003", "the exact last-loop decimal is not accumulated or converted")
   H.assert_eq(#state.get_usage("gauge").accounting.requests, 1, "physical request evidence remains cardinal")
   local sl = require("plurnk.statusline").text()
   H.assert_eq(sl, "", "idle statusline spends no shared editor real estate")
-  H.assert_truthy(not sl:match("↑"), "statusline does NOT squat tokens (winbar's job)")
+  H.assert_truthy(not sl:match("↑") and not sl:match("↓"), "statusline does NOT squat tokens (winbar's job)")
 
   -- A workspace with no loop yet shows NO gauge (no fake zeros).
   vim.cmd("enew")
   vim.b.plurnk_workspace = "empty"
   state.set_workspace_id("empty", 4)
-  H.assert_truthy(not require("plurnk.worker_tab").winbar_text("empty", nil):match("↑"),
+  H.assert_truthy(not require("plurnk.worker_tab").winbar_text("empty", nil):match("↓"),
     "no token segment before any loop runs")
 
   -- HUD: headless (no UI) falls back to vim.notify — message still lands.

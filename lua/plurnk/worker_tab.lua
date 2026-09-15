@@ -19,6 +19,7 @@ local M = {}
 local records = {}
 local reproject_record
 local waterfall_width
+local ns = vim.api.nvim_create_namespace("plurnk_waterfall")
 
 local function workspace_records(workspace)
   records[workspace] = records[workspace] or {}
@@ -40,16 +41,6 @@ end
 -- detail lives here (identity + authoritative status + loop accounting), NOT in
 -- the user's shared statusline. Reactive: refresh_winbar re-renders
 -- it on each notification so the live state stays current (operator, 2026-06-20).
-local function fmt_count(n)
-  if n >= 1e6 then return string.format("%.1fM", n / 1e6) end
-  if n >= 1000 then return string.format("%.1fk", n / 1000) end
-  return tostring(n)
-end
-
-local function fmt_token(n)
-  return type(n) == "number" and fmt_count(n) or "?"
-end
-
 local function is_zero_decimal(value)
   return value == "0" or (type(value) == "string" and value:match("^0%.0+$") ~= nil)
 end
@@ -72,11 +63,12 @@ end
 
 local function build_winbar(workspace, key)
   local state = require("plurnk.state")
+  local render = require("plurnk.render")
   local rid = type(key) == "number" and key or nil
-  -- {§nvim-worker-hops} — where this tab is in the tree, then whose it is.
-  local parts = { "plurnk · " .. workspace .. " · " .. require("plurnk.workers").position_label(workspace) .. " " .. worker_label(workspace, rid) }
-
   local runtime = state.get_runtime_status(workspace)
+  -- {§nvim-worker-hops} — where this tab is in the tree, with the loop and its turn, then whose it is.
+  local parts = { "plurnk · " .. workspace .. " · " .. require("plurnk.workers").position_label(workspace, runtime) .. " " .. worker_label(workspace, rid) }
+
   local transport = state.get_transport_status(workspace)
   if transport and transport.phase == "reconnecting" then
     parts[#parts + 1] = "↻ reconnecting"
@@ -89,7 +81,6 @@ local function build_winbar(workspace, key)
 
   local model = runtime and runtime.model or state.get_active_model(workspace)
   if model then parts[#parts + 1] = "🤖 " .. model end
-  if runtime then parts[#parts + 1] = "P" .. tostring(runtime.packet_count) end
   -- The ant is the daemon's count of alive direct children ({§nvim-status-children}).
   if runtime and runtime.children ~= nil then parts[#parts + 1] = "🐜" .. tostring(runtime.children) end
 
@@ -101,8 +92,8 @@ local function build_winbar(workspace, key)
   local accounting = type(usage) == "table" and type(usage.accounting) == "table" and usage.accounting or nil
   if accounting then
     local aggregate = type(accounting.usage) == "table" and accounting.usage or nil
-    parts[#parts + 1] = "↑" .. fmt_token(aggregate and aggregate.inputTokens)
-      .. " ↓" .. fmt_token(aggregate and aggregate.outputTokens)
+    parts[#parts + 1] = "↓" .. render.abbreviated_count(aggregate and aggregate.inputTokens)
+      .. " ↑" .. render.abbreviated_count(aggregate and aggregate.outputTokens)
   end
 
   -- Curation pressure and physical context occupancy are independent gauges
@@ -115,7 +106,7 @@ local function build_winbar(workspace, key)
 
   local loop_cost = accounting and accounting.costUsd
   if type(loop_cost) == "string" and not is_zero_decimal(loop_cost) then
-    parts[#parts + 1] = "loop: $" .. loop_cost
+    parts[#parts + 1] = "loop: $" .. render.money(loop_cost)
   elseif accounting and loop_cost == nil and type(accounting.requests) == "table" and #accounting.requests > 0 then
     parts[#parts + 1] = "loop: $unknown"
   end
@@ -183,6 +174,10 @@ local function ensure_record(workspace, key)
   rec.reasoning_ids = rec.reasoning_ids or {}
   rec.blocks = rec.blocks or {}
   rec.reasoning_live = rec.reasoning_live or {}
+  rec.turn = rec.turn or { key = nil, first = nil }
+  rec.launched = rec.launched or {}
+  rec.greyed = rec.greyed or {}
+  rec.fanout = rec.fanout or {}
   recs[key] = rec
   return rec
 end
@@ -383,6 +378,18 @@ local function write_lines(buf, lines, replace_all)
   return first, first + #lines - 1
 end
 
+-- A block's highlights land as extmarks in the waterfall namespace, byte-addressed.
+local function apply_highlights(buf, first, content)
+  for _, highlight in ipairs(content.highlights or {}) do
+    local line = content.lines[highlight[1]] or ""
+    local col_end = math.min(highlight[3], #line)
+    if col_end > highlight[2] then
+      pcall(vim.api.nvim_buf_set_extmark, buf, ns, first - 1 + highlight[1] - 1, highlight[2],
+        { end_col = col_end, hl_group = highlight[4] })
+    end
+  end
+end
+
 waterfall_width = function(rec)
   if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
     return vim.api.nvim_win_get_width(rec.waterfall_win)
@@ -404,13 +411,12 @@ local function schedule_reproject(rec)
 end
 
 local function render_block(rec, block)
+  local render = require("plurnk.render")
   if block.kind == "entry" then
-    return require("plurnk.render").render_log_block(
-      block.entry,
-      waterfall_width(rec),
-      function() schedule_reproject(rec) end
-    )
+    return render.render_log_block(block.entry, waterfall_width(rec), function() schedule_reproject(rec) end, block.override)
   end
+  if block.kind == "pending" then return render.render_pending_block(block.entry) end
+  if block.kind == "conclusion" then return render.render_execution_block(block.launch, block.params) end
   if block.kind == "reasoning" then
     return { lines = require("plurnk.render").render_reasoning(block.content) }
   end
@@ -432,6 +438,8 @@ local function append_block(rec, block)
   local content = render_block(rec, block)
   if #content.lines == 0 then return end
   block.first, block.last = write_lines(rec.waterfall_buf, content.lines)
+  block.fold_label = content.fold_label
+  apply_highlights(rec.waterfall_buf, block.first, content)
   block.fold = block_foldable(block, content)
   block.open = false
   create_block_fold(rec, block)
@@ -458,16 +466,20 @@ reproject_record = function(rec)
     end)
   end
 
-  local all_lines = {}
-  for _, block in ipairs(rec.blocks or {}) do
+  local all_lines, contents = {}, {}
+  for index, block in ipairs(rec.blocks or {}) do
     local content = render_block(rec, block)
+    contents[index] = content
     block.first = #all_lines + 1
     for _, line in ipairs(content.lines or {}) do all_lines[#all_lines + 1] = line end
     block.last = #all_lines
     block.fold = block_foldable(block, content)
+    block.fold_label = content.fold_label
   end
 
   write_lines(rec.waterfall_buf, #all_lines > 0 and all_lines or { "" }, true)
+  vim.api.nvim_buf_clear_namespace(rec.waterfall_buf, ns, 0, -1)
+  for index, block in ipairs(rec.blocks or {}) do apply_highlights(rec.waterfall_buf, block.first, contents[index]) end
   for _, block in ipairs(rec.blocks or {}) do create_block_fold(rec, block) end
   rec.render_width = waterfall_width(rec)
 
@@ -495,10 +507,100 @@ local function replace_block(rec, block)
     return
   end
   vim.bo[rec.waterfall_buf].modifiable = true
+  vim.api.nvim_buf_clear_namespace(rec.waterfall_buf, ns, first - 1, block.last)
   vim.api.nvim_buf_set_lines(rec.waterfall_buf, first - 1, block.last, false, content.lines)
   vim.bo[rec.waterfall_buf].modifiable = false
   block.last = first + #content.lines - 1
+  block.fold_label = content.fold_label
+  apply_highlights(rec.waterfall_buf, first, content)
   block.fold = block_foldable(block, content)
+end
+
+local function turn_key(entry)
+  return tostring(entry.loop_seq) .. "/" .. tostring(entry.turn_seq)
+end
+
+-- Executions launched before the given turn and still open, each once: the grey row that
+-- says the model moved on while it runs.
+local function stale_launches(rec, loop_seq, turn_seq)
+  local stale = {}
+  for address, launch in pairs(rec.launched) do
+    local before = launch.loop_seq < loop_seq or (launch.loop_seq == loop_seq and launch.turn_seq < turn_seq)
+    if before and not rec.greyed[address] then
+      rec.greyed[address] = true
+      stale[#stale + 1] = launch
+    end
+  end
+  table.sort(stale, function(a, b)
+    if a.loop_seq ~= b.loop_seq then return a.loop_seq < b.loop_seq end
+    if a.turn_seq ~= b.turn_seq then return a.turn_seq < b.turn_seq end
+    return (a.sequence or 0) < (b.sequence or 0)
+  end)
+  return stale
+end
+
+-- A glob READ lands one receipt row per path, each stamped attrs.fanout. The waterfall
+-- shows the authored statement once, when its last row has arrived, counting the paths it
+-- read; a failed path names the collapsed row.
+local function fanout_admit(rec, entry)
+  local render = require("plurnk.render")
+  local fanout = render.fanout_of(entry)
+  if fanout == nil then return nil end
+  local key = turn_key(entry) .. "/" .. fanout.target
+  if type(entry.status_rx) == "number" and entry.status_rx >= 400 and rec.fanout[key] == nil then
+    rec.fanout[key] = render.outcome_title(entry) or tostring(entry.status_rx)
+  end
+  if fanout.index < fanout.count - 1 then return "suppressed" end
+  local failure = rec.fanout[key]
+  rec.fanout[key] = nil
+  return { target = fanout.target, count = fanout.count, failed = failure ~= nil, failure = failure, settled = true }
+end
+
+-- {§nvim-waterfall-turns} — the terminal client's turn and stream rules, editor-native:
+-- rows render as they arrive; a turn's TASK takes the head of its turn when it lands, so the
+-- model's response ends the turn; a started execution waits for its conclusion, greyed once
+-- if the model moves on first. `emit(block, at)` places a block, optionally at a position.
+local function admit(rec, entry, emit, live)
+  local render = require("plurnk.render")
+  if render.is_entry_materialization(entry) then return end
+  local address = render.stream_address(entry)
+  if address ~= nil then
+    -- History carries no conclusion for a started execution: its row stands in grey.
+    if live then rec.launched[address] = entry else emit({ kind = "pending", entry = entry }) end
+    return
+  end
+  local override = fanout_admit(rec, entry)
+  if override == "suppressed" then return end
+  local block = { kind = "entry", entry = entry, override = override }
+  if entry.origin ~= "model" or render.is_prompt_entry(entry) then
+    emit(block)
+    return
+  end
+  local key = turn_key(entry)
+  if key ~= rec.turn.key then
+    for _, launch in ipairs(stale_launches(rec, entry.loop_seq, entry.turn_seq)) do
+      emit({ kind = "pending", entry = launch })
+    end
+    rec.turn.key = key
+    rec.turn.first = #rec.blocks + 1
+  end
+  if render.is_disposition(entry.op) and rec.turn.first <= #rec.blocks then
+    emit(block, rec.turn.first)
+  else
+    emit(block)
+  end
+end
+
+local function live_emit(rec)
+  return function(block, at)
+    if at == nil then
+      append_block(rec, block)
+      return
+    end
+    block.registered = true
+    table.insert(rec.blocks, at, block)
+    reproject_record(rec)
+  end
 end
 
 -- Append entries, each routed to ITS worker's buffer by entry.worker_id —
@@ -523,9 +625,7 @@ M.append_history = function(workspace, entries)
     -- conversation's payoff. Folds persist per record and are recreated when
     -- the window re-decorates; the user reopens any block with ordinary
     -- fold motions (za / zR).
-    for _, entry in ipairs(worker_entries) do
-      append_block(rec, { kind = "entry", entry = entry })
-    end
+    for _, entry in ipairs(worker_entries) do admit(rec, entry, live_emit(rec), true) end
     autoscroll(rec)
   end
 end
@@ -605,10 +705,29 @@ M.hydrate = function(workspace, worker_id, entries)
   if rec.waterfall_win and vim.api.nvim_win_is_valid(rec.waterfall_win) then
     vim.api.nvim_win_call(rec.waterfall_win, function() pcall(vim.cmd, "silent! normal! zE") end)
   end
-  for _, entry in ipairs(entries or {}) do
-    rec.blocks[#rec.blocks + 1] = { kind = "entry", entry = entry, registered = true }
+  rec.turn = { key = nil, first = nil }
+  rec.launched, rec.greyed, rec.fanout = {}, {}, {}
+  local function emit(block, at)
+    block.registered = true
+    table.insert(rec.blocks, at or (#rec.blocks + 1), block)
   end
+  for _, entry in ipairs(entries or {}) do admit(rec, entry, emit, false) end
   reproject_record(rec)
+  autoscroll(rec)
+end
+
+-- stream/concluded: the launching fence's row, once, colored by the conclusion. A
+-- conclusion for an unknown launch renders as its scheme and address in the same grammar;
+-- a worker without a tab (a connection's scratch worker) renders nothing here.
+M.conclude_execution = function(workspace, params)
+  if not workspace or type(params) ~= "table" then return end
+  if type(params.workerId) ~= "number" or type(params.target) ~= "string" then return end
+  local rec = workspace_records(workspace)[params.workerId]
+  if rec == nil or not rec.waterfall_buf or not vim.api.nvim_buf_is_valid(rec.waterfall_buf) then return end
+  local launch = rec.launched[params.target]
+  rec.launched[params.target] = nil
+  rec.greyed[params.target] = nil
+  append_block(rec, { kind = "conclusion", launch = launch, params = params })
   autoscroll(rec)
 end
 
@@ -639,13 +758,32 @@ end
 M.close_document = function(_) end
 M.update_status = function(_) end
 
+-- A fold names its block: a TASK by its columns, a message by its first line of prose,
+-- anything else by its first non-blank line.
 M.foldtext = function()
-  local first = vim.fn.getline(vim.v.foldstart):gsub("%s+$", "")
+  local buf = vim.api.nvim_get_current_buf()
+  local first = vim.v.foldstart
+  local label
+  local workspace = vim.b[buf].plurnk_workspace
+  local rec = workspace and records[workspace] and records[workspace][vim.b[buf].plurnk_worker_id or "pending"]
+  for _, block in ipairs(rec and rec.blocks or {}) do
+    if block.first == first and type(block.fold_label) == "string" and block.fold_label ~= "" then
+      label = block.fold_label
+      break
+    end
+  end
+  if label == nil then
+    for line = first, vim.v.foldend do
+      local text = vim.fn.getline(line):gsub("%s+$", "")
+      if text ~= "" then label = text; break end
+    end
+  end
   local count = vim.v.foldend - vim.v.foldstart + 1
-  return string.format("%s … %d lines", first, count)
+  return string.format("%s … %d lines", label or "", count)
 end
 
 M.setup = function()
+  require("plurnk.render").setup_highlights()
   require("plurnk.markdown").setup()
   local group = vim.api.nvim_create_augroup("plurnk_waterfall_projection", { clear = true })
   -- {§nvim-active-worker}
