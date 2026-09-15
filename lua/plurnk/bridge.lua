@@ -64,16 +64,20 @@ local function settle_reasoning(assembler, workspace_name, worker_id, dispatch)
   end
 end
 
--- AG-UI+ IS the client surface: default http://PLURNK_HOST:PLURNK_PORT (the
--- daemon's in-process module); PLURNK_AGUI_URL stays an explicit remote override.
+-- AG-UI+ IS the client surface: http://PLURNK_HOST:PLURNK_PORT (the daemon's in-process
+-- module), PLURNK_AGUI_URL an explicit remote override, PLURNK_AGUI_TOKEN the bearer. Each
+-- resolves through the operator's environment the way the terminal client's does
+-- ({§nvim-transport-target}): the editor's environment, ./.env, the operator's XDG file, then
+-- setup({ host, port }), then the daemon's defaults.
 function M.target()
-  local url = vim.env.PLURNK_AGUI_URL
-  if url == nil or url == "" then
-    local host = (vim.env.PLURNK_HOST ~= nil and vim.env.PLURNK_HOST ~= "") and vim.env.PLURNK_HOST or "127.0.0.1"
-    local port = (vim.env.PLURNK_PORT ~= nil and vim.env.PLURNK_PORT ~= "") and vim.env.PLURNK_PORT or "1066"
-    url = "http://" .. host .. ":" .. port
+  local env = require("plurnk.operator_env")
+  local config = require("plurnk.config")
+  local url = env.get("PLURNK_AGUI_URL")
+  if url == nil then
+    url = "http://" .. (env.get("PLURNK_HOST") or config.get("host"))
+      .. ":" .. (env.get("PLURNK_PORT") or tostring(config.get("port")))
   end
-  return { url = url, token = vim.env.PLURNK_AGUI_TOKEN }
+  return { url = url, token = env.get("PLURNK_AGUI_TOKEN") }
 end
 
 function M.enabled() return true end

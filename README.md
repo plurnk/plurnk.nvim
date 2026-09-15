@@ -6,7 +6,10 @@ never passes through the terminal client. The pitch: **use LLMs the vim way** â€
 your buffers, your motions, your `:` line.
 
 Requires Neovim â‰¥ 0.10 and a running plurnk-service daemon (default
-`127.0.0.1:1066`). The optional `plurnk` terminal client on `PATH` provides the
+`127.0.0.1:1066`). The client finds it the way the terminal client does:
+`PLURNK_AGUI_URL`, `PLURNK_HOST`, `PLURNK_PORT`, and the bearer `PLURNK_AGUI_TOKEN`
+from the editor's environment, then `./.env`, then `~/.config/plurnk/.env` (the daemon's
+own file), then `setup({ host, port })`. The optional `plurnk` terminal client on `PATH` provides the
 same width-aware GFM and Beautiful Mermaid presentation as its TUI; without it,
 model Markdown remains faithful source.
 

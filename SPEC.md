@@ -27,6 +27,15 @@ what this client guarantees. Tests are organized by observable behavior under
   `forwardedProps.plurnk.workspace` on every run. The front door — `:PlurnkWorkspaces` →
   pick → attached — binds by exact name; a failing attach delivers NIL plus a surfaced
   error, never a truthy empty.
+- §nvim-transport-target **The daemon is found the way the terminal client finds it** —
+  `PLURNK_AGUI_URL` (an explicit remote address), else `http://PLURNK_HOST:PLURNK_PORT`
+  (default `127.0.0.1:1066`), with `PLURNK_AGUI_TOKEN` as the bearer. Each variable
+  resolves through the editor's own environment, then `./.env` in the working directory,
+  then the operator's `$XDG_CONFIG_HOME/plurnk/.env` (the file the daemon is configured
+  from, so a bearer set for the daemon reaches the editor without a shell export), then
+  `setup({ host, port })`, then the defaults. The files are read at each action, never
+  cached. A connection that cannot be opened is the one condition reported as "no daemon";
+  a `401 bearer-token-required` Problem is reported as itself.
 - **No fabricated success** — a stream that dies without terminal
   truth is 502; a missing action result is an error; resolve acks are nil on failed
   delivery. Errors cross every layer intact.
