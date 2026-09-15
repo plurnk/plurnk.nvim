@@ -374,7 +374,7 @@ local ok, err = pcall(function()
     rpc_calls = rpc_calls + 1
     if rpc_calls == 1 then
       on_event({ type = "TOOL_CALL_START", toolCallId = "prop:9", toolCallName = "request_approval" })
-      on_event({ type = "TOOL_CALL_ARGS", toolCallId = "prop:9", delta = '{"op":"EXEC"}' })
+      on_event({ type = "TOOL_CALL_ARGS", toolCallId = "prop:9", delta = '{"op":"sh"}' })
       on_event({ type = "TOOL_CALL_END", toolCallId = "prop:9" })
       cb({
         state = "interrupted",

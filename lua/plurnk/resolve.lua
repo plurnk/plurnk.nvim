@@ -10,7 +10,7 @@
 --   r               reject
 --   c               cancel
 --
--- EXEC: opens a scratch buffer showing the command.
+-- execution: opens a scratch buffer showing the command.
 --   a r c           accept / reject / cancel  (no edit)
 
 local M = {}
@@ -219,12 +219,12 @@ local function review_edit(workspace_name, proposal)
   index = #stack
 end
 
--- ── EXEC proposal: scratch buffer ────────────────────────────────────
+-- ── Execution proposal: scratch buffer ────────────────────────────────────
 
 local function review_exec(workspace_name, proposal)
   local body = proposal.body or ""
   local lines = {
-    string.format("── EXEC proposal %s ──", proposal.target and proposal.target.pathname or "(no target)"),
+    string.format("── %s proposal %s ──", proposal.op or "execution", proposal.target and proposal.target.pathname or "(no target)"),
     "",
   }
   for chunk in (body .. "\n"):gmatch("([^\n]*)\n") do lines[#lines+1] = chunk end
@@ -265,7 +265,7 @@ local function review_exec(workspace_name, proposal)
     proposal = proposal,
     focus = focus,
     accept_as_proposed = accept_as_proposed,
-    -- EXEC has no edit semantics — accept-with-edits falls through to accept.
+    -- An execution has no edit semantics — accept-with-edits falls through to accept.
     accept_with_edits = accept_as_proposed,
     reject = reject,
     cancel = cancel,
@@ -286,7 +286,7 @@ M.process = function(workspace_name, proposal)
   if proposal.op == "EDIT" then
     review_edit(workspace_name, proposal)
   else
-    -- EXEC and any future op kind that needs review fall through to the
+    -- An execution and any future op kind that needs review fall through to the
     -- scratch-buffer reviewer; it's a fail-safe shape (no patch parse).
     review_exec(workspace_name, proposal)
   end

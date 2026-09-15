@@ -291,7 +291,7 @@ end
 
 -- A verb is a §3 action run. cb(result, problem); an action error surfaces as a notify —
 -- honest, never silent. The action stream ALSO carries any events the dispatch
--- emits (log/entry from a client op, a proposal from a gated EXEC, stream chunks)
+-- emits (log/entry from a client op, a proposal from a gated execution, stream chunks)
 -- — feed them through the same unproject→dispatch path as a run, or client ops
 -- would render nothing and gated ops would hang unresolved.
 -- ONE management lane: an interrupted action retains the lane until its resume

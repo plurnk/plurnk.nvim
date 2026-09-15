@@ -1,4 +1,4 @@
--- Prompt, direct EXEC, and model-loop submission.
+-- Prompt, direct execution, and model-loop submission.
 
 local M = {}
 

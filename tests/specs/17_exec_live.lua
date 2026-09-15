@@ -6,7 +6,7 @@ local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plur
 H.setup()
 
 local ok, err = pcall(function()
-  -- EXEC is proposal-gated (202 → loop/proposal); auto-accept via client
+  -- An execution is proposal-gated (202 → loop/proposal); auto-accept via client
   -- YOLO so the headless run doesn't wait on a review keypress.
   require("plurnk.diff").set_yolo(true)
   local ai = require("plurnk.language").run

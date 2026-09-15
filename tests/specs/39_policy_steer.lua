@@ -1,6 +1,6 @@
 -- A per-loop policy profile must conclude through the general capability and
 -- recovery machinery. The original specimen deterministically cycled after a
--- denied EXEC; it now owns only the absence of that state-machine regression,
+-- denied execution; it now owns only the absence of that state-machine regression,
 -- not a particular stochastic answer.
 local NAME = "39_policy_steer"
 local H = dofile((os.getenv("PLURNK_NVIM_ROOT") or "/home/hyzen/repo/plurnk/plurnk.nvim") .. "/tests/helpers.lua")

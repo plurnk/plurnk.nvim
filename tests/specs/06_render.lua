@@ -42,20 +42,20 @@ local ok, err = pcall(function()
   -- No leading indent
   H.assert_truthy(read_lines[1]:sub(1, 1) ~= " ", "no leading indent")
 
-  -- EXEC: the authored executor slot renders as [executor]; failure → ❌.
+  -- An execution: its op is the runtime tag, shown as [runtime]; failure → ❌.
   local exec_lines = R({
-    op = "EXEC", origin = "model", scheme = "exec", pathname = "/1/1/2/EXEC",
+    op = "search", origin = "model",
     status_rx = 501,
-    tx = { executor = "search", body = "capital of France" },
+    tx = { runtime = "search", body = "capital of France" },
   })
-  H.assert_eq(#exec_lines, 1, "EXEC single line")
-  H.assert_match(exec_lines[1], "🔧", "EXEC glyph")
-  H.assert_match(exec_lines[1], "❌", "EXEC ❌ on 5xx")
-  H.assert_match(exec_lines[1], "%[search%]", "EXEC shows executor in brackets")
-  H.assert_match(exec_lines[1], "capital of France", "EXEC shows command body")
+  H.assert_eq(#exec_lines, 1, "execution single line")
+  H.assert_match(exec_lines[1], "🔧", "execution glyph")
+  H.assert_match(exec_lines[1], "❌", "execution ❌ on 5xx")
+  H.assert_match(exec_lines[1], "%[search%]", "execution shows its runtime in brackets")
+  H.assert_match(exec_lines[1], "capital of France", "execution shows command body")
 
   local with_aside = R({
-    op = "EXEC", origin = "model", status_rx = 200,
+    op = "sh", origin = "model", status_rx = 200,
     tx = { aside = "Lists **issues**\27[31m", body = "{}" },
   })
   H.assert_match(with_aside[1], "— Lists %*%*issues%*%*", "aside renders as literal plain text")

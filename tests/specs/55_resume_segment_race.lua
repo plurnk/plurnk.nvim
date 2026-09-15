@@ -19,7 +19,7 @@ local ok, err = pcall(function()
   local interrupted_done
   agui.run = function(_, _, on_event, on_done)
     on_event({ type = "TOOL_CALL_START", toolCallId = "prop:23", toolCallName = "request_approval" })
-    on_event({ type = "TOOL_CALL_ARGS", toolCallId = "prop:23", delta = '{"op":"EXEC"}' })
+    on_event({ type = "TOOL_CALL_ARGS", toolCallId = "prop:23", delta = '{"op":"sh"}' })
     on_event({ type = "TOOL_CALL_END", toolCallId = "prop:23" })
     on_event({
       type = "RUN_FINISHED",

@@ -15,9 +15,14 @@ M.OP_GLYPHS = {
   FORK = "👥",
   SEND = "💬",
   TASK = "▶️",
-  EXEC = "🔧",
   BARE = "🔮",
 }
+
+-- An execution's op is its lowercase runtime tag (plurnk-service#659); the engine's own lowercase
+-- row ops are not executions.
+M.is_execution = function(op)
+  return type(op) == "string" and op:match("^[a-z]") ~= nil and op ~= "prompt" and op ~= "extension" and op ~= "error"
+end
 
 M.is_disposition = function(op)
   return op == "TASK"
@@ -145,7 +150,7 @@ end
 local function build_extra(entry)
   local tx = type(entry.tx) == "table" and entry.tx or nil
 
-  if entry.op == "EDIT" or entry.op == "EXEC" then
+  if entry.op == "EDIT" or M.is_execution(entry.op) then
     if not tx then return "" end
     local body = type(tx.body) == "string" and tx.body or ""
     if body == "" then return "" end
@@ -349,18 +354,15 @@ M.render_log_entry = function(entry)
 
   -- Operation rows retain an outcome slot. SEND rows use only their actor or
   -- lifecycle glyph: adding a second state repeats one fact.
-  local op_glyph = M.OP_GLYPHS[entry.op] or "?"
+  local op_glyph = M.OP_GLYPHS[entry.op] or (M.is_execution(entry.op) and "🔧") or "?"
   local primary_glyph = op_glyph
   local sub_glyph = M.status_glyph(entry.status_rx)
   local status = tostring(entry.status_rx or "?")
 
-  -- EXEC: the authored `[executor]` slot rides the statement (tx.executor); show it
-  -- in the path column as the model wrote it. A bare shell EXEC shows nothing — the
-  -- runtime-tag stream entry the daemon stamps is noise from the user's perspective.
+  -- An execution: the op IS the runtime tag; show it bracketed in the path column.
   local path = ""
-  if entry.op == "EXEC" then
-    local tx = entry.tx
-    if type(tx) == "table" and type(tx.executor) == "string" then path = "[" .. tx.executor .. "]" end
+  if M.is_execution(entry.op) then
+    path = "[" .. entry.op .. "]"
   elseif entry.pathname ~= nil then
     if entry.scheme ~= nil then
       path = string.format("%s://%s%s%s",
