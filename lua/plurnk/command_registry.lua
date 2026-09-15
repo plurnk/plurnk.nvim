@@ -51,9 +51,9 @@ local MEMBERS_SUBCOMMANDS = {
 
 local ENV_SUBCOMMANDS = {
   { name = "discover", usage = "discover [query]", summary = "List the names you may set, with their owning package; a query matches a name or its comment." },
-  { name = "add", usage = "add <NAME> <value>", summary = "Set a variable for every command this Worker runs; the value is used verbatim." },
+  { name = "add", usage = "add <NAME> <value>", summary = "Set a variable in the selected scope; the value is used verbatim." },
   { name = "enable", usage = "enable <NAME>", summary = "Enable a current environment entry.", alias = true },
-  { name = "disable", usage = "disable <NAME>", summary = "Withhold a name from this Worker's commands, keeping the entry.", alias = true },
+  { name = "disable", usage = "disable <NAME>", summary = "Withhold a name in the selected scope, keeping the entry.", alias = true },
   { name = "remove", usage = "remove <NAME>", summary = "Remove a current environment entry.", alias = true },
 }
 
@@ -119,7 +119,7 @@ local COMMANDS = {
     run = functionality("agents"), subcommands = AGENT_SUBCOMMANDS },
   { name = "members", usage = "/members [subcommand]", summary = "List or manage this worker's file members.", group = "functionality",
     run = functionality("members"), subcommands = MEMBERS_SUBCOMMANDS },
-  { name = "env", usage = "/env [subcommand]", summary = "List or manage this worker's environment.", group = "functionality",
+  { name = "env", usage = "/env [--scope worker|workspace] [subcommand]", summary = "Manage worker overrides or shared workspace environment defaults.", group = "functionality",
     run = functionality("env"), subcommands = ENV_SUBCOMMANDS },
 
   { name = "script", usage = "/script <path>", summary = "Submit a local .plk program through op.parse.", group = "compose",
@@ -193,6 +193,8 @@ end
 function M.completion_context(cmdline)
   local line = cmdline:match("AI%s+(.*)$") or ""
   if line:sub(1, 1) ~= "/" then return nil end
+  local scope, rest = line:match("^/env%s+%-%-scope[=%s]+(%w+)%s+(.*)$")
+  if scope == "worker" or scope == "workspace" then line = "/env " .. rest else scope = nil end
 
   local root = line:match("^/([%w_-]*)$")
   if root then
@@ -231,7 +233,7 @@ function M.completion_context(cmdline)
     end
   end
   if subcommand and subcommand.alias and argument_index == 2 then
-    return { kind = "functionality", family = command.name, prefix = partial }
+    return { kind = "functionality", family = command.name, prefix = partial, scope = scope }
   end
   if subcommand and subcommand.path_arg == argument_index then
     return { kind = "path", prefix = partial }

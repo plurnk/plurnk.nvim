@@ -230,16 +230,20 @@ what this client guarantees. Tests are organized by observable behavior under
   the service. The glob is tokenized exactly as the sibling families tokenize
   their arguments (quote it to keep whitespace).
 
-- §nvim-environment **The environment is daemon actions, for this Worker** —
+- §nvim-environment **The environment is scoped daemon actions** —
   `:AI/env` (natively `:PlurnkEnv`) is a thin projection of the `env`
-  Functionality family, the same common lifecycle as its siblings with one
-  difference the client respects: the family is worker-scoped, so its actions
-  are `worker.env.*` and the bridge binds the active Worker. `list` renders
+  Functionality family. Unqualified commands use `worker.env.*`; a leading
+  `--scope workspace` selects the same verbs under `workspace.env.*`.
+  `--scope worker` is explicitly local; `--scope=workspace` is equivalent.
+  The bridge binds the active workspace and Worker. No verb, or `list`, lists
+  that scope. `list` renders workspace defaults with `(workspace)` and
   each name with its state, value, and the Worker it was inherited from; a
   definition is one exact `{value}` and `add` hands the rest of the line over
   verbatim, never tokenized; `discover [query]` renders the names this Worker
   may set with their owning package. Admission, the operator's ceiling, and
   the composition at the spawn live in the service.
+  Shared MCP launches use workspace defaults, not worker overrides. Clients
+  do not restart existing processes when those defaults change.
 
   | Input | AG-UI+ action |
   |---|---|

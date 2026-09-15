@@ -91,6 +91,26 @@ local ok, err = pcall(function()
   H.assert_match(notices[4], "disabled: CI %(disabled%)", "disable renders the daemon state")
   H.assert_match(notices[5], "removed: CARGO_TARGET_DIR", "remove confirms")
 
+  sent, notices = {}, {}
+  results["workspace.env.list"] = { definitions = { { alias = "SHARED", origin = "workspace", state = "active", definition = { value = "yes" } } } }
+  results["workspace.env.discover"] = { candidates = {} }
+  for _, verb in ipairs({ "add", "enable", "disable", "remove" }) do results["workspace.env." .. verb] = {} end
+  ai({ args = "/env --scope workspace", range = 0 })
+  H.assert_match(notices[#notices], "SHARED%s+active%s+yes%s+%(workspace%)", "workspace provenance is visible")
+  ai({ args = "/env --scope=workspace discover PAGER", range = 0 })
+  ai({ args = '/env --scope workspace add GREETING hello  "friend"', range = 0 })
+  ai({ args = "/env --scope workspace enable GREETING", range = 0 })
+  ai({ args = "/env --scope workspace disable GREETING", range = 0 })
+  ai({ args = "/env --scope workspace remove GREETING", range = 0 })
+  H.assert_truthy(vim.deep_equal(sent, {
+    { method = "workspace.env.list", params = {} },
+    { method = "workspace.env.discover", params = { query = "PAGER" } },
+    { method = "workspace.env.add", params = { alias = "GREETING", definition = { value = 'hello  "friend"' } } },
+    { method = "workspace.env.enable", params = { alias = "GREETING" } },
+    { method = "workspace.env.disable", params = { alias = "GREETING" } },
+    { method = "workspace.env.remove", params = { alias = "GREETING" } },
+  }), "workspace scope uses the same six verbs and preserves values")
+
   results["worker.env.add"] = { status = 201, alias = "X", definition = { alias = "X", state = "unavailable", problem = { detail = "never reach a subprocess" } } }
   sent, notices = {}, {}
   ai({ args = "/env add X 1", range = 0 })
@@ -104,17 +124,23 @@ local ok, err = pcall(function()
     "/env disable a b",
     "/env remove",
     "/env update",
+    "/env --scope",
+    "/env --scope nonsense add X 1",
   }) do
     ai({ args = input, range = 0 })
   end
   H.assert_eq(#sent, 0, "malformed client command shapes never dispatch")
-  H.assert_eq(#notices, 6, "each malformed command has one usage diagnosis")
+  H.assert_eq(#notices, 8, "each malformed command has one usage diagnosis")
 
   H.assert_eq(table.concat(commands.complete("", "AI /env di", 0), ","), "disable,discover", "env verbs complete")
   results["worker.env.list"] = { definitions = { { alias = "CARGO_TARGET_DIR", state = "active", definition = { value = "/tmp/shared" } }, { alias = "CI", state = "disabled", definition = { value = "1" } } } }
   local aliases = commands.complete("", "AI /env enable C", 0)
   if #aliases == 0 then aliases = commands.complete("", "AI /env enable C", 0) end
   H.assert_eq(table.concat(aliases, ","), "CARGO_TARGET_DIR,CI", "an alias-taking env command lazily completes current names through the worker-scoped list")
+  H.assert_eq(table.concat(commands.complete("", "AI /env --scope workspace di", 0), ","), "disable,discover", "workspace-scoped env verbs complete")
+  local shared_aliases = commands.complete("", "AI /env --scope=workspace enable S", 0)
+  if #shared_aliases == 0 then shared_aliases = commands.complete("", "AI /env --scope=workspace enable S", 0) end
+  H.assert_eq(table.concat(shared_aliases, ","), "SHARED", "workspace alias completion uses its own scope, not the worker's cache")
 
   -- Against the live daemon: an added name lists as this Worker's own with its
   -- value, discover names a sibling package's declaration, and disable and
@@ -135,6 +161,14 @@ local ok, err = pcall(function()
   settle("/env discover PAGER", "PAGER%s+@plurnk/plurnk%-execs", "the live catalog names the declaring package")
   settle("/env disable CARGO_TARGET_DIR", "disabled: CARGO_TARGET_DIR %(disabled%)", "the live disable renders the daemon state")
   settle("/env remove CARGO_TARGET_DIR", "removed: CARGO_TARGET_DIR", "the live remove confirms")
+  settle("/env --scope workspace add SHARED_NAME shared-value", "added: SHARED_NAME %(active%)", "workspace add uses the live action")
+  settle("/env", "SHARED_NAME%s+active%s+shared%-value%s+%(workspace%)", "worker list inherits workspace env")
+  settle("/env add SHARED_NAME worker-value", "added: SHARED_NAME %(active%)", "worker can shadow workspace value")
+  settle("/env --scope workspace", "SHARED_NAME%s+active%s+shared%-value%s+%(workspace%)", "worker shadow does not alter workspace state")
+  settle("/env --scope workspace disable SHARED_NAME", "disabled: SHARED_NAME %(disabled%)", "workspace disable uses the live action")
+  settle("/env --scope workspace enable SHARED_NAME", "enabled: SHARED_NAME %(active%)", "workspace enable uses the live action")
+  settle("/env --scope workspace discover PAGER", "PAGER%s+@plurnk/plurnk%-execs", "workspace discover uses the live action")
+  settle("/env --scope workspace remove SHARED_NAME", "removed: SHARED_NAME", "workspace remove uses the live action")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

@@ -1,14 +1,4 @@
--- Thin client projection of the daemon-owned environment Functionality
--- family: the common lifecycle (list | discover | add | enable | disable |
--- remove) over the Worker's `env` actions. The family is worker-scoped — an
--- environment is how one Worker's commands run, not a workspace capability —
--- so its actions are `worker.env.*` and the bridge binds the active Worker.
--- `list` is what this Worker's commands receive: the ambient names the
--- operator's ceiling admits (service origin) and the Worker's own entries
--- (worker origin, inherited entries naming the Worker that set them). A
--- definition is one exact { value }, used verbatim; the client hands the rest
--- of the line over as typed, never tokenized. Admission, the ceiling, and the
--- composition at the spawn live in the service.
+-- {§nvim-environment} Scope selects the daemon action; composition stays server-side.
 
 local M = {}
 local arguments_of = require("plurnk.arguments").parse
@@ -23,7 +13,7 @@ local function definition_line(entry)
     type(entry.state) == "string" and entry.state or "unknown",
     type(definition.value) == "string" and ("  " .. definition.value) or "",
     type(entry.inherited) == "string" and ("  (from " .. entry.inherited .. ")") or "",
-    entry.origin == "service" and "  (service)" or "",
+    (entry.origin == "service" or entry.origin == "workspace") and ("  (" .. entry.origin .. ")") or "",
     problem
   )
 end
@@ -41,9 +31,9 @@ local function candidate_line(candidate)
   )
 end
 
-local function notify_mutation(result, verb, alias_hint, binding)
+local function notify_mutation(result, verb, alias_hint, binding, scope)
   if type(result) ~= "table" then return end
-  require("plurnk.functionality").invalidate_aliases("env", binding)
+  require("plurnk.functionality").invalidate_aliases("env", binding, scope)
   local client = require("plurnk.client")
   local alias = type(result.alias) == "string" and result.alias or alias_hint
   local definition = type(result.definition) == "table" and result.definition or {}
@@ -60,13 +50,21 @@ end
 M.run = function(args, with_workspace)
   local raw = vim.fn.trim(args or "")
   local client = require("plurnk.client")
+  local scope = "worker"
+  if raw:match("^%-%-scope[=%s]") or raw == "--scope" then
+    local selected, rest = raw:match("^%-%-scope=(%S+)%s*(.*)$")
+    if not selected then selected, rest = raw:match("^%-%-scope%s+(%S+)%s*(.*)$") end
+    if selected ~= "worker" and selected ~= "workspace" then usage(); return end
+    scope, raw = selected, rest
+  end
+  local prefix = scope .. ".env."
 
-  if raw == "" then
+  if raw == "" or raw == "list" then
     return with_workspace(function(_, binding)
       local client = require("plurnk.client").scoped(binding)
-      client.send("worker.env.list", {}, false, function(result)
+      client.send(prefix .. "list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
-        require("plurnk.functionality").remember_aliases("env", result.definitions, binding)
+        require("plurnk.functionality").remember_aliases("env", result.definitions, binding, scope)
         if #result.definitions == 0 then
           client.notify("environment: none", vim.log.levels.INFO)
           return
@@ -86,7 +84,7 @@ M.run = function(args, with_workspace)
     local query = table.concat(argv, " ", 2)
     return with_workspace(function(_, binding)
       local client = require("plurnk.client").scoped(binding)
-      client.send("worker.env.discover", query == "" and {} or { query = query }, false, function(result)
+      client.send(prefix .. "discover", query == "" and {} or { query = query }, false, function(result)
         if type(result) ~= "table" or type(result.candidates) ~= "table" then return end
         if #result.candidates == 0 then
           client.notify("environment candidates: none", vim.log.levels.INFO)
@@ -109,8 +107,8 @@ M.run = function(args, with_workspace)
     end
     return with_workspace(function(_, binding)
       local client = require("plurnk.client").scoped(binding)
-      client.send("worker.env.add", { alias = name, definition = { value = value } }, false, function(result)
-        notify_mutation(result, "added", name, binding)
+      client.send(prefix .. "add", { alias = name, definition = { value = value } }, false, function(result)
+        notify_mutation(result, "added", name, binding, scope)
       end)
     end)
   end
@@ -122,8 +120,8 @@ M.run = function(args, with_workspace)
     end
     return with_workspace(function(_, binding)
       local client = require("plurnk.client").scoped(binding)
-      client.send("worker.env." .. command, { alias = alias }, false, function(result)
-        notify_mutation(result, command == "enable" and "enabled" or "disabled", alias, binding)
+      client.send(prefix .. command, { alias = alias }, false, function(result)
+        notify_mutation(result, command == "enable" and "enabled" or "disabled", alias, binding, scope)
       end)
     end)
   end
@@ -135,9 +133,9 @@ M.run = function(args, with_workspace)
     end
     return with_workspace(function(_, binding)
       local client = require("plurnk.client").scoped(binding)
-      client.send("worker.env.remove", { alias = alias }, false, function(result)
+      client.send(prefix .. "remove", { alias = alias }, false, function(result)
         if type(result) == "table" then
-          require("plurnk.functionality").invalidate_aliases("env", binding)
+          require("plurnk.functionality").invalidate_aliases("env", binding, scope)
           client.notify("removed: " .. alias, vim.log.levels.INFO)
         end
       end)

@@ -12,7 +12,7 @@ function M.complete(_arglead, cmdline, _cursor_position)
   if context.kind == "syntax" then return context.values end
   if context.kind == "path" then return vim.fn.getcompletion(context.prefix, "file") end
   if context.kind == "functionality" then
-    return require("plurnk.functionality").complete_aliases(context.family, context.prefix)
+    return require("plurnk.functionality").complete_aliases(context.family, context.prefix, context.scope)
   end
 
   if context.kind == "worker" then
