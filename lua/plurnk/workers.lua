@@ -194,10 +194,10 @@ end
 -- The winbar's position segments from the cached directory: `[~/fork-1/recheck(25/10)]` and
 -- `(2/3)`. The loop and its turn (the packet count) ride the place, as in the terminal
 -- client's prompt prefix; before a loop exists the brackets hold the lineage alone.
-function M.position_label(workspace, runtime)
+function M.position_label(workspace, runtime, worker_id)
   local state = require("plurnk.state")
   local rows = state.get_worker_directory(workspace)
-  local bound = state.get_worker_id(workspace)
+  local bound = worker_id or state.get_worker_id(workspace)
   local place = ""
   if type(runtime) == "table" and type(runtime.loop_id) == "number" then
     place = "(" .. tostring(runtime.loop_id) .. "/" .. tostring(runtime.packet_count or 0) .. ")"

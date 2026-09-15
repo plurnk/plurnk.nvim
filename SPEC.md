@@ -22,9 +22,10 @@ what this client guarantees. Tests are organized by observable behavior under
   and EOF dispatch. Malformed AG-UI JSON is a surfaced 502 transport failure,
   never a dropped event; decoded events un-project to the daemon notification
   shapes dispatch already routes.
-- **The workspace (world) rides every run** — the `threadId` IS the
-  workspace name, verbatim (no prefix, no forging), and the client sends it as
-  `forwardedProps.plurnk.workspace` on every run. The front door — `:PlurnkWorkspaces` →
+- **The workspace and conversation ride every run** — `forwardedProps.plurnk.workspace`
+  names the workspace; `threadId` names the selected conversation. The workspace name
+  as `threadId` selects its durable default conversation, as in {§agui-thread-binding}.
+  The front door — `:PlurnkWorkspaces` →
   pick → attached — binds by exact name; a failing attach delivers NIL plus a surfaced
   error, never a truthy empty.
 - §nvim-transport-target **The daemon is found the way the terminal client finds it** —
@@ -51,9 +52,9 @@ what this client guarantees. Tests are organized by observable behavior under
   through `RunAgentInput.resume`. A proposal tool call without its matching declared
   interrupt is a protocol error, never an invitation to infer private lifecycle state.
   A proposal-gated management action remains one logical action across its interrupt
-  and resume runs and retains the serialized management lane until its action result.
-  A model-loop proposal resumes by exact interrupt identity independently of that
-  lane. Each transport segment owns its own terminal evidence, so a delayed completion
+  and resume runs. Independent actions and model runs are not serialized behind it.
+  A resolution resumes only the matching conversation and interrupt identity, using
+  that request's original daemon target. Each transport segment owns its own terminal evidence, so a delayed completion
   from an interrupted segment cannot settle or corrupt its resumed logical run.
   `RUN_FINISHED` and `RUN_ERROR` alone settle the client run; `plurnk.terminated`
   supplies family-specific status and usage metadata but is not a competing lifecycle.
@@ -92,13 +93,30 @@ what this client guarantees. Tests are organized by observable behavior under
   to rerun inference.** Neovim settles partial reasoning, displays a client-owned
   reconnecting overlay, and makes bounded read-only `log.read` action Runs until
   standard `STATE` reports a non-running lifecycle. The successful observation
-  appends only durable rows beyond that worker's last observed row, in canonical
-  order and without duplication. If losslessness cannot be established or the
+  appends previously unseen durable rows ordered by their identity, without
+  duplication. A sync observer retains its pre-attachment cursor so later live
+  rows cannot skip the admission gap. Cancellation additionally waits for the
+  cancelled loop's terminal state; a newly admitted loop does not become another
+  cancellation target. If losslessness cannot be established or the
   public result bound is exhausted, the client fails visibly rather than
   presenting a partial reconciliation. If the daemon cannot be observed, the
   overlay becomes explicitly stale and names
   `:AI/reconnect` or reopening the worker as recovery; neither path resubmits the
   prompt or rewrites the daemon-owned lifecycle.
+
+- §nvim-conversation-requests **Selection never retargets submitted work.**
+
+  | Activity | Owner and behavior |
+  |---|---|
+  | Prompt, action, asynchronous command sequence | Capture workspace and conversation before yielding; all follow-up requests retain that binding. |
+  | Model stream | One observed logical run per conversation, retained across tab switches through completion. Other conversations run independently. |
+  | Status, accounting, reasoning, recovery | Per conversation; each stream reduces its own state. An independent action does not overwrite a live model stream's status. |
+  | Proposal or question | Exact request and interrupt identity; background requests retain their own destinations and review intent. |
+  | `/stop` | Cancel the selected conversation's loop and retire its pending interaction; leave other workers and independently submitted actions untouched. |
+  | Tab switch | Presentation only; neither cancels nor detaches running work. |
+  | Ordinary prompt while active | Submit `loop.inject`, including from the native input buffer. An admitted successor receives one inference-free AG-UI sync observer; no prompt replay. Terminal observation waits for pending injection acknowledgements. |
+  | Explicit review prefix while active | Refuse the per-loop policy change locally and preserve the input. Ordinary injection retains the running loop's policy. |
+  | Workspace rename | Available only with no submitted requests or pending reviews in that workspace; other workspaces remain usable. While renaming, new submissions to it are refused. An accepted rename updates idle bindings and editor records together. |
 
 ## §3 The `:AI` language
 
@@ -129,9 +147,10 @@ what this client guarantees. Tests are organized by observable behavior under
   dispatch, the complete root inventory, concise `/help <verb>` guidance,
   contextual completion, and default key descriptions. Completion offers
   declared model aliases, child inheritance, daemon-supported reasoning
-  policies, and local files only where a command consumes one. MCP, Skill,
-  A2A, and file members aliases are fetched lazily from the current Worker only
-  at alias-taking positions and cached per Worker; a failed lookup changes no
+  policies, and local files only where a command consumes one. Functionality
+  aliases are fetched lazily at alias-taking positions and cached at their
+  owning scope: workspace for MCP, Skills, A2A and members; conversation for env.
+  Delayed responses and invalidation retain that scope; a failed lookup changes no
   command or durable state. It never caches the full model catalog; exact-route discovery remains
   explicit through `/models [search]`. Editor-native `/open`, `/reconnect`,
   `/next`, `/prev`, and `/clear` are presentation controls rather than a second
@@ -255,10 +274,9 @@ what this client guarantees. Tests are organized by observable behavior under
   workers, the attachable conversations) and binds through the same
   `workspace.attach {id, workerId}` path the picker uses, then opens the worker
   tab and hydrates. Completion offers the directory's conversation names.
-  Deliberate divergence from the terminal client's `/attach`: its bridge thread is
-  the worker, so a new name mints a fresh conversation there; this plugin's thread
-  is the workspace and the worker is selected by id, so an unknown name is reported
-  with the pointer to `:PlurnkFork <name>`, this client's mint (nvim#27).
+  An unknown name is reported with the pointer to `:PlurnkFork <name>`; selection
+  resolves the existing worker's name as the AG-UI conversation, not a connection-local
+  substitute for `threadId`.
 - **The workers picker is the topology** — `:PlurnkWorkspaceWorkers` / `:AI/workers`
   renders conversations as a forest from `parentWorkerId`, the bound conversation's
   tree first and marked `●`, tree connectors, siblings newest first, creation time per
@@ -463,7 +481,7 @@ what this client guarantees. Tests are organized by observable behavior under
   pending model, child-model, and reasoning selections persist in that order before
   a prompt is submitted. A rejected or malformed result retains the requested
   selections and prevents the prompt from running under stale policy.
-- §nvim-child-provider-selection **Child selection sticks per workspace** —
+- §nvim-child-provider-selection **Child selection sticks per worker** —
   `/child` reports the worker's persisted override (hydrated via `worker.model.get`),
   `/child <selector>` persists it via `worker.child.set`, and `/child inherit` sends
   `selector: null` (clearing the override); `PLURNK_MODEL_CHILD` seeds the worker

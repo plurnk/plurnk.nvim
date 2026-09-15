@@ -8,13 +8,13 @@ H.setup()
 local ok, err = pcall(function()
   local agui = require("plurnk.agui")
 
-  local prompt_input = agui.input({ threadId = "world", prompt = "hello" })
+  local prompt_input = agui.input({ workspace = "world", threadId = "world", prompt = "hello" })
   H.assert_eq(type(prompt_input.runId), "string", "every request has a runId")
   H.assert_eq(type(prompt_input.messages[1].id), "string", "user messages have ids")
   H.assert_eq(prompt_input.forwardedProps.plurnk.workspace, "world", "workspace rides forwardedProps")
 
   local resume_input = agui.input({
-    threadId = "world",
+    workspace = "world", threadId = "world",
     resume = { { interruptId = "prop:9", status = "resolved", payload = { decision = "accept" } } },
   })
   H.assert_eq(resume_input.resume[1].interruptId, "prop:9", "standard resume carries the interrupt id")
@@ -87,7 +87,7 @@ local ok, err = pcall(function()
     return fake_handle
   end
   local done_error
-  agui.run({ url = "http://example.test" }, { threadId = "world", messages = {} }, function() end, function(_, transport_error)
+  agui.run({ url = "http://example.test" }, { workspace = "world", threadId = "world", messages = {} }, function() end, function(_, transport_error)
     done_error = transport_error
   end)
   stdout(nil, "data: not json\n\n")
@@ -98,7 +98,7 @@ local ok, err = pcall(function()
   H.assert_match(done_error.type, "/invalid%-event%-stream$", "parse failure has a stable Problem type")
   H.assert_eq(done_error.retryable, false, "a malformed response is not safe to replay")
   local http_problem
-  agui.run({ url = "http://example.test" }, { threadId = "world", messages = {} }, function() end, function(_, transport_error)
+  agui.run({ url = "http://example.test" }, { workspace = "world", threadId = "world", messages = {} }, function() end, function(_, transport_error)
     http_problem = transport_error
   end)
   stdout(nil, vim.json.encode({
@@ -114,7 +114,7 @@ local ok, err = pcall(function()
   H.assert_eq(http_problem.retryable, false, "HTTP Problem extensions are preserved")
 
   local unavailable_problem
-  agui.run({ url = "http://example.test" }, { threadId = "world", messages = {} }, function() end, function(_, transport_error)
+  agui.run({ url = "http://example.test" }, { workspace = "world", threadId = "world", messages = {} }, function() end, function(_, transport_error)
     unavailable_problem = transport_error
   end)
   complete({ code = 7 })
@@ -126,7 +126,7 @@ local ok, err = pcall(function()
   -- An action proposal ends only the current AG-UI segment. It is not a
   -- missing action result; the result arrives on the resume segment.
   local interrupted_segment
-  agui.rpc({ url = "http://example.test" }, "world", "op.exec", {}, function(segment)
+  agui.rpc({ url = "http://example.test" }, { workspace = "world", threadId = "world" }, "op.exec", {}, function(segment)
     interrupted_segment = segment
   end, function() end)
   stdout(nil, table.concat({
@@ -146,10 +146,9 @@ local ok, err = pcall(function()
   H.assert_eq(interrupted_segment.state, "interrupted", "confirmed interrupt is not misreported as a missing daemon")
 
   local resumed_segment
-  agui.resume_action({ url = "http://example.test" }, {
-    threadId = "world",
-    logEntryId = 9,
-    decision = "accept",
+  agui.action_segment({ url = "http://example.test" }, {
+    workspace = "world", threadId = "world",
+    resume = { { interruptId = "prop:9", status = "resolved", payload = { decision = "accept" } } },
   }, function(segment)
     resumed_segment = segment
   end, function() end)
@@ -175,7 +174,7 @@ local ok, err = pcall(function()
   H.assert_eq(resumed_segment.result.accepted, true, "resume preserves the action result")
 
   local missing_segment
-  agui.rpc({ url = "http://example.test" }, "world", "ping", {}, function(segment)
+  agui.rpc({ url = "http://example.test" }, { workspace = "world", threadId = "world" }, "ping", {}, function(segment)
     missing_segment = segment
   end, function() end)
   stdout(nil, table.concat({
@@ -301,7 +300,7 @@ local ok, err = pcall(function()
     return {}
   end
   local bridge_status
-  require("plurnk.bridge").run("world", "stop", {}, function(status) bridge_status = status end)
+  require("plurnk.bridge").run(require("plurnk.state").binding("world"), "stop", {}, function(status) bridge_status = status end)
   H.assert_eq(bridge_status, 499, "bridge termination uses the exact result status")
   H.assert_eq(problem_events, 1, "one failure occurrence is dispatched exactly once")
 
@@ -311,7 +310,7 @@ local ok, err = pcall(function()
     return {}
   end
   local missing_problem_status
-  require("plurnk.bridge").run("world", "fail", {}, function(status) missing_problem_status = status end)
+  require("plurnk.bridge").run(require("plurnk.state").binding("world"), "fail", {}, function(status) missing_problem_status = status end)
   H.assert_eq(missing_problem_status, 502, "bare RUN_ERROR cannot manufacture terminal failure truth")
   H.assert_eq(problem_events, 2, "a missing Problem creates one transport failure occurrence")
 
@@ -341,32 +340,29 @@ local ok, err = pcall(function()
     return {}
   end
   local interaction_bridge = require("plurnk.bridge")
-  interaction_bridge.run("world", "choose", {}, function(status) interaction_status = status end)
+  interaction_bridge.run(require("plurnk.state").binding("world"), "choose", {}, function(status) interaction_status = status end)
   H.assert_eq(interaction_status, nil, "interaction interrupt keeps the logical run pending")
   H.assert_eq(interaction_notice.params.request.message, "Choose one repository.", "bridge dispatches interrupt guidance")
-  local original_resolve_interaction = agui.resolve_interaction
-  agui.resolve_interaction = function(_, _, interaction_id, payload, on_event, on_done)
-    resumed_interaction = { interactionId = interaction_id, payload = payload }
+  agui.run = function(_, run, on_event, on_done)
+    resumed_interaction = run.resume[1]
     on_event({ type = "CUSTOM", name = "plurnk.terminated", value = { result = { status = 200 }, hitMaxTurns = false } })
     on_event({ type = "RUN_FINISHED", outcome = { type = "success" } })
     on_done(0, nil)
     return {}
   end
-  interaction_bridge.resolve_interaction("world", 8, { repository = "plurnk-service" }, function() end)
+  interaction_bridge.resolve_interaction(require("plurnk.state").binding("world"), 8, { repository = "plurnk-service" }, function() end)
   H.assert_eq(interaction_status, 200, "interaction resume completes the original run")
-  H.assert_eq(resumed_interaction.interactionId, 8, "interaction answer addresses the pending request")
+  H.assert_eq(resumed_interaction.interruptId, "int:8", "interaction answer addresses the pending request")
   H.assert_eq(resumed_interaction.payload.repository, "plurnk-service", "interaction answer rides the standard resume")
-  agui.resolve_interaction = original_resolve_interaction
   agui.run = original_run
   dispatch.handle_notification = original_handle_notification
 
-  -- A proposal-gated action owns the management lane across its interrupt and
-  -- resume. Its continuation does not queue behind itself, while the next action
-  -- cannot steal the lane before the original result arrives.
+  -- {§nvim-conversation-requests}: independent actions remain usable during
+  -- review; each result still settles only its originating request.
   local bridge = require("plurnk.bridge")
   local original_handle = dispatch.handle_notification
   local original_rpc = agui.rpc
-  local original_resume_action = agui.resume_action
+  local original_action_segment = agui.action_segment
   local rpc_calls, second_started = 0, false
   local first_result, second_result, resolve_code, resolve_problem
   dispatch.handle_notification = function() end
@@ -386,24 +382,23 @@ local ok, err = pcall(function()
       cb({ state = "complete", result = { second = true }, code = 0 })
     end
   end
-  agui.resume_action = function(_, _, cb)
+  agui.action_segment = function(_, _, cb)
     cb({ state = "complete", result = { first = true }, code = 0 })
   end
-  bridge.rpc("world", "op.exec", {}, function(result) first_result = result end)
-  bridge.rpc("world", "ping", {}, function(result) second_result = result end)
+  bridge.rpc(require("plurnk.state").binding("world"), "op.exec", {}, function(result) first_result = result end)
+  bridge.rpc(require("plurnk.state").binding("world"), "ping", {}, function(result) second_result = result end)
   H.assert_eq(first_result, nil, "interrupted action does not complete early")
-  H.assert_eq(second_started, false, "queued action cannot steal the interrupted action's lane")
-  bridge.resolve("world", { logEntryId = 9, decision = "accept" }, function(code, problem)
+  H.assert_eq(second_started, true, "inspection starts while another action awaits review")
+  H.assert_eq(second_result.second, true, "inspection completes without settling the reviewed action")
+  bridge.resolve(require("plurnk.state").binding("world"), { logEntryId = 9, decision = "accept" }, function(code, problem)
     resolve_code, resolve_problem = code, problem
   end)
-  H.wait_for(function() return second_result ~= nil end, 1000, "lane advances after resumed action completes")
   H.assert_eq(first_result.first, true, "resumed result completes the original action")
   H.assert_eq(resolve_code, 0, "resolution acknowledges its completed resume segment")
   H.assert_eq(resolve_problem, nil, "successful resolution has no fabricated Problem")
-  H.assert_eq(second_result.second, true, "queued action begins after the lane owner completes")
   dispatch.handle_notification = original_handle
   agui.rpc = original_rpc
-  agui.resume_action = original_resume_action
+  agui.action_segment = original_action_segment
 
   -- A failed action may carry the same Problem in the lossless custom event and
   -- its action result. The client dispatches that occurrence once instead of
@@ -428,7 +423,7 @@ local ok, err = pcall(function()
     cb({ state = "failed", problem = failure, code = 0 })
   end
   local failed_action_problem
-  bridge.rpc("world", "op.exec", {}, function(result, problem)
+  bridge.rpc(require("plurnk.state").binding("world"), "op.exec", {}, function(result, problem)
     H.assert_eq(result, nil, "failed action has no fabricated result")
     failed_action_problem = problem
     failed_action_done = true

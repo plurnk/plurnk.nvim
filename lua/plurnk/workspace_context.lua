@@ -16,10 +16,18 @@ function M.settings()
 end
 
 function M.active()
-  local tab = require("plurnk.worker_tab").current_alias()
+  if vim.b.plurnk_worker_id and vim.b.plurnk_workspace then return vim.b.plurnk_workspace end
+  local tab = require("plurnk.worker_tab").workspace_for_tabpage(vim.api.nvim_get_current_tabpage())
   if tab then return tab end
   if vim.b.plurnk_workspace then return vim.b.plurnk_workspace end
   return require("plurnk.state").get_active_workspace_name()
+end
+
+function M.binding()
+  local tab_workspace, tab_worker = require("plurnk.worker_tab").binding_for_tabpage(vim.api.nvim_get_current_tabpage())
+  local workspace = (vim.b.plurnk_worker_id and vim.b.plurnk_workspace) or tab_workspace or M.active() or "nvim"
+  local worker = vim.b.plurnk_workspace == workspace and vim.b.plurnk_worker_id or tab_worker
+  return require("plurnk.state").binding(workspace, worker)
 end
 
 function M.associate_buffer(bufnr, workspace_name)
@@ -39,24 +47,14 @@ function M.note_model_worker(workspace_name, worker_id, worker_name)
   require("plurnk.worker_tab").note_worker_resolved(workspace_name)
 end
 
-function M.warn_if_switching_live()
-  local state = require("plurnk.state")
-  local workspace = state.get_active_workspace_name()
-  if not workspace or not state.is_loop_inflight(workspace) then return end
-  local worker = state.get_worker_name(workspace)
-  require("plurnk.client").notify(
-    "switching away — the running loop in " .. workspace .. (worker and ("·" .. worker) or "")
-      .. " continues on the daemon; reopen the worker to catch up",
-    vim.log.levels.WARN)
-end
-
 function M.resolve(callback)
   local client = require("plurnk.client")
   local workspace = M.active()
   if workspace then
+    local binding = M.binding()
     client.check_daemon_once()
-    require("plurnk.generation").persist_picked_policies(client, workspace, function()
-      callback(workspace)
+    require("plurnk.generation").persist_picked_policies(client.scoped(binding), workspace, function()
+      callback(workspace, binding)
     end)
     return
   end
@@ -72,17 +70,15 @@ function M.resolve(callback)
     state.set_active_workspace_name(result.name)
     M.associate_buffer(origin_buf, result.name)
     client.check_daemon_once()
-    require("plurnk.generation").persist_picked_policies(client, result.name, function()
+    require("plurnk.generation").persist_picked_policies(client.scoped(state.binding(result.name)), result.name, function()
       require("plurnk.generation").hydrate(result.name)
-      callback(result.name)
+      callback(result.name, require("plurnk.state").binding(result.name))
     end)
   end)
 end
 
 function M.create(options, callback)
   local client = require("plurnk.client")
-  local previous = M.active()
-  M.warn_if_switching_live()
   local params = { settings = M.settings() }
   if not options.headless then params.projectRoot = client.get_project_path() end
   if options.name and options.name ~= "" then params.name = options.name end
@@ -93,21 +89,16 @@ function M.create(options, callback)
     state.set_workspace_id(result.name, result.id)
     state.set_active_workspace_name(result.name)
     M.associate_buffer(origin_buf, result.name)
-    if previous and previous ~= result.name then
-      client.notify(
-        "live workspace: " .. result.name .. " — tabs for " .. previous .. " are now static",
-        vim.log.levels.INFO)
-    end
     client.check_daemon_once()
-    require("plurnk.generation").persist_picked_policies(client, result.name, function()
+    require("plurnk.generation").persist_picked_policies(client.scoped(state.binding(result.name)), result.name, function()
       require("plurnk.generation").hydrate(result.name)
-      callback(result.name)
+      callback(result.name, state.binding(result.name))
     end)
   end)
 end
 
-function M.fork(workspace_name, callback, name)
-  local client = require("plurnk.client")
+function M.fork(workspace_name, callback, name, binding)
+  local client = require("plurnk.client").scoped(binding or require("plurnk.state").binding(workspace_name))
   local params = {}
   if name and name ~= "" then params.name = name end
   client.send("run.fork", params, false, function(result)
@@ -122,10 +113,10 @@ function M.fork(workspace_name, callback, name)
       id = workspace_id,
       workerId = result.workerId,
     }, false, function(attached)
-      local worker_id = (type(attached) == "table" and attached.workerId) or result.workerId
-      local worker_name = (type(attached) == "table" and attached.workerName) or result.workerName
-      M.note_model_worker(workspace_name, worker_id, worker_name)
-      callback(workspace_name)
+      if type(attached) ~= "table" or attached.workerId ~= result.workerId then return end
+      local worker_id = result.workerId
+      M.note_model_worker(workspace_name, worker_id, result.workerName)
+      callback(workspace_name, require("plurnk.state").binding(workspace_name, worker_id))
     end)
   end)
 end
@@ -140,8 +131,7 @@ function M.switch_worker(workspace_name, worker_id, callback)
       vim.log.levels.WARN)
     return
   end
-  M.warn_if_switching_live()
-  require("plurnk.client").send("workspace.attach", {
+  require("plurnk.client").scoped(state.binding(workspace_name)).send("workspace.attach", {
     id = workspace_id,
     workerId = worker_id,
   }, false, function(attached)
@@ -156,33 +146,37 @@ function M.hydrate_worker(workspace_name)
   local state = require("plurnk.state")
   local worker_id = state.get_worker_id(workspace_name)
   if not worker_id then return end
-  require("plurnk.client").send("log.read", {
+  require("plurnk.client").scoped(state.binding(workspace_name, worker_id)).send("log.read", {
     workerId = worker_id,
     limit = 500,
   }, false, function(result)
     if type(result) ~= "table" or type(result.entries) ~= "table" then return end
     require("plurnk.worker_tab").hydrate(workspace_name, worker_id, result.entries)
+    for _, entry in ipairs(result.entries) do state.set_last_seen_log_id(workspace_name, worker_id, entry.id) end
   end)
 end
 
 function M.adopt_model_worker(workspace_name, on_done)
-  local workspace_id = require("plurnk.state").get_workspace_id(workspace_name)
-  if not workspace_id then
+  local state = require("plurnk.state")
+  local workspace_id = state.get_workspace_id(workspace_name)
+  if not workspace_id or state.get_worker_id(workspace_name) then
     if on_done then on_done() end
     return
   end
-  require("plurnk.client").send("workspace.workers", {
-    id = workspace_id,
-  }, false, function(result)
-    if type(result) == "table" and type(result.workers) == "table" then
-      for _, worker in ipairs(result.workers) do
-        if worker.origin == "model" then
-          M.note_model_worker(workspace_name, worker.id, worker.name)
-          break
-        end
-      end
-    end
-    if on_done then on_done() end
+  local client = require("plurnk.client").scoped(state.binding(workspace_name))
+  -- Read the bound conversation, not whichever worker sorts first in a directory.
+  -- An unused default remains pending until its first durable row identifies it.
+  client.send("log.read", { limit = 1 }, false, function(result)
+    if type(result) ~= "table" or type(result.entries) ~= "table" then return end
+    local entry = result.entries[1]
+    if not entry then if on_done then on_done() end; return end
+    state.identify(client.binding, entry.worker_id)
+    client.send("workspace.workers", { id = workspace_id }, false, function(directory)
+      if type(directory) ~= "table" or type(directory.workers) ~= "table" then return end
+      require("plurnk.workers").remember_names(workspace_name, directory.workers)
+      M.note_model_worker(workspace_name, entry.worker_id, state.get_worker_label(workspace_name, entry.worker_id))
+      if on_done then on_done() end
+    end)
   end)
 end
 

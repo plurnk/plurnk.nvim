@@ -28,7 +28,7 @@ local streams = {}
 local CHANNEL_PREFIX = { stdout = "1│ ", stderr = "2│ " }
 local CHANNEL_HL = { stderr = "DiagnosticError" }
 
-local function get_or_create(entry_id, target, worker_id)
+local function get_or_create(entry_id, target, worker_id, binding)
   local st = streams[entry_id]
   if st and st.buf and vim.api.nvim_buf_is_valid(st.buf) then
     st.worker_id = worker_id
@@ -42,7 +42,7 @@ local function get_or_create(entry_id, target, worker_id)
   vim.bo[buf].bufhidden = "hide"
   vim.bo[buf].swapfile = false
 
-  st = { buf = buf, target = target, worker_id = worker_id, read = {}, partial = {},
+  st = { buf = buf, target = target, worker_id = worker_id, binding = binding, read = {}, partial = {},
          dirty = false, timer_running = false, concluded = false }
   streams[entry_id] = st
 
@@ -50,7 +50,7 @@ local function get_or_create(entry_id, target, worker_id)
     buffer = buf,
     callback = function()
       if not st.concluded then
-        require("plurnk.client").send("op.send", { status = 499, recipient = st.target }, false)
+        require("plurnk.client").scoped(st.binding).send("op.send", { status = 499, recipient = st.target }, false)
       end
       streams[entry_id] = nil
     end,
@@ -161,7 +161,7 @@ local function flush(entry_id)
   st.timer_running = false
   if not st.dirty or st.concluded then return end
   st.dirty = false
-  require("plurnk.client").send("entry.read", { target = st.target, workerId = st.worker_id }, false, function(result)
+  require("plurnk.client").scoped(st.binding).send("entry.read", { target = st.target, workerId = st.worker_id }, false, function(result)
     if type(result) ~= "table" or type(result.entry) ~= "table" then return end
     local channels = result.entry.channels or {}
     vim.schedule(function()
@@ -175,11 +175,12 @@ end
 
 -- stream/event: a channel grew or transitioned state. Mark dirty; the
 -- flush timer batches ticks into one entry.read.
-M.on_event = function(params, _workspace_name)
+M.on_event = function(params, workspace_name)
   if not params or type(params.entryId) ~= "number" then return end
   if type(params.target) ~= "string" or #params.target == 0 then return end
   if type(params.workerId) ~= "number" then return end
-  local st = get_or_create(params.entryId, params.target, params.workerId)
+  local st = get_or_create(params.entryId, params.target, params.workerId,
+    params.binding or require("plurnk.state").binding(workspace_name))
   if st.concluded then return end
   if (tonumber(params.contentLength) or 0) == 0 then return end
   st.dirty = true
@@ -214,7 +215,7 @@ M.on_concluded = function(params, _workspace_name)
     return
   end
 
-  require("plurnk.client").send("entry.read", { target = st.target, workerId = st.worker_id }, false, function(result)
+  require("plurnk.client").scoped(st.binding).send("entry.read", { target = st.target, workerId = st.worker_id }, false, function(result)
     vim.schedule(function()
       if not vim.api.nvim_buf_is_valid(st.buf) then streams[params.entryId] = nil; return end
       if type(result) == "table" and type(result.entry) == "table" then

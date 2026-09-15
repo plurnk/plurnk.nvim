@@ -64,9 +64,9 @@ local function candidate_line(candidate)
   )
 end
 
-local function notify_mutation(result, verb, alias_hint)
+local function notify_mutation(result, verb, alias_hint, binding)
   if type(result) ~= "table" then return end
-  require("plurnk.functionality").invalidate_aliases("agents")
+  require("plurnk.functionality").invalidate_aliases("agents", binding)
   local client = require("plurnk.client")
   local alias = type(result.alias) == "string" and result.alias or alias_hint
   local definition = type(result.definition) == "table" and result.definition or {}
@@ -88,10 +88,11 @@ M.run = function(args, with_workspace)
   local client = require("plurnk.client")
 
   if raw == "" then
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.agents.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
-        require("plurnk.functionality").remember_aliases("agents", result.definitions)
+        require("plurnk.functionality").remember_aliases("agents", result.definitions, binding)
         if #result.definitions == 0 then
           client.notify("A2A agents: none", vim.log.levels.INFO)
           return
@@ -112,7 +113,8 @@ M.run = function(args, with_workspace)
       usage("discover")
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.agents.discover", { source = alias }, false, function(result)
         if type(result) ~= "table" or type(result.candidates) ~= "table" then return end
         if #result.candidates == 0 then
@@ -134,9 +136,10 @@ M.run = function(args, with_workspace)
     local options = argv[4] ~= nil and read_options(argv[4]) or nil
     if argv[4] ~= nil and options == nil then return end
     local params = { alias = alias, definition = M.compose_definition(alias, argv[3], options) }
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.agents.add", params, false, function(result)
-        notify_mutation(result, "added", alias)
+        notify_mutation(result, "added", alias, binding)
       end)
     end)
   end
@@ -146,9 +149,10 @@ M.run = function(args, with_workspace)
       usage(command)
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.agents." .. command, { alias = alias }, false, function(result)
-        notify_mutation(result, command == "enable" and "enabled" or "disabled", alias)
+        notify_mutation(result, command == "enable" and "enabled" or "disabled", alias, binding)
       end)
     end)
   end
@@ -158,10 +162,11 @@ M.run = function(args, with_workspace)
       usage("remove")
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.agents.remove", { alias = alias }, false, function(result)
         if type(result) == "table" then
-          require("plurnk.functionality").invalidate_aliases("agents")
+          require("plurnk.functionality").invalidate_aliases("agents", binding)
           client.notify("removed: " .. alias, vim.log.levels.INFO)
         end
       end)

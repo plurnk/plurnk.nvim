@@ -5,7 +5,7 @@ local M = {}
 local context = require("plurnk.workspace_context")
 
 function M.list()
-  local client = require("plurnk.client")
+  local client = require("plurnk.client").scoped()
   client.send("workspace.list", {}, false, function(result)
     if type(result) ~= "table" or type(result.workspaces) ~= "table" then return end
     if #result.workspaces == 0 then
@@ -19,7 +19,6 @@ function M.list()
       end,
     }, function(choice)
       if not choice then return end
-      context.warn_if_switching_live()
       client.send("workspace.attach", { id = choice.id }, false, function(attached)
         if type(attached) ~= "table" then return end
         local state = require("plurnk.state")
@@ -54,8 +53,15 @@ function M.rename(opts)
     require("plurnk.client").notify("No active workspace to rename", vim.log.levels.WARN)
     return
   end
-  context.resolve(function()
-    require("plurnk.client").send("workspace.rename", { name = new_name }, false, function(result)
+  context.resolve(function(_, binding)
+    local bridge = require("plurnk.bridge")
+    if bridge.busy(workspace) then
+      require("plurnk.client").notify("Finish this workspace's running requests and pending reviews before renaming it.", vim.log.levels.WARN)
+      return
+    end
+    bridge.set_renaming(workspace, true)
+    require("plurnk.client").scoped(binding).send("workspace.rename", { name = new_name }, false, function(result)
+      bridge.set_renaming(workspace, false)
       if type(result) ~= "table" or not result.name then return end
       local state = require("plurnk.state")
       local workspace_id = state.get_workspace_id(workspace)
@@ -63,7 +69,9 @@ function M.rename(opts)
       if workspace_id then state.set_workspace_id(result.name, workspace_id) end
       state.set_active_workspace_name(result.name)
       require("plurnk.worker_tab").rename(workspace, result.name)
-      context.associate_buffer(vim.api.nvim_get_current_buf(), result.name)
+      for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.b[buf].plurnk_workspace == workspace then context.associate_buffer(buf, result.name) end
+      end
       require("plurnk.client").notify(
         "renamed " .. workspace .. " → " .. result.name,
         vim.log.levels.INFO)
@@ -84,7 +92,7 @@ function M.workers()
       vim.log.levels.WARN)
     return
   end
-  local client = require("plurnk.client")
+  local client = require("plurnk.client").scoped()
   client.send("workspace.workers", { id = workspace_id }, false, function(result)
     if type(result) ~= "table" or type(result.workers) ~= "table" then return end
     local directory = require("plurnk.workers")
@@ -96,7 +104,7 @@ function M.workers()
     end
     -- The picker IS the topology (nvim#27): the bound conversation's tree
     -- first, ● on the bound worker, one row per conversation.
-    local rows = directory.topology(workers, require("plurnk.state").get_worker_id(workspace))
+    local rows = directory.topology(workers, client.binding.workerId)
     vim.ui.select(rows, {
       prompt = "Plurnk conversation (workspace " .. workspace .. ")",
       format_item = function(row)
@@ -111,13 +119,12 @@ function M.workers()
     end)
   end)
 end
--- Bind this tab to a conversation worker by name (nvim#27). The bridge's thread
--- is the workspace and the worker is selected by id, so an unknown name is not
--- minted here — :PlurnkFork <name> is this client's mint.
+-- Bind by a directory-confirmed conversation name. Unknown names are not minted
+-- by navigation; :PlurnkFork <name> creates a branch explicitly.
 -- {§nvim-worker-hops} — one hop over the tree is a full attach: the tab then speaks to that worker.
 -- The directory is re-read on every hop; an edge names why nothing moved.
 function M.hop(direction)
-  local client = require("plurnk.client")
+  local client = require("plurnk.client").scoped()
   local workspace = context.active()
   if not workspace then
     client.notify("No active workspace", vim.log.levels.WARN)
@@ -133,7 +140,7 @@ function M.hop(direction)
     if type(result) ~= "table" or type(result.workers) ~= "table" then return end
     local directory = require("plurnk.workers")
     directory.remember_names(workspace, result.workers)
-    local target, reason = directory.hop(result.workers, state.get_worker_id(workspace), direction)
+    local target, reason = directory.hop(result.workers, client.binding.workerId, direction)
     if not target then
       client.notify("(" .. reason .. ")", vim.log.levels.INFO)
       return
@@ -148,7 +155,7 @@ end
 
 function M.attach(args)
   local name = (args or ""):gsub("^%s+", ""):gsub("%s+$", "")
-  local client = require("plurnk.client")
+  local client = require("plurnk.client").scoped()
   if name == "" then
     client.notify("usage: :PlurnkAttach <name>", vim.log.levels.WARN)
     return
@@ -192,13 +199,13 @@ function M.fork(opts)
     require("plurnk.client").notify("No active workspace to fork", vim.log.levels.WARN)
     return
   end
-  context.resolve(function()
+  context.resolve(function(_, binding)
     context.fork(workspace, function(resolved_workspace)
       require("plurnk.worker_tab").open(resolved_workspace)
       require("plurnk.client").notify(
         "forked" .. (name ~= "" and (" → " .. name) or ""),
         vim.log.levels.INFO)
-    end, name ~= "" and name or nil)
+    end, name ~= "" and name or nil, binding)
   end)
 end
 

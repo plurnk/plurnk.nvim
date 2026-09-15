@@ -49,6 +49,7 @@ local ok, err = pcall(function()
   end
 
   state.set_worker_id("recover", 42)
+  state.set_worker_label("recover", 42, "recover")
   state.set_loop_inflight("recover", true)
   agui.run = function(_, run, on_event, on_done)
     prompts = prompts + (run.prompt ~= nil and 1 or 0)
@@ -71,7 +72,7 @@ local ok, err = pcall(function()
   end
 
   local final
-  bridge.run("recover", "do not replay me", { workerId = 42 }, function(status)
+  bridge.run(require("plurnk.state").binding("recover"), "do not replay me", { workerId = 42 }, function(status)
     final = status
     state.set_loop_inflight("recover", false)
   end)
@@ -90,6 +91,7 @@ local ok, err = pcall(function()
   H.assert_eq(state.get_runtime_status("recover").lifecycle, "completed", "reconnected STATE remains runtime truth")
 
   state.set_worker_id("queued", 43)
+  state.set_worker_label("queued", 43, "queued")
   agui.rpc = function(_, _, method, _, cb, on_event)
     H.assert_eq(method, "log.read", "queued recovery only observes durable state")
     on_event({ type = "STATE_SNAPSHOT", snapshot = gauge("queued", 0) })
@@ -106,6 +108,7 @@ local ok, err = pcall(function()
   -- later supplies terminal truth.
   local stale_calls = 0
   state.set_worker_id("stale", 84)
+  state.set_worker_label("stale", 84, "stale")
   agui.run = function(_, run, on_event, on_done)
     prompts = prompts + (run.prompt ~= nil and 1 or 0)
     on_event({ type = "RUN_STARTED" })
@@ -120,7 +123,7 @@ local ok, err = pcall(function()
     cb({ state = "complete", result = { entries = {} }, code = 0 })
   end
   local stale_final
-  bridge.run("stale", "one submission", { workerId = 84 }, function(status) stale_final = status end)
+  bridge.run(require("plurnk.state").binding("stale"), "one submission", { workerId = 84 }, function(status) stale_final = status end)
   H.wait_for(function() return stale_final ~= nil end, 3000, "bounded reconciliation exhausts")
   H.assert_eq(stale_calls, 3, "automatic reconciliation is bounded")
   H.assert_eq(stale_final, 502, "unreconciled stream is a client transport failure")

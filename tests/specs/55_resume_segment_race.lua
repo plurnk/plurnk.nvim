@@ -30,12 +30,12 @@ local ok, err = pcall(function()
   end
 
   local statuses = {}
-  bridge.run("world", "make a reviewed change", {}, function(status)
+  bridge.run(require("plurnk.state").binding("world"), "make a reviewed change", {}, function(status)
     statuses[#statuses + 1] = status
   end)
   H.assert_truthy(type(interrupted_done) == "function", "the interrupted segment remains independently settleable")
 
-  agui.resolve = function(_, _, on_event, on_done)
+  agui.run = function(_, _, on_event, on_done)
     -- vim.system schedules this after the already-scheduled event callbacks. A
     -- fast approval can nevertheless begin this segment before that callback
     -- itself runs.
@@ -49,7 +49,7 @@ local ok, err = pcall(function()
   end
 
   local resolve_code, resolve_problem
-  bridge.resolve("world", { logEntryId = 23, decision = "accept" }, function(code, problem)
+  bridge.resolve(require("plurnk.state").binding("world"), { logEntryId = 23, decision = "accept" }, function(code, problem)
     resolve_code, resolve_problem = code, problem
   end)
 

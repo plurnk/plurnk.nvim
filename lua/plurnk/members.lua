@@ -88,7 +88,8 @@ M.run = function(args, with_workspace)
   local client = require("plurnk.client")
 
   if raw == "" then
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.members.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
         require("plurnk.functionality").remember_aliases("members", result.definitions)
@@ -114,7 +115,8 @@ M.run = function(args, with_workspace)
       usage("discover")
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.members.discover", { query = query }, false, function(result)
         if type(result) ~= "table" or type(result.candidates) ~= "table" then return end
         if #result.candidates == 0 then
@@ -135,7 +137,8 @@ M.run = function(args, with_workspace)
       return
     end
     local params = { alias = alias, definition = { glob = glob } }
-    return with_workspace(function(workspace_name)
+    return with_workspace(function(workspace_name, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.members.add", params, false, function(result)
         notify_mutation(result, "added", alias, workspace_name)
       end)
@@ -147,7 +150,8 @@ M.run = function(args, with_workspace)
       usage(command)
       return
     end
-    return with_workspace(function(workspace_name)
+    return with_workspace(function(workspace_name, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.members." .. command, { alias = alias }, false, function(result)
         notify_mutation(result, command == "enable" and "enabled" or "disabled", alias, workspace_name)
       end)
@@ -159,7 +163,8 @@ M.run = function(args, with_workspace)
       usage("remove")
       return
     end
-    return with_workspace(function(workspace_name)
+    return with_workspace(function(workspace_name, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.members.remove", { alias = alias }, false, function(result)
         if type(result) == "table" then
           require("plurnk.functionality").invalidate_aliases("members")

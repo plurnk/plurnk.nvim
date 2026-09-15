@@ -20,9 +20,9 @@ local ok, err = pcall(function()
     return nil
   end
   local original = require("plurnk.client").send
-  require("plurnk.client").send = function(method, params, n, cb)
+  require("plurnk.client").send = function(method, params, n, cb, binding)
     if method == "loop.run" then captured = params.prompt end
-    return original(method, params, n, cb)
+    return original(method, params, n, cb, binding)
   end
 
   vim.cmd("2,3 AI: explain")

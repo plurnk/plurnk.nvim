@@ -59,13 +59,11 @@ local ok, err = pcall(function()
     logEntryId = 3, op = "EDIT", target = { scheme = nil, pathname = tmp }, body = original_udiff,
   })
   H.assert_eq(captured[1].params.outcome, "client_yolo", "yolo auto-accepts without a review request")
-  require("plurnk.diff").request_review(true)
   captured = {}
   require("plurnk.resolve").process("smoke", {
-    logEntryId = 4, op = "EDIT", target = { scheme = nil, pathname = tmp }, body = original_udiff,
+    logEntryId = 4, op = "EDIT", target = { scheme = nil, pathname = tmp }, body = original_udiff, reviewRequested = true,
   })
   H.assert_eq(#captured, 0, "a review request under yolo opens the review instead of auto-accepting")
-  require("plurnk.diff").request_review(false)
   require("plurnk.diff").set_yolo(false)
 end)
 

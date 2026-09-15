@@ -55,9 +55,16 @@ function M.complete(_arglead, cmdline, _cursor_position)
 end
 
 function M.run(opts)
+  local function submitted(value)
+    if opts.on_submitted then opts.on_submitted(value ~= false) end
+  end
   local raw = (opts.args or ""):gsub("^%s+", "")
   if opts.bang then raw = "!" .. raw end
   if raw == "" then return require("plurnk.workspaces").toggle() end
+
+  local op = raw:match("^```+([%w_.+%-]+)")
+  if op == "LOOK" then submitted(); return require("plurnk.look").inspect(raw) end
+  if op then submitted(); return require("plurnk.client").send("op.parse", { text = raw }, false) end
 
   if raw:sub(1, 3) == "..." then
     local message = raw:sub(4):gsub("^%s+", "")
@@ -65,14 +72,13 @@ function M.run(opts)
       require("plurnk.client").notify(":AI... needs a message to inject", vim.log.levels.WARN)
       return
     end
-    require("plurnk.client").send("loop.inject", { prompt = message }, false)
-    return
+    return require("plurnk.loop").prompt({ args = message, range = 0, inject = true, on_submitted = opts.on_submitted })
   end
 
   if raw:sub(1, 1) == "/" then
     local subcommand, args = raw:match("^/(%S+)%s*(.*)$")
     if subcommand == nil then return M.help() end
-    if require("plurnk.command_registry").dispatch(subcommand, args or "") then return end
+    if require("plurnk.command_registry").dispatch(subcommand, args or "") then submitted(); return end
     require("plurnk.client").notify(
       ":AI/" .. tostring(subcommand) .. " is unknown — :AI/ for the language",
       vim.log.levels.WARN)
@@ -88,7 +94,6 @@ function M.run(opts)
   end
   local rest = raw:sub(prefix_length + 1):gsub("^%s+", "")
   local projected = require("plurnk.policy").prompt(raw)
-  require("plurnk.diff").request_review(first == "?")
   local context = require("plurnk.workspace_context")
   local loop = require("plurnk.loop")
 
@@ -100,9 +105,10 @@ function M.run(opts)
         vim.log.levels.WARN)
       return
     end
-    local execute = function(workspace_name)
-      require("plurnk.worker_tab").open(workspace_name)
-      loop.exec(command)
+    local execute = function(workspace_name, binding)
+      require("plurnk.worker_tab").open(workspace_name, binding and binding.workerId)
+      loop.exec(command, binding)
+      submitted()
     end
     if prefix_length >= 4 then
       local workspace = context.active()
@@ -117,9 +123,10 @@ function M.run(opts)
 
   if prefix_length >= 2 then
     local prompt = loop.wrap_with_selection(rest, opts)
-    local submit = function(workspace_name)
-      require("plurnk.worker_tab").open(workspace_name)
-      if prompt ~= "" then loop.run(workspace_name, prompt, projected.policy) end
+    local submit = function(workspace_name, binding)
+      require("plurnk.worker_tab").open(workspace_name, binding and binding.workerId)
+      if prompt ~= "" then submitted(loop.run(workspace_name, prompt, projected.policy, binding, first == "?"))
+      else submitted() end
     end
     if prefix_length >= 4 then
       local workspace = context.active()
@@ -135,6 +142,8 @@ function M.run(opts)
     line1 = opts.line1,
     line2 = opts.line2,
     policy = projected.policy,
+    review = first == "?",
+    on_submitted = opts.on_submitted,
   })
 end
 

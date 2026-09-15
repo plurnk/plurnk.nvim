@@ -22,7 +22,7 @@ local ok, err = pcall(function()
   local target = require("plurnk.bridge").target()
   local function observe(method, params)
     local segment
-    agui.rpc(target, workspace, method, params or {}, function(value) segment = value end)
+    agui.rpc(target, { workspace = workspace, threadId = workspace }, method, params or {}, function(value) segment = value end)
     H.wait_for(function() return segment ~= nil end, 20000, "observe " .. method)
     if segment.state ~= "complete" then
       error("observer " .. method .. " failed: " .. vim.inspect(segment.problem))

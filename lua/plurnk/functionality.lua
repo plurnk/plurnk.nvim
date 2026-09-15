@@ -20,11 +20,11 @@ local CACHE_TTL_NS = 5 * 1000 * 1000 * 1000
 
 local function now() return vim.uv.hrtime() end
 
-local function active_key(family)
-  local state = require("plurnk.state")
-  local workspace = state.get_active_workspace_name()
-  if not workspace then return nil end
-  return table.concat({ workspace, family }, "\0")
+local function active_key(family, binding)
+  local context = require("plurnk.workspace_context")
+  if not binding and not context.active() then return nil end
+  binding = binding or context.binding()
+  return table.concat({ binding.workspace, family, family == "env" and binding.threadId or "" }, "\0")
 end
 
 local function project_aliases(definitions)
@@ -44,13 +44,13 @@ function M.run(family, args)
   return require(family_spec.module).run(args, require("plurnk.workspace_context").resolve)
 end
 
-function M.remember_aliases(family, definitions)
-  local key = active_key(family)
+function M.remember_aliases(family, definitions, binding)
+  local key = active_key(family, binding)
   if key then aliases_by_workspace[key] = { values = project_aliases(definitions), at = now() } end
 end
 
-function M.invalidate_aliases(family)
-  local key = active_key(family)
+function M.invalidate_aliases(family, binding)
+  local key = active_key(family, binding)
   if key then aliases_by_workspace[key] = nil end
 end
 

@@ -10,8 +10,11 @@ local ok, err = pcall(function()
   local stream = require("plurnk.stream")
 
   local content = { stdout = "", stderr = "" }
-  local reads, read_params, sends = 0, {}, {}
-  require("plurnk.client").send = function(method, params, _, cb)
+  local state = require("plurnk.state")
+  local binding = state.binding("stream-world")
+  local reads, read_params, sends, bindings = 0, {}, {}, {}
+  require("plurnk.client").send = function(method, params, _, cb, options)
+    bindings[#bindings + 1] = options.binding
     if method == "entry.read" then
       reads = reads + 1
       read_params[reads] = params
@@ -27,7 +30,7 @@ local ok, err = pcall(function()
 
   local function tick(len)
     stream.on_event({ entryId = 1, workerId = 17, target = "sh:///demo", channel = "stdout",
-      state = "active", contentLength = len })
+      state = "active", contentLength = len, binding = binding }, "stream-world")
   end
 
   local function buf_lines()
@@ -40,9 +43,11 @@ local ok, err = pcall(function()
   content.stdout = "hello\nwor"
   content.stderr = "oops\n"
   tick(5); tick(7); tick(9)
+  state.set_active_workspace_name("different-world")
   vim.wait(400, function() return reads >= 1 end, 10)
   H.assert_eq(reads, 1, "tick burst coalesced into one entry.read")
   H.assert_eq(read_params[1].workerId, 17, "stream read uses the notified entry owner")
+  H.assert_eq(bindings[1], binding, "delayed read keeps the originating conversation despite navigation")
 
   local lines = buf_lines()
   H.assert_eq(lines[1], "1│ hello", "stdout line carries 1│ prefix")
@@ -77,13 +82,14 @@ local ok, err = pcall(function()
   content.stdout = "running\n"
   content.stderr = ""
   stream.on_event({ entryId = 2, workerId = 23, target = "sh:///live", channel = "stdout",
-    state = "active", contentLength = 8 })
+    state = "active", contentLength = 8, binding = binding }, "stream-world")
   vim.wait(400, function() return vim.fn.bufnr("plurnk-nvim://stream/sh____live") ~= -1 and reads >= 4 end, 10)
   H.assert_eq(read_params[4].workerId, 23, "each stream reads from its own worker")
   vim.cmd("bwipeout! " .. vim.fn.bufnr("plurnk-nvim://stream/sh____live"))
   H.assert_eq(sends[1].method, "op.send", "wipeout of live stream cancels")
   H.assert_eq(sends[1].params.status, 499, "cancel carries status 499")
   H.assert_eq(sends[1].params.recipient, "sh:///live", "cancel addressed to the stream URI")
+  H.assert_eq(bindings[#bindings], binding, "buffer cancellation retains the originating conversation")
 end)
 
 if ok then H.finish(NAME) else H.fail(NAME, err) end

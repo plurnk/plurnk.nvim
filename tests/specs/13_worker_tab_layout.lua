@@ -41,7 +41,7 @@ local ok, err = pcall(function()
   H.wait_for(function() return submitted ~= nil end, 8000, "bridge submission")
   bridge.run = original_run
 
-  H.assert_eq(submitted.workspace, active, "input submits through the bound workspace")
+  H.assert_eq(submitted.workspace.workspace, active, "input submits through the bound workspace")
   H.assert_match(submitted.prompt, "What is the capital of France", "input reaches the bridge unchanged")
   local input_lines = vim.api.nvim_buf_get_lines(rec.input_buf, 0, -1, false)
   H.assert_eq(table.concat(input_lines, ""), "", "input cleared after submit")

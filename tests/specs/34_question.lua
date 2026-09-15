@@ -18,7 +18,7 @@ local ok, err = pcall(function()
     if reply == vim.NIL then cb(nil) else cb(reply) end
   end
   bridge.resolve_interaction = function(world, id, payload, cb)
-    H.assert_eq(world, "question-world")
+    H.assert_eq(world.workspace, "question-world")
     H.assert_eq(id, 42)
     sent[#sent + 1] = payload
     cb(transport_error == nil and 0 or nil, transport_error)

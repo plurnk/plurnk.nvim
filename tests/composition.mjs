@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { startOpenAiCompatibleFixture } from "./fixtures/openai-compatible.mjs";
+import { concurrentPrograms } from "./fixtures/concurrent-programs.mjs";
 
 const run = promisify(execFile);
 const root = resolve(import.meta.dirname, "..");
@@ -61,7 +62,11 @@ try {
         "-c", "user.email=test@plurnk.invalid",
         "commit", "--quiet", "-m", "test: seed installed journey",
     ], { cwd: project });
-    fixture = await startOpenAiCompatibleFixture();
+    const concurrent = concurrentPrograms();
+    fixture = await startOpenAiCompatibleFixture({
+        selectProgram: (body, index) => index < 4 ? undefined : concurrent.selectProgram(body),
+        control: concurrent.control,
+    });
     const lua = join(temp, "composition.lua");
     await writeFile(lua, `
 vim.opt.rtp:prepend(${JSON.stringify(installed)})
@@ -94,7 +99,7 @@ local target = require("plurnk.bridge").target()
 local world = "installed-nvim-composition"
 local function rpc(method, params)
   local segment
-  agui.rpc(target, world, method, params or {}, function(value) segment = value end)
+  agui.rpc(target, { workspace = world, threadId = world }, method, params or {}, function(value) segment = value end)
   if not vim.wait(10000, function() return segment ~= nil end, 25) then error(method .. " timed out") end
   if segment.state ~= "complete" then error(method .. " failed: " .. vim.inspect(segment.problem)) end
   return segment.result
@@ -113,10 +118,10 @@ vim.opt.rtp:prepend(${JSON.stringify(installed)})
 require("plurnk").setup({ host = "127.0.0.1", port = ${port} })
 local agui = require("plurnk.agui")
 local target = require("plurnk.bridge").target()
-local world = "installed-nvim-composition"
+local world = os.getenv("PLURNK_NVIM_REOPEN_WORLD") or "installed-nvim-composition"
 local function rpc(method, params)
   local segment
-  agui.rpc(target, world, method, params or {}, function(value) segment = value end)
+  agui.rpc(target, { workspace = world, threadId = world }, method, params or {}, function(value) segment = value end)
   assert(vim.wait(10000, function() return segment ~= nil end, 25), method .. " timed out")
   assert(segment.state == "complete", method .. " failed: " .. vim.inspect(segment.problem))
   return segment.result
@@ -126,15 +131,17 @@ for _, candidate in ipairs(rpc("workspace.list").workspaces) do
   if candidate.name == world then workspace = candidate; break end
 end
 assert(workspace ~= nil, "the installed client's workspace did not survive editor restart")
-local worker
-for _, candidate in ipairs(rpc("workspace.workers", { id = workspace.id }).workers) do
-  if candidate.origin == "model" then worker = candidate; break end
-end
-assert(worker ~= nil, "the installed client's model worker did not survive editor restart")
+local prior_row = rpc("log.read", { limit = 1 }).entries[1]
+local newer = rpc("run.fork", { name = "newer-conversation" })
+local default_id = newer.parentWorkerId
+assert(newer.workerId ~= default_id, "the directory-order specimen needs another conversation")
 local state = require("plurnk.state")
 state.set_workspace_id(world, workspace.id)
 state.set_active_workspace_name(world)
-state.set_worker_id(world, worker.id)
+local adopted = false
+require("plurnk.workspace_context").adopt_model_worker(world, function() adopted = true end)
+assert(vim.wait(10000, function() return adopted end, 25), "default conversation adoption timed out")
+assert(state.get_worker_id(world) == (prior_row and default_id or nil), "reopen adopted a directory worker instead of retaining its default binding")
 local reconciled
 require("plurnk.recovery").reconcile(world, {}, function(status, problem)
   assert(problem == nil, vim.inspect(problem))
@@ -143,8 +150,10 @@ end)
 assert(vim.wait(10000, function() return reconciled ~= nil end, 25), "installed reconnect timed out")
 assert(state.get_transport_status(world) == nil, "installed reconnect left a stale transport overlay")
 assert(state.get_runtime_status(world) ~= nil, "installed reconnect did not project authoritative STATE")
-assert(rpc("workspace.capabilities.get").workspace.deny[1].runtime == "sh", "reopened connection lost durable workspace capability settings")
-print("installed Neovim reopen GREEN: worker " .. tostring(worker.id))
+if not prior_row then
+  assert(rpc("workspace.capabilities.get").workspace.deny[1].runtime == "sh", "reopened connection lost durable workspace capability settings")
+end
+print("installed Neovim reopen GREEN: worker " .. tostring(default_id))
 pcall(function() require("plurnk.client").stop() end)
 vim.cmd("qa!")
 `);
@@ -249,6 +258,25 @@ vim.cmd("qa!")
     if (`${journey.stdout}\n${journey.stderr}`.includes("vim.schedule callback:")) {
         throw new Error(`installed plugin raised an asynchronous callback failure\n${journey.stdout}\n${journey.stderr}`);
     }
+    const usedWorld = `${journey.stdout}\n${journey.stderr}`.match(/PASS installed Neovim default journey: (\S+)/)?.[1];
+    if (!usedWorld) throw new Error("the native journey omitted its conversation workspace");
+    const resumed = await run("nvim", ["--headless", "-u", "NONE", "-l", reopenLua], {
+        env: {
+            ...process.env,
+            HOME: home,
+            XDG_CONFIG_HOME: join(home, ".config"),
+            PLURNK_HOST: "127.0.0.1",
+            PLURNK_PORT: String(port),
+            PLURNK_NVIM_ROOT: installed,
+            PLURNK_NVIM_REOPEN_WORLD: usedWorld,
+            PATH: `${clientBin}:${process.env.PATH ?? ""}`,
+        },
+        timeout: 30_000,
+        maxBuffer: 16 * 1024 * 1024,
+    });
+    if (!`${resumed.stdout}\n${resumed.stderr}`.includes("installed Neovim reopen GREEN:")) {
+        throw new Error(`used default conversation did not reopen\n${resumed.stdout}\n${resumed.stderr}`);
+    }
     if (fixture.requests.length !== 4) {
         throw new Error(`installed journey made ${fixture.requests.length} inference requests instead of exactly four`);
     }
@@ -261,10 +289,37 @@ vim.cmd("qa!")
         || !firstRequest.includes("The final response must confirm this multiline prompt.")) {
         throw new Error("the standards-compatible provider did not receive the native multiline prompt");
     }
+    const conversations = await run("nvim", ["--headless", "-u", "NONE", "-l", join(root, "tests/concurrent-journey.lua")], {
+        cwd: project,
+        env: {
+            ...process.env,
+            HOME: home,
+            XDG_CONFIG_HOME: join(home, ".config"),
+            PLURNK_HOST: "127.0.0.1",
+            PLURNK_PORT: String(port),
+            PLURNK_NVIM_ROOT: installed,
+            PLURNK_NVIM_FIXTURE_URL: fixture.url,
+            PATH: `${clientBin}:${process.env.PATH ?? ""}`,
+        },
+        timeout: 60_000,
+        maxBuffer: 16 * 1024 * 1024,
+    });
+    if (!`${conversations.stdout}\n${conversations.stderr}`.includes("PASS installed concurrent conversations")
+        || `${conversations.stdout}\n${conversations.stderr}`.includes("vim.schedule callback:")) {
+        throw new Error(`concurrent editor journey failed\n${conversations.stdout}\n${conversations.stderr}`);
+    }
+    if (concurrent.counts.get("parallel-alice") !== 1 || concurrent.counts.get("parallel-bob") !== 2
+        || concurrent.counts.get("other-alice") !== 2) {
+        throw new Error("incorrect concurrent inference counts: " + JSON.stringify([...concurrent.counts]));
+    }
+    process.stdout.write(conversations.stdout);
+    process.stderr.write(conversations.stderr);
     process.stdout.write(result.stdout);
     process.stderr.write(result.stderr);
     process.stdout.write(reopened.stdout);
     process.stderr.write(reopened.stderr);
+    process.stdout.write(resumed.stdout);
+    process.stderr.write(resumed.stderr);
     process.stdout.write(journey.stdout);
     process.stderr.write(journey.stderr);
     passed = true;

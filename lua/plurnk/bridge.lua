@@ -1,74 +1,10 @@
--- The nvim bridge is the AG-UI+ transport. Runs ride HTTP/SSE and each event
--- un-projects into dispatch.handle_notification; verbs and resolutions ride
--- the action surface. The threadId IS the workspace (workspace) name,
--- verbatim — no prefix, no forging (module §agui-thread-is-run: the workspace is the
--- world, the thread binds its model worker); workspace options ride the first run's forwardedProps.
+-- Logical requests own their binding, interrupts, and HTTP segments independently.
+-- {§nvim-conversation-requests} {§nvim-agui-interrupt-resume}
 local M = {}
 local agui = require("plurnk.agui")
-local active_runs = {}
+local state = require("plurnk.state")
+local active_runs, interrupts, requests, renaming = {}, {}, {}, {}
 
-local function consume_status_event(current, event, thread_id, worker_id, dispatch, quiet)
-  local ok, handled, next_gauge = pcall(require("plurnk.runtime_status").reduce, current, event)
-  if not ok then
-    local problem = agui.transport_problem(
-      "state-invalid",
-      "State invalid",
-      502,
-      "The AG-UI stream contained invalid runtime state: " .. tostring(handled),
-      false)
-    if not quiet then
-      dispatch.handle_notification({
-        method = "problem/event",
-        params = { problem = problem, workspaceName = thread_id },
-      })
-    end
-    return true, current, problem
-  end
-  if not handled then return false, current, nil end
-  dispatch.handle_notification({
-    method = "loop/packet",
-    params = {
-      workspaceName = thread_id,
-      workerId = worker_id,
-      gauge = next_gauge,
-    },
-  })
-  require("plurnk.recovery").observed(thread_id, dispatch)
-  return true, next_gauge, nil
-end
-
-local function unproject(e, assembler, workspace_name, worker_id)
-  local n = agui.unproject(e, assembler)
-  if n ~= nil and n.method == "reasoning/event" then
-    n.params.workspaceName = workspace_name
-    if type(worker_id) == "number" then n.params.workerId = worker_id end
-  end
-  return n
-end
-
-local function settle_reasoning(assembler, workspace_name, worker_id, dispatch)
-  if type(assembler.reasoning) ~= "table" then return end
-  local ids = vim.tbl_keys(assembler.reasoning)
-  table.sort(ids)
-  for _, message_id in ipairs(ids) do
-    assembler.reasoning[message_id] = nil
-    pcall(dispatch.handle_notification, {
-      method = "reasoning/event",
-      params = {
-        workspaceName = workspace_name,
-        workerId = worker_id,
-        phase = "end",
-        messageId = message_id,
-      },
-    })
-  end
-end
-
--- AG-UI+ IS the client surface: http://PLURNK_HOST:PLURNK_PORT (the daemon's in-process
--- module), PLURNK_AGUI_URL an explicit remote override, PLURNK_AGUI_TOKEN the bearer. Each
--- resolves through the operator's environment the way the terminal client's does
--- ({§nvim-transport-target}): the editor's environment, ./.env, the operator's XDG file, then
--- setup({ host, port }), then the daemon's defaults.
 function M.target()
   local env = require("plurnk.operator_env")
   local config = require("plurnk.config")
@@ -81,246 +17,22 @@ function M.target()
 end
 
 function M.enabled() return true end
-
--- Run a prompt through the bridge. Events un-project into the dispatcher;
--- on_done(finalStatus). Returns the vim.system
--- handle (handle:kill() = /stop, the bridge cancels on hangup).
-function M.run(thread_id, prompt, opts, on_done)
-  local t = M.target()
-  if t == nil then return nil end
-  local dispatch = require("plurnk.dispatch")
-  local active = { thread_id = thread_id }
-
-  -- A terminate/resume interaction is one logical run carried by distinct HTTP
-  -- streams. Each stream owns its terminal evidence so a delayed completion
-  -- callback from the interrupted stream cannot corrupt the resumed stream.
-  local function bind_stream()
-    active.proposal_id = nil
-    local final = nil
-    local run_problem = nil
-    local saw_run_error = false
-    local problem_dispatched = false
-    local plurnk_status = nil -- family metadata; AG-UI terminal events own lifecycle
-    local tool = {} -- the TOOL_CALL triple assembler belongs to this stream
-    local paused = false
-    local proposed_interrupt = nil
-    local interaction_interrupt = nil
-    local pending_proposal = nil
-    local interrupt_confirmed = false
-    local saw_run_started = false
-    local status_gauge = nil
-
-    local function stream_event(e)
-      if type(e) == "table" and e.type == "RUN_STARTED" then saw_run_started = true end
-      local status_handled, next_gauge, status_problem = consume_status_event(
-        status_gauge,
-        e,
-        thread_id,
-        opts and opts.workerId,
-        dispatch)
-      status_gauge = next_gauge
-      if status_problem ~= nil then
-        run_problem = status_problem
-        problem_dispatched = true
-        final = status_problem.status
-        return
-      end
-      if status_handled then return end
-      if type(e) == "table" and e.type == "RUN_ERROR" then
-        saw_run_error = true
-        if type(run_problem) == "table" then final = tonumber(run_problem.status) end
-        return
-      end
-      if type(e) == "table" and e.type == "RUN_FINISHED" then
-        local interaction = unproject(e, tool, thread_id, opts and opts.workerId)
-        if interaction ~= nil and interaction.method == "loop/interaction" then
-          paused = true
-          interaction_interrupt = "int:" .. tostring(interaction.params.interactionId)
-        end
-        local outcome = e.outcome
-        if interaction_interrupt ~= nil then
-          if not agui.has_interrupt(outcome, interaction_interrupt) then
-            paused = false
-            run_problem = agui.transport_problem(
-              "interrupt-mismatch",
-              "Interrupt mismatch",
-              502,
-              "The interaction ended without its matching AG-UI interrupt outcome.",
-              false,
-              "interaction-resolution",
-              { interactionId = tonumber(interaction_interrupt:sub(5)) }
-            )
-            final = run_problem.status
-          else
-            interrupt_confirmed = true
-            pcall(dispatch.handle_notification, interaction)
-          end
-        elseif proposed_interrupt ~= nil then
-          if not agui.has_interrupt(outcome, proposed_interrupt) then
-            paused = false
-            run_problem = agui.transport_problem(
-              "interrupt-mismatch",
-              "Interrupt mismatch",
-              502,
-              "The proposal ended without its matching AG-UI interrupt outcome.",
-              false,
-              "proposal-resolution",
-              { logEntryId = tonumber(proposed_interrupt:sub(6)) }
-            )
-            final = run_problem.status
-          else
-            interrupt_confirmed = true
-            pcall(dispatch.handle_notification, pending_proposal)
-          end
-        elseif type(outcome) == "table" and outcome.type == "success" then
-          final = plurnk_status or 200
-        else
-          final = 502
-        end
-        return
-      end
-      local n = unproject(e, tool, thread_id, opts and opts.workerId)
-      if n == nil then return end
-      if n.method == "loop/proposal" then
-        paused = true
-        proposed_interrupt = "prop:" .. tostring(n.params.logEntryId)
-        pending_proposal = n
-        active.proposal_id = n.params.logEntryId
-        return
-      elseif n.method == "loop/interaction" then
-        paused = true
-        interaction_interrupt = "int:" .. tostring(n.params.interactionId)
-      elseif n.method == "problem/event" and type(n.params) == "table" then
-        run_problem = n.params.problem
-        problem_dispatched = true
-      end
-      if n.method == "loop/terminated" then
-        paused = false
-        proposed_interrupt = nil
-        interaction_interrupt = nil
-        local result = type(n.params) == "table" and n.params.result or nil
-        local terminal_problem
-        plurnk_status, terminal_problem = agui.operation_result(result)
-        if type(result) == "table" then
-          result.status = plurnk_status
-          if terminal_problem ~= nil then result.problem = terminal_problem end
-        end
-        if terminal_problem ~= nil then
-          run_problem = terminal_problem
-        end
-        if terminal_problem ~= nil and not problem_dispatched then
-          problem_dispatched = true
-          pcall(dispatch.handle_notification, {
-            method = "problem/event",
-            params = { problem = terminal_problem },
-          })
-        end
-      end
-      pcall(dispatch.handle_notification, n)
-    end
-
-    local function stream_done(_, transport_error)
-      if final == nil and not interrupt_confirmed and transport_error ~= nil then
-        run_problem = transport_error
-      elseif final == nil and not interrupt_confirmed and run_problem == nil then
-        run_problem = saw_run_error
-            and agui.transport_problem(
-              "problem-missing",
-              "Problem missing",
-              502,
-              "The AG-UI stream reported a failed run without its required Problem Details.",
-              false
-            )
-            or agui.transport_problem(
-                "terminal-missing",
-                "Terminal missing",
-                502,
-                "The AG-UI stream ended before reporting the run outcome.",
-                true,
-                "stream-reconciliation",
-                { recovery = "Reconnect to observe durable state; do not replay the prompt." }
-              )
-      end
-
-      -- A confirmed interrupt is the normal terminate/resume boundary. Its
-      -- delayed completion is local to this stream and cannot inspect a later
-      -- stream's state.
-      if interrupt_confirmed and run_problem == nil then return end
-
-      settle_reasoning(tool, thread_id, opts and opts.workerId, dispatch)
-
-      -- An unterminalled stream is recoverable observation loss. The daemon has
-      -- already received the hangup as cancellation; only read-only state/log
-      -- reconciliation is legal here. Never submit the prompt a second time.
-      local recoverable = saw_run_started and final == nil and not saw_run_error
-          and type(run_problem) == "table"
-          and (run_problem.kind == "terminal-missing"
-            or run_problem.kind == "stream-read-failed"
-            or run_problem.kind == "event-stream-empty"
-            or (run_problem.source == "client:connection" and run_problem.retryable == true))
-      if recoverable then
-        if active_runs[thread_id] == active then active_runs[thread_id] = nil end
-        require("plurnk.recovery").reconcile(thread_id, {
-          workerId = opts and opts.workerId,
-          cause = run_problem,
-        }, function(status)
-          if on_done then on_done(status or 502) end
-        end)
-        return
-      end
-
-      if run_problem ~= nil and final == nil then final = tonumber(run_problem.status) or 502 end
-      if type(run_problem) == "table" and not problem_dispatched then
-        problem_dispatched = true
-        pcall(dispatch.handle_notification, {
-          method = "problem/event",
-          params = { problem = run_problem },
-        })
-      end
-      if active_runs[thread_id] == active then active_runs[thread_id] = nil end
-      if not paused and on_done then on_done(final or 502) end
-    end
-
-    return stream_event, stream_done
+function M.active(binding) return active_runs[binding] end
+function M.busy(workspace)
+  for request in pairs(requests) do
+    if request.binding.workspace == workspace then return true end
   end
-
-  -- Resume streams render into the same worker waterfall, but their transport
-  -- callbacks remain bound to their own segment evidence.
-  active.begin_resume = bind_stream
-  local stream_event, stream_done = bind_stream()
-  active_runs[thread_id] = active
-  return agui.run(t, { threadId = thread_id, prompt = prompt, forwardedProps = opts and opts.forwardedProps or nil },
-    stream_event, stream_done)
+  return false
 end
+function M.set_renaming(workspace, value) renaming[workspace] = value or nil end
+function M.is_renaming(workspace) return renaming[workspace] == true end
 
--- A verb is a §3 action run. cb(result, problem); an action error surfaces as a notify —
--- honest, never silent. The action stream ALSO carries any events the dispatch
--- emits (log/entry from a client op, a proposal from a gated execution, stream chunks)
--- — feed them through the same unproject→dispatch path as a run, or client ops
--- would render nothing and gated ops would hang unresolved.
--- ONE management lane: an interrupted action retains the lane until its resume
--- produces the action result. Other actions queue; the resolution that continues
--- the lane owner runs inside that lane rather than deadlocking behind itself.
-local lane = { busy = false, queue = {}, action = nil }
-local function lane_next()
-  local job = table.remove(lane.queue, 1)
-  if job == nil then lane.busy = false; return end
-  job()
-end
-local function lane_run(job)
-  if lane.busy then lane.queue[#lane.queue + 1] = job; return end
-  lane.busy = true
-  job()
-end
-
-local function bridge_problem(kind, title, detail)
+local function problem(kind, title, detail)
   return agui.transport_problem(kind, title, 502, detail, false)
 end
 
-local function notify_action_failure(method, problem)
-  if type(problem) == "table"
-      and problem.source == "client:connection"
-      and problem.kind == "refused" then
+local function notify_failure(method, failure)
+  if failure.source == "client:connection" and failure.kind == "refused" then
     vim.notify(table.concat({
       "plurnk: no daemon is running - the plurnk client connects to one.",
       "  Quick start (no install):  npx @plurnk/plurnk-service start",
@@ -328,225 +40,304 @@ local function notify_action_failure(method, problem)
     }, "\n"), vim.log.levels.WARN)
     return
   end
-  local message = type(problem) == "table"
-      and tostring(problem.detail or problem.title or "action failed")
-      or tostring(problem)
-  local recovery = type(problem) == "table" and problem.recovery or nil
-  vim.notify("plurnk: " .. method .. " - " .. message
-    .. (type(recovery) == "string" and ("\n  " .. recovery) or ""), vim.log.levels.WARN)
+  vim.notify("plurnk: " .. method .. " - " .. tostring(failure.detail or failure.title)
+    .. (type(failure.recovery) == "string" and ("\n  " .. failure.recovery) or ""), vim.log.levels.WARN)
 end
 
-local resume_action
-
-local function finish_action(action, result, problem)
-  if lane.action ~= action then return end
-  lane.action = nil
-  if problem ~= nil and not action.problem_dispatched and not action.quiet then
-    notify_action_failure(action.method, problem)
+local function dispatch(request, notification)
+  if not notification then return end
+  local binding = request.binding
+  local params = notification.params or {}
+  notification.params = params
+  params.workspaceName = binding.workspace
+  params.binding = binding
+  params.requestSource = request.kind
+  params.reviewRequested = request.review
+  if notification.method == "problem/event" then request.problem_dispatched = true end
+  if request.kind == "model" and notification.method == "log/entry"
+      and binding.workerId == nil and type(params.entry) == "table"
+      and type(params.entry.worker_id) == "number" then
+    state.identify(binding, params.entry.worker_id)
+    require("plurnk.worker_tab").note_worker_resolved(binding.workspace)
   end
-  if action.cb then action.cb(result, problem, action.status_gauge) end
-  vim.schedule(lane_next)
+  params.workerId = params.workerId or binding.workerId
+  require("plurnk.dispatch").handle_notification(notification)
 end
 
-local function finish_resolution(resolution, segment)
-  if resolution == nil or resolution.cb == nil then return end
-  if segment.state == "failed" then
-    resolution.cb(nil, segment.problem)
-  else
-    resolution.cb(segment.code, nil)
+local function consume(request, segment, event)
+  local ok, handled, gauge = pcall(require("plurnk.runtime_status").reduce, segment.gauge, event)
+  if not ok then
+    segment.problem = problem("state-invalid", "State invalid",
+      "The AG-UI stream contained invalid runtime state: " .. tostring(handled))
+    return nil
   end
+  if handled then
+    segment.gauge = gauge
+    -- An action's private snapshot must not rewind a live model stream's gauge.
+    local active = active_runs[request.binding]
+    if request.kind == "model" or active == nil or active.phase == "recovering" then
+      dispatch(request, { method = "loop/packet", params = { gauge = gauge } })
+    end
+    require("plurnk.recovery").observed(request.binding, require("plurnk.dispatch"))
+    return nil
+  end
+  local valid, notification = pcall(agui.unproject, event, segment.tool)
+  if not valid then
+    segment.problem = problem("event-invalid", "Event invalid", "The AG-UI event could not be projected: " .. tostring(notification))
+    return nil
+  end
+  if notification and notification.method == "problem/event" then
+    segment.problem = notification.params.problem
+  end
+  return notification
 end
 
-local function accept_action_segment(action, segment, resolution)
-  if lane.action ~= action then return end
-  finish_resolution(resolution, segment)
-  if action.problem ~= nil then
-    finish_action(action, nil, action.problem)
+local function retire_interrupt(request)
+  local id = request.interrupt_id
+  if not id then return end
+  local pending = interrupts[request.binding]
+  if pending and pending[id] == request then
+    pending[id] = nil
+    if next(pending) == nil then interrupts[request.binding] = nil end
+  end
+  request.interrupt_id = nil
+  dispatch(request, { method = "interrupt/ended", params = { interruptId = id } })
+end
+
+local function finish(request, result, failure, gauge)
+  if request.finished then return end
+  if (request.injections or 0) > 0 then
+    request.completion = { result = result, failure = failure, gauge = gauge }
     return
   end
-  if segment.state == "failed" then
-    finish_action(action, nil, segment.problem)
-    return
+  request.finished = true
+  requests[request] = nil
+  retire_interrupt(request)
+  if active_runs[request.binding] == request then active_runs[request.binding] = nil end
+  if failure and not request.quiet and not request.problem_dispatched then
+    if request.kind == "model" then dispatch(request, { method = "problem/event", params = { problem = failure } })
+    else notify_failure(request.method, failure) end
   end
-  if segment.state == "complete" then
-    finish_action(action, segment.result, nil)
-    return
-  end
-  local interrupt_id = action.proposal_id ~= nil and ("prop:" .. tostring(action.proposal_id)) or nil
-  if interrupt_id == nil or not agui.has_interrupt(segment.outcome, interrupt_id) then
-    finish_action(action, nil, bridge_problem(
-      "action-interrupt-mismatch",
-      "Action interrupt mismatch",
-      "The action proposal did not match the AG-UI interrupt outcome."
-    ))
-    return
-  end
-  action.phase = "paused"
-  if action.resolution ~= nil then resume_action(action) end
+  if request.cb then request.cb(result, failure, gauge) end
+  if request.follow then M.observe(request.binding) end
 end
 
-local function action_event(action, e)
-  local status_handled, next_gauge, status_problem = consume_status_event(
-    action.status_gauge,
-    e,
-    action.thread_id,
-    action.worker_id,
-    action.dispatch,
-    action.quiet)
-  action.status_gauge = next_gauge
-  if status_problem ~= nil then
-    action.problem = status_problem
-    action.problem_dispatched = true
-    return
-  end
-  if status_handled then return end
-  local n = unproject(e, action.tool, action.thread_id, action.worker_id)
-  if n == nil then return end
-  if n.method == "loop/proposal" then
-    action.proposal_id = n.params.logEntryId
-  elseif n.method == "problem/event" and type(n.params) == "table" then
-    action.problem = n.params.problem
-    action.problem_dispatched = not action.quiet
-    if action.quiet then return end
-  end
-  pcall(action.dispatch.handle_notification, n)
+local function interrupt_id(notification)
+  if notification.method == "loop/proposal" then return "prop:" .. notification.params.logEntryId end
+  if notification.method == "loop/interaction" then return "int:" .. notification.params.interactionId end
 end
 
-resume_action = function(action)
-  local resolution = action.resolution
-  action.resolution = nil
-  action.proposal_id = nil
-  action.phase = "running"
-  agui.resume_action(action.target, vim.tbl_extend(
-    "force",
-    { threadId = action.thread_id },
-    resolution.params
-  ), function(segment)
-    accept_action_segment(action, segment, resolution)
-  end, function(e)
-    action_event(action, e)
-  end)
+local function pause(request, notification, outcome)
+  local id = notification and interrupt_id(notification)
+  if not id or not agui.has_interrupt(outcome, id) then
+    return problem("interrupt-mismatch", "Interrupt mismatch",
+      "The request ended without its matching AG-UI interrupt outcome.")
+  end
+  interrupts[request.binding] = interrupts[request.binding] or {}
+  assert(interrupts[request.binding][id] == nil, "An interrupt already has a request owner")
+  interrupts[request.binding][id] = request
+  request.interrupt_id = id
+  request.phase = "paused"
+  dispatch(request, notification)
 end
 
-function M.rpc(thread_id, method, params, cb, options)
-  local t = M.target()
-  local dispatch = require("plurnk.dispatch")
-  lane_run(function()
-    local action = {
-      thread_id = thread_id,
-      worker_id = require("plurnk.state").get_worker_id(thread_id),
-      method = method,
-      cb = cb,
-      target = t,
-      dispatch = dispatch,
-      tool = {},
-      phase = "running",
-      proposal_id = nil,
-      resolution = nil,
-      problem = nil,
-      problem_dispatched = false,
-      status_gauge = nil,
-      quiet = options and options.quiet == true,
-    }
-    lane.action = action
-    agui.rpc(t, thread_id, method, params, function(segment)
-      accept_action_segment(action, segment, nil)
-    end, function(e)
-      action_event(action, e)
+local function settle_reasoning(request, segment)
+  for _, id in ipairs(vim.tbl_keys(segment.tool.reasoning or {})) do
+    segment.tool.reasoning[id] = nil
+    dispatch(request, { method = "reasoning/event", params = { phase = "end", messageId = id } })
+  end
+end
+
+local function model_stream(request)
+  local segment = { tool = {} }
+  local function event(e)
+    if request.finished then return end
+    if e.type == "RUN_STARTED" then segment.started = true end
+    local n = consume(request, segment, e)
+    if n and interrupt_id(n) then segment.interrupt = n; n = nil end
+    if e.type == "RUN_ERROR" then segment.run_error = true; return end
+    if e.type == "RUN_FINISHED" then
+      segment.terminal = true
+      if e.outcome and e.outcome.type == "interrupt" then
+        segment.problem = segment.problem or pause(request, segment.interrupt, e.outcome)
+        segment.paused = segment.problem == nil
+      elseif e.outcome and e.outcome.type == "success" then
+        segment.status = segment.status or 200
+      else
+        segment.problem = problem("terminal-invalid", "Terminal invalid", "The AG-UI run has no supported outcome.")
+      end
+      return
+    end
+    if n and n.method == "loop/terminated" then
+      segment.status, segment.problem = agui.operation_result(n.params.result)
+    end
+    if n and not (request.quiet and n.method == "problem/event") then dispatch(request, n) end
+  end
+  local function done(_, transport_error)
+    if request.finished or segment.paused then return end
+    settle_reasoning(request, segment)
+    local failure = segment.problem or transport_error
+    if not segment.terminal and not segment.run_error and failure == nil then
+      failure = agui.transport_problem("terminal-missing", "Terminal missing", 502,
+        "The AG-UI stream ended before reporting the run outcome.", true, "stream-reconciliation",
+        { recovery = "Reconnect to observe durable state; do not replay the prompt." })
+    elseif segment.run_error and failure == nil then
+      failure = problem("problem-missing", "Problem missing",
+        "The AG-UI stream reported a failed run without its required Problem Details.")
+    end
+    if segment.started and not segment.terminal and not segment.run_error and failure
+        and (failure.kind == "terminal-missing" or failure.kind == "stream-read-failed"
+          or failure.kind == "event-stream-empty" or (failure.source == "client:connection" and failure.retryable)) then
+      request.phase = "recovering"
+      require("plurnk.recovery").reconcile(request.binding.workspace, {
+        binding = request.binding, cause = failure,
+      }, function(status, recovered_problem)
+        request.problem_dispatched = recovered_problem ~= nil
+        finish(request, status or 502, recovered_problem, segment.gauge)
+      end)
+      return
+    end
+    finish(request, failure and failure.status or segment.status or 502, failure, segment.gauge)
+  end
+  return event, done
+end
+
+local function action_stream(request)
+  local segment = { tool = {} }
+  local function event(e)
+    if request.finished then return end
+    local n = consume(request, segment, e)
+    if n and interrupt_id(n) then segment.interrupt = n; return end
+    if n and not (request.quiet and n.method == "problem/event") then dispatch(request, n) end
+  end
+  local function done(outcome)
+    if request.finished then return end
+    local failure = segment.problem or outcome.problem
+    if failure then finish(request, nil, failure, segment.gauge)
+    elseif outcome.state == "interrupted" then
+      failure = pause(request, segment.interrupt, outcome.outcome)
+      if failure then finish(request, nil, failure, segment.gauge) end
+    else finish(request, outcome.result, nil, segment.gauge) end
+  end
+  return event, done
+end
+
+function M.run(binding, prompt, opts, on_done)
+  assert(active_runs[binding] == nil, "The conversation already has an observed model run")
+  local request = { binding = binding, target = M.target(), kind = "model", method = "loop.run",
+    cb = on_done, review = opts and opts.review == true }
+  active_runs[binding] = request
+  requests[request] = true
+  local event, done = model_stream(request)
+  request.handle = agui.run(request.target, {
+    workspace = binding.workspace, threadId = binding.threadId, prompt = prompt,
+    forwardedProps = opts and opts.forwardedProps,
+  }, event, done)
+  return request
+end
+
+function M.rpc(binding, method, params, cb, options)
+  local request = { binding = binding, target = M.target(), kind = "action", method = method,
+    cb = cb, quiet = options and options.quiet == true }
+  if renaming[binding.workspace] and method ~= "workspace.rename" then
+    finish(request, nil, problem("workspace-renaming", "Workspace renaming", "Retry this action after the workspace rename completes."))
+    return request
+  end
+  requests[request] = true
+  local event, done = action_stream(request)
+  request.handle = agui.rpc(request.target, binding, method, params, done, event)
+  return request
+end
+
+function M.observe(binding)
+  if active_runs[binding] then return end
+  local since_id = state.get_last_seen_log_id(binding.workspace, binding.workerId)
+  state.set_loop_inflight(binding.workspace, true, binding.workerId)
+  return M.run(binding, nil, { forwardedProps = { mode = "sync" } }, function()
+    -- Restore any rows committed between admission and attaching the observer.
+    -- This is the same bounded, inference-free history reconciliation as reconnect.
+    require("plurnk.recovery").reconcile(binding.workspace, { binding = binding, sinceId = since_id }, function()
+      state.set_loop_inflight(binding.workspace, false, binding.workerId)
+      require("plurnk.worker_tab").refresh_winbar(binding.workspace)
     end)
   end)
 end
 
--- Answer a stopped-world client interaction: the tool-result resume run.
--- The payload is the standard answer; "cancel" cancels the paused run.
-function M.resolve_interaction(thread_id, interaction_id, payload, cb)
-  local t = M.target()
-  if t == nil then
-    if cb then cb(nil, bridge_problem("target-unavailable", "Target unavailable", "No bridge target is configured.")) end
-    return
-  end
-  local a = active_runs[thread_id]
-  local dispatch = require("plurnk.dispatch")
-  local tool = {}
-  local worker_id = require("plurnk.state").get_worker_id(thread_id)
-  local detached_gauge = nil
-  local on_event, on_done
-  if a ~= nil and a.thread_id == thread_id then
-    on_event, on_done = a.begin_resume()
-  else
-    on_event = function(e)
-      local handled, next_gauge = consume_status_event(detached_gauge, e, thread_id, worker_id, dispatch)
-      detached_gauge = next_gauge
-      if handled then return end
-      local n = unproject(e, tool, thread_id, worker_id)
-      if n ~= nil then pcall(dispatch.handle_notification, n) end
-    end
-    on_done = function(_) end
-  end
-  agui.resolve_interaction(t, thread_id, interaction_id, payload, on_event, function(code, transport_error)
-    on_done(code, transport_error)
-    if cb then cb(transport_error == nil and code or nil, transport_error) end
+function M.inject(binding, prompt, cb)
+  local active = active_runs[binding]
+  if active then active.injections = (active.injections or 0) + 1 end
+  return M.rpc(binding, "loop.inject", { prompt = prompt }, function(result, failure)
+    local enqueued = type(result) == "table" and result.action == "enqueued_new_loop"
+    if active then
+      active.injections = active.injections - 1
+      active.follow = active.follow or enqueued
+      if active.completion and active.injections == 0 then
+        local completion = active.completion
+        finish(active, completion.result, completion.failure, completion.gauge)
+      end
+    elseif enqueued then M.observe(binding) end
+    if cb then cb(result, failure) end
   end)
 end
 
--- Answer a stopped-world proposal: the tool-result resume run. The continued
--- work's events (a loop's rows OR an action's exec streams + result) ride the
--- SAME unproject→dispatch path as every other stream — a loop run's registered
--- on_done still fires so its inflight state clears.
-function M.resolve(thread_id, r, cb)
-  local t = M.target()
-  local action = lane.action
-  if action ~= nil and action.thread_id == thread_id and action.proposal_id == r.logEntryId then
-    if action.resolution ~= nil then
-      local problem = bridge_problem(
-        "proposal-already-resolved",
-        "Proposal already resolved",
-        "The action's active proposal already has a pending resolution."
-      )
-      notify_action_failure("loop.resolve", problem)
-      if cb then cb(nil, problem) end
+local function resume(binding, id, resolution, cb)
+  local request = interrupts[binding] and interrupts[binding][id]
+  if request == nil then
+    local failure = problem("interrupt-not-pending", "Interrupt not pending",
+      "Interrupt '" .. id .. "' is not pending in this conversation.")
+    notify_failure("resume", failure)
+    if cb then cb(nil, failure) end
+    return
+  end
+  retire_interrupt(request)
+  request.phase = "running"
+  local run = { workspace = binding.workspace, threadId = binding.threadId, resume = { resolution } }
+  if request.kind == "action" then
+    local event, done = action_stream(request)
+    request.handle = agui.action_segment(request.target, run, function(segment)
+      done(segment)
+      if cb then cb(segment.state ~= "failed" and segment.code or nil, segment.problem) end
+    end, event)
+  else
+    local event, done = model_stream(request)
+    request.handle = agui.run(request.target, run, event, function(code, failure)
+      done(code, failure)
+      if cb then cb(failure == nil and code or nil, failure) end
+    end)
+  end
+end
+
+function M.resolve(binding, value, cb)
+  local id = "prop:" .. tostring(value.logEntryId)
+  resume(binding, id, value.decision == "cancel" and { interruptId = id, status = "cancelled" }
+    or { interruptId = id, status = "resolved", payload = { decision = value.decision, body = value.body } }, cb)
+end
+
+function M.resolve_interaction(binding, interaction_id, payload, cb)
+  local id = "int:" .. tostring(interaction_id)
+  resume(binding, id, payload == "cancel" and { interruptId = id, status = "cancelled" }
+    or { interruptId = id, status = "resolved", payload = payload }, cb)
+end
+
+-- Server admission owns cancellation. Only its acknowledged model request is
+-- retired; independently submitted actions and other conversations remain live.
+function M.cancel(binding, cb)
+  local active = active_runs[binding]
+  local runtime = state.get_runtime_status(binding.workspace, binding.workerId)
+  return M.rpc(binding, "loop.cancel", { reason = "user_stop" }, function(result, failure)
+    if not failure and type(result) == "table" and result.cancelled and active and not active.finished then
+      finish(active, 499)
+      if active.handle and active.handle.kill then active.handle:kill() end
+    end
+    if not failure and type(result) == "table" and result.cancelled and runtime and runtime.loop_id then
+      require("plurnk.recovery").reconcile(binding.workspace, {
+        binding = binding, cancelledLoopId = runtime.loop_id,
+      }, function(_, problem)
+        if cb then cb(result, problem) end
+      end)
       return
     end
-    action.resolution = { params = r, cb = cb }
-    if action.phase == "paused" then resume_action(action) end
-    return
-  end
-  local a = active_runs[thread_id]
-  local action_proposal = action ~= nil and action.thread_id == thread_id and action.proposal_id or nil
-  local loop_proposal = a ~= nil and a.proposal_id or nil
-  if (action_proposal ~= nil or loop_proposal ~= nil) and loop_proposal ~= r.logEntryId then
-    local problem = bridge_problem(
-      "proposal-resolution-mismatch",
-      "Proposal resolution mismatch",
-      "The proposal resolution did not identify an active proposal on this thread."
-    )
-    notify_action_failure("loop.resolve", problem)
-    if cb then cb(nil, problem) end
-    return
-  end
-  local dispatch = require("plurnk.dispatch")
-  local tool = {}
-  local worker_id = require("plurnk.state").get_worker_id(thread_id)
-  local detached_gauge = nil
-  local on_event, on_done
-  if a ~= nil and a.thread_id == thread_id then
-    on_event, on_done = a.begin_resume()
-  else
-    on_event = function(e)
-      local handled, next_gauge = consume_status_event(detached_gauge, e, thread_id, worker_id, dispatch)
-      detached_gauge = next_gauge
-      if handled then return end
-      local n = unproject(e, tool, thread_id, worker_id)
-      if n ~= nil then pcall(dispatch.handle_notification, n) end
-    end
-    on_done = function(_) end
-  end
-  -- A model loop is independent of the serialized management-action lane. Its
-  -- proposal resume stays on that loop's own stream even while an unrelated
-  -- action on the same thread is still draining.
-  agui.resolve(t, vim.tbl_extend("force", { threadId = thread_id }, r), on_event, function(code, transport_error)
-    on_done(code, transport_error)
-    if cb then cb(transport_error == nil and code or nil, transport_error) end
+    if cb then cb(result, failure) end
   end)
 end
 

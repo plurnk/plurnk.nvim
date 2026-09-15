@@ -46,13 +46,6 @@ M.prev = function()
   if entry and entry.focus then entry.focus() end
 end
 
-local function pop_current()
-  if index < 1 or index > #stack then return end
-  table.remove(stack, index)
-  if #stack == 0 then index = 0
-  elseif index > #stack then index = #stack end
-end
-
 local function dispatch_to_current(method)
   local entry = current()
   if not entry then notify("No pending proposal", vim.log.levels.WARN); return end
@@ -65,25 +58,13 @@ M.accept_edits   = function() dispatch_to_current("accept_with_edits") end
 M.reject         = function() dispatch_to_current("reject") end
 M.cancel_current = function() dispatch_to_current("cancel") end
 
-M.cancel_all = function()
-  if #stack == 0 then return 0 end
-  local n = 0
-  while #stack > 0 do
-    local entry = stack[1]
-    if entry and entry.cancel then entry.cancel() end
-    n = n + 1
-  end
-  index = 0
-  return n
-end
-
-local function send_resolve(log_entry_id, decision, opts)
-  local params = { logEntryId = log_entry_id, decision = decision }
+local function send_resolve(proposal, decision, opts)
+  local params = { logEntryId = proposal.logEntryId, decision = decision }
   if opts then
     if opts.body then params.body = opts.body end
     if opts.outcome then params.outcome = opts.outcome end
   end
-  client.send("loop.resolve", params)
+  client.send("loop.resolve", params, false, nil, { binding = proposal.binding })
 end
 
 local function fs_read_lines(path)
@@ -175,7 +156,7 @@ local function review_edit(workspace_name, proposal)
   end
 
   local function accept_as_proposed()
-    send_resolve(proposal.logEntryId, "accept")
+    send_resolve(proposal, "accept")
     cleanup()
   end
 
@@ -189,16 +170,16 @@ local function review_edit(workspace_name, proposal)
     })
     if not ok or type(regen) ~= "string" or regen == "" then
       notify("No changes vs. disk — rejecting instead", vim.log.levels.WARN)
-      send_resolve(proposal.logEntryId, "reject", { outcome = "no_diff_after_edits" })
+      send_resolve(proposal, "reject", { outcome = "no_diff_after_edits" })
       cleanup()
       return
     end
-    send_resolve(proposal.logEntryId, "accept", { body = regen })
+    send_resolve(proposal, "accept", { body = regen })
     cleanup()
   end
 
-  local function reject() send_resolve(proposal.logEntryId, "reject"); cleanup() end
-  local function cancel() send_resolve(proposal.logEntryId, "cancel"); cleanup() end
+  local function reject() send_resolve(proposal, "reject"); cleanup() end
+  local function cancel() send_resolve(proposal, "cancel"); cleanup() end
 
   for _, b in ipairs({ left_buf, right_buf }) do
     vim.keymap.set("n", "<localleader>a", accept_as_proposed, { buffer = b, nowait = true })
@@ -211,6 +192,7 @@ local function review_edit(workspace_name, proposal)
     workspace_name = workspace_name,
     proposal = proposal,
     focus = focus,
+    cleanup = cleanup,
     accept_as_proposed = accept_as_proposed,
     accept_with_edits = accept_with_edits,
     reject = reject,
@@ -251,9 +233,9 @@ local function review_exec(workspace_name, proposal)
     end
   end
 
-  local accept_as_proposed = function() send_resolve(proposal.logEntryId, "accept"); cleanup() end
-  local reject = function() send_resolve(proposal.logEntryId, "reject"); cleanup() end
-  local cancel = function() send_resolve(proposal.logEntryId, "cancel"); cleanup() end
+  local accept_as_proposed = function() send_resolve(proposal, "accept"); cleanup() end
+  local reject = function() send_resolve(proposal, "reject"); cleanup() end
+  local cancel = function() send_resolve(proposal, "cancel"); cleanup() end
   local focus = function() if vim.api.nvim_win_is_valid(win) then vim.api.nvim_set_current_win(win) end end
 
   vim.keymap.set("n", "a", accept_as_proposed, { buffer = buf, nowait = true })
@@ -264,6 +246,7 @@ local function review_exec(workspace_name, proposal)
     workspace_name = workspace_name,
     proposal = proposal,
     focus = focus,
+    cleanup = cleanup,
     accept_as_proposed = accept_as_proposed,
     -- An execution has no edit semantics — accept-with-edits falls through to accept.
     accept_with_edits = accept_as_proposed,
@@ -273,13 +256,25 @@ local function review_exec(workspace_name, proposal)
   index = #stack
 end
 
+function M.retire(binding, interrupt_id)
+  local id = tonumber(interrupt_id:match("^prop:(%d+)$"))
+  if not id then return end
+  for _, entry in ipairs(stack) do
+    if entry.proposal.logEntryId == id and entry.proposal.binding == binding then
+      entry.cleanup()
+      return
+    end
+  end
+end
+
 -- ── Entry point ──────────────────────────────────────────────────────
 
 M.process = function(workspace_name, proposal)
   if not proposal or not proposal.logEntryId then return end
 
-  if diff.is_yolo() and not diff.review_requested() then
-    send_resolve(proposal.logEntryId, "accept", { outcome = "client_yolo" })
+  proposal.binding = proposal.binding or require("plurnk.state").binding(workspace_name)
+  if diff.is_yolo() and not proposal.reviewRequested then
+    send_resolve(proposal, "accept", { outcome = "client_yolo" })
     return
   end
 

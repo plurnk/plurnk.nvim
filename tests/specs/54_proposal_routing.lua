@@ -21,7 +21,7 @@ local ok, err = pcall(function()
     finish_action = callback
     return {}
   end
-  bridge.rpc("world", "providers.list", {}, function(result) action_result = result end)
+  bridge.rpc(require("plurnk.state").binding("world"), "providers.list", {}, function(result) action_result = result end)
   H.assert_truthy(type(finish_action) == "function", "the unrelated action owns the management lane")
 
   dispatch.handle_notification = function() end
@@ -37,12 +37,12 @@ local ok, err = pcall(function()
     on_done(0, nil)
     return {}
   end
-  bridge.run("world", "make a reviewed change", {}, function(status) loop_status = status end)
+  bridge.run(require("plurnk.state").binding("world"), "make a reviewed change", {}, function(status) loop_status = status end)
   H.assert_eq(loop_status, nil, "the model loop remains paused at review")
 
   local resumed, resolve_code, resolve_problem
-  agui.resolve = function(_, resolution, on_event, on_done)
-    resumed = resolution
+  agui.run = function(_, run, on_event, on_done)
+    resumed = run.resume[1]
     on_event({ type = "CUSTOM", name = "plurnk.terminated", value = {
       result = { status = 200 }, hitMaxTurns = false,
     } })
@@ -50,11 +50,11 @@ local ok, err = pcall(function()
     on_done(0, nil)
     return {}
   end
-  bridge.resolve("world", { logEntryId = 17, decision = "accept" }, function(code, problem)
+  bridge.resolve(require("plurnk.state").binding("world"), { logEntryId = 17, decision = "accept" }, function(code, problem)
     resolve_code, resolve_problem = code, problem
   end)
 
-  H.assert_eq(resumed.logEntryId, 17, "interrupt identity routes resolution to the model loop")
+  H.assert_eq(resumed.interruptId, "prop:17", "interrupt identity routes resolution to the model loop")
   H.assert_eq(loop_status, 200, "the model loop settles from its resumed stream")
   H.assert_eq(resolve_code, 0, "the model-loop resolution is acknowledged")
   H.assert_eq(resolve_problem, nil, "the unrelated action invents no mismatch Problem")

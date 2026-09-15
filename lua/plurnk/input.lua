@@ -7,12 +7,6 @@
 
 local M = {}
 local INPUT_HEIGHT = 3
--- Coarse dispatch classification only. The daemon remains the grammar owner
--- and owns registration and diagnostics for malformed fences/modifiers/bodies.
-local function operation_name(text)
-  return text:match("^```+([%w_.+%-]+)")
-end
-
 local function buffer_name(workspace_name, worker_id)
   return "plurnk-nvim://input/" .. (workspace_name or "scratch") .. "/" .. (worker_id or "pending")
 end
@@ -27,64 +21,18 @@ local function submit(buf, workspace_name)
   local text = vim.fn.trim(table.concat(lines, "\n"))
   if text == "" then return end
 
-  local op = operation_name(text)
-
-  -- A LOOK fence is the human's inspection ({§nvim-inspection}): the same path as
-  -- :AI/look and K on a waterfall row — never a run, never a log row.
-  if op == "LOOK" then
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
-    require("plurnk.look").inspect(text)
-    return
-  end
-
-  -- Raw PLURNK passthrough (TUI parity): a named executable fence goes
-  -- to op.parse. The daemon parses and dispatches; results arrive as log/entry.
-  if op ~= nil then
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
-    require("plurnk.client").send("op.parse", { text = text }, false)
-    return
-  end
-
-  -- Verb surface, same as :AI/ — the input buffer IS the TUI inside vim;
-  -- one language across both.
-  if text:sub(1, 1) == "/" then
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
-    require("plurnk.language").run({ args = text, range = 0 })
-    return
-  end
-
-  -- Prefix language, same as :AI. `?` selects proposal review; `:` uses the base policy.
-  local first = text:sub(1, 1)
-  if first == "!" then
-    local cmd = text:gsub("^!+%s*", "")
-    if cmd ~= "" then
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
-      require("plurnk.client").send("op.exec", { command = cmd }, false)
-      return
-    end
-  end
-  local projected = require("plurnk.policy").prompt(text)
-  text = projected.prompt
-
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
-
-  -- Ensure plurnk_workspace is bound to this buffer so commands.prompt's
-  -- active_workspace() picks it up — the buffer-local var is the source
-  -- of truth for which workspace the prompt is going to.
   if workspace_name then vim.b[buf].plurnk_workspace = workspace_name end
+  -- One command path for :AI and the multiline buffer; its binding is captured
+  -- while this buffer is current, before any asynchronous continuation.
+  vim.api.nvim_buf_call(buf, function()
+    require("plurnk.language").run({ args = text, range = 0, on_submitted = function(accepted)
+      if accepted and vim.api.nvim_buf_is_valid(buf)
+          and vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), lines) then
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
+      end
+    end })
+  end)
 
-  -- Prompts go to the connection's BOUND worker. Submitting in another
-  -- worker's input means "switch to that worker, then speak" — rebind first.
-  local target_worker = vim.b[buf].plurnk_worker_id
-  local current_worker = workspace_name and require("plurnk.state").get_worker_id(workspace_name)
-  if target_worker and current_worker and target_worker ~= current_worker then
-    require("plurnk.workspace_context").switch_worker(workspace_name, target_worker, function()
-      require("plurnk.loop").prompt({ args = text, range = 0, policy = projected.policy })
-    end)
-    return
-  end
-
-  require("plurnk.loop").prompt({ args = text, range = 0, policy = projected.policy })
 end
 
 -- Decorate the input window (no numbers, wrap on, fixed-height). No

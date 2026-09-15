@@ -1,5 +1,14 @@
 -- {§nvim-question-forms}: collect the exact response-schema payload.
 local M = {}
+local pending = {}
+
+function M.retire(binding, interrupt_id)
+  local id = tonumber(interrupt_id:match("^int:(%d+)$"))
+  if id and pending[binding] then
+    pending[binding][id] = nil
+    if next(pending[binding]) == nil then pending[binding] = nil end
+  end
+end
 
 function M.choices(schema)
   local out = {}
@@ -26,6 +35,11 @@ end
 function M.review(workspace_name, interaction)
   if type(interaction) ~= "table" or type(interaction.interactionId) ~= "number" then return end
   local req = interaction.request or {}
+  local binding = interaction.binding or require("plurnk.state").binding(workspace_name)
+  pending[binding] = pending[binding] or {}
+  local token = {}
+  pending[binding][interaction.interactionId] = token
+  local function active() return pending[binding] and pending[binding][interaction.interactionId] == token end
   local message = type(req.message) == "string" and req.message or "Provide the requested input."
   local schema = type(req.responseSchema) == "table" and req.responseSchema or {}
   local properties = schema.properties or {}
@@ -37,7 +51,8 @@ function M.review(workspace_name, interaction)
   local bridge = require("plurnk.bridge")
 
   local function send(payload)
-    bridge.resolve_interaction(workspace_name, interaction.interactionId, payload, function(_, problem)
+    if not active() then return end
+    bridge.resolve_interaction(binding, interaction.interactionId, payload, function(_, problem)
       if problem ~= nil then
         vim.notify("Question answer failed: " .. (problem.detail or problem.message or vim.inspect(problem)), vim.log.levels.ERROR)
       end
@@ -45,6 +60,7 @@ function M.review(workspace_name, interaction)
   end
 
   local function field(index)
+    if not active() then return end
     local key = keys[index]
     if key == nil and #keys > 0 then
       send(content)
@@ -58,6 +74,7 @@ function M.review(workspace_name, interaction)
     local prompt = key == nil and "Press Enter to submit the empty form"
       or label .. " (" .. kind .. hint .. ")" .. description
     local function accept(input)
+      if not active() then return end
       if input == nil then send("cancel"); return end
       local text = vim.trim(input)
       if text == "" and key ~= nil and required[key] then

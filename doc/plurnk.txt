@@ -44,7 +44,7 @@ cmdline abbreviations.
   :AI?? / ::        new workspace, then prompt
   :AI???            new headless workspace (no project root)
   :AI????           new worker in the current workspace (fork)
-  :AI... {text}     inject into the running loop
+  :AI... {text}     inject into this conversation and observe its continuation
   :AI/              show the grouped command index
   :AI/help {verb}   show exact contextual usage
 
@@ -145,7 +145,11 @@ Neovim consumes the daemon's AG-UI+ HTTP/SSE interface through curl. The
 external protocol contract lives in the plurnk-agui SPEC.
 Model Markdown may independently use the optional local `plurnk render`
 stdin/stdout filter; protocol traffic never does.
-One live workspace per instance; switches rebind the connection in place.
+Running conversations remain attached across tab switches, including across
+workspaces. The input buffer and :AI share the same command language; a prompt
+during a run injects into that conversation. Questions and proposals retain
+their originating requests. /stop cancels the selected worker's loop without
+cancelling other conversations or independent client actions.
 Tests: `./tests/runner.sh` boots a private daemon (tmp DB, ephemeral port)
 from the sibling checkout; `PLURNK_SERVICE_DIR` overrides; `PLURNK_PORT`
 targets an existing daemon.

@@ -23,6 +23,9 @@ local ok, err = pcall(function()
       cb({ id = 99, name = "ai-test-workspace", workerId = 7, workerName = "auto-run" })
     end
   end
+  require("plurnk.bridge").rpc = function(_, method, params, cb)
+    return require("plurnk.client").send(method, params, false, cb)
+  end
   local function find(list, method)
     for _, m in ipairs(list) do if m.method == method then return m end end
     return nil
@@ -137,7 +140,7 @@ local ok, err = pcall(function()
   H.assert_eq(captured[1].method, "loop.cancel", ":AI/stop sends loop.cancel")
 
   -- :AI/stop with NO workspace — proposal cleanup only, no RPC.
-  vim.cmd("enew")
+  vim.cmd("tabnew") -- an empty buffer inside a worker tab still belongs to that conversation
   require("plurnk.state").set_active_workspace_name(nil)
   vim.b.plurnk_workspace = nil
   captured = {}

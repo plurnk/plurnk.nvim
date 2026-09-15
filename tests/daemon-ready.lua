@@ -17,7 +17,7 @@ local last_detail = "the daemon did not answer"
 
 while vim.uv.hrtime() < deadline do
   local segment
-  local handle = agui.rpc(target, "nvim-readiness", "discover", {}, function(value)
+  local handle = agui.rpc(target, { workspace = "nvim-readiness", threadId = "nvim-readiness" }, "discover", {}, function(value)
     segment = value
   end)
   vim.wait(1000, function() return segment ~= nil end, 20)

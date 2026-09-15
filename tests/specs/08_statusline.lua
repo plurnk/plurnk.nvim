@@ -38,6 +38,8 @@ local ok, err = pcall(function()
   end
   local buf = vim.api.nvim_get_current_buf()
   vim.b[buf].plurnk_workspace = "s1"
+  worker_tab.open("s1", 7)
+  vim.cmd("stopinsert")
   local runtime_status = require("plurnk.runtime_status")
   local handled, gauge = runtime_status.reduce(nil, {
     type = "STATE_SNAPSHOT",

@@ -1,11 +1,6 @@
--- The Lua consumer of the plurnk-agui bridge. No fetch in
--- Lua, so the SSE run rides `curl -N` under vim.system with a streaming stdout
--- callback; the management plane + resolve are one-shot curl POSTs.
---
--- Mirrors the client's agui.ts: run() streams AG-UI events, resolve() answers a
--- stopped-world proposal, and rpc() carries management actions. Plurnk fidelity
--- rides the CUSTOM plurnk.* events (esp. plurnk.row — the full wire row), which a
--- is un-projected to the daemon shapes dispatch.lua already renders.
+-- AG-UI HTTP/SSE over curl -N under vim.system. Runs, actions, and resumes share
+-- the same wire path; bridge.lua owns logical request lifetimes. CUSTOM plurnk.*
+-- events retain the full operation rows used by the native waterfall.
 local M = {}
 local id_sequence = 0
 
@@ -296,10 +291,7 @@ function M.input(run)
     context = empty_array(),
     messages = messages,
     resume = run.resume,
-    -- The workspace (world) is REQUIRED — a run has no existence without one. The client
-    -- resolves ONE workspace name and IS its threadId (one conversation per world until
-    -- #366 splits them); send it verbatim, never letting the module forge one.
-    forwardedProps = { plurnk = vim.tbl_extend("force", { workspace = run.threadId }, run.forwardedProps or {}) },
+    forwardedProps = { plurnk = vim.tbl_extend("force", run.forwardedProps or {}, { workspace = run.workspace }) },
   }
 end
 
@@ -386,40 +378,6 @@ function M.run(target, run, on_event, on_done)
   return handle
 end
 
--- Answer a stopped-world client interaction: the standard AG-UI resume on a NEW
--- run, addressed by the opaque `int:<interactionId>` tool-call id. The payload is
--- the standard answer ({ action = "accept", content = ... }); "cancel" sends the
--- standard cancellation.
-function M.resolve_interaction(target, thread_id, interaction_id, payload, on_event, on_done)
-  local interrupt_id = "int:" .. tostring(interaction_id)
-  local resume
-  if payload == "cancel" then
-    resume = { { interruptId = interrupt_id, status = "cancelled" } }
-  else
-    resume = { { interruptId = interrupt_id, status = "resolved", payload = payload } }
-  end
-  return M.run(target, { threadId = thread_id, resume = resume }, on_event, on_done)
-end
-
--- Answer a stopped-world proposal: the standard AG-UI resume on a NEW run. The
--- continued loop streams there — feed its
--- events through the same on_event/on_done as the original run.
-function M.resolve(target, r, on_event, on_done)
-  local interrupt_id = "prop:" .. tostring(r.logEntryId)
-  local resume
-  if r.decision == "cancel" then
-    resume = { { interruptId = interrupt_id, status = "cancelled" } }
-  else
-    local payload = { decision = r.decision }
-    if r.body ~= nil then payload.body = r.body end
-    resume = { { interruptId = interrupt_id, status = "resolved", payload = payload } }
-  end
-  return M.run(target, {
-    threadId = r.threadId,
-    resume = resume,
-  }, on_event, on_done)
-end
-
 -- Consume one action segment. A proposal-confirmed interrupt is a successful
 -- segment boundary, not a completed action; the caller owns the logical
 -- action across the later resume segment.
@@ -496,27 +454,12 @@ end
 
 -- A verb begins as an action run. Its callback receives this segment's state;
 -- bridge.lua keeps interrupted actions alive until their resume completes.
-function M.rpc(target, thread_id, method, params, cb, on_event)
+function M.rpc(target, binding, method, params, cb, on_event)
   return M.action_segment(target, {
-    threadId = thread_id,
+    threadId = binding.threadId,
+    workspace = binding.workspace,
     messages = {},
     forwardedProps = { action = vim.tbl_extend("force", { kind = method }, params or {}) },
-  }, cb, on_event)
-end
-
-function M.resume_action(target, r, cb, on_event)
-  local interrupt_id = "prop:" .. tostring(r.logEntryId)
-  local resume
-  if r.decision == "cancel" then
-    resume = { { interruptId = interrupt_id, status = "cancelled" } }
-  else
-    local payload = { decision = r.decision }
-    if r.body ~= nil then payload.body = r.body end
-    resume = { { interruptId = interrupt_id, status = "resolved", payload = payload } }
-  end
-  return M.action_segment(target, {
-    threadId = r.threadId,
-    resume = resume,
   }, cb, on_event)
 end
 

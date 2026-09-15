@@ -42,11 +42,11 @@ M.rename_workspace = state.rename_workspace
 -- The single send point — AG-UI+ is the only transport. Verbs ride action runs;
 -- loop.resolve rides the terminate-resume
 -- tool-result run; loop.run never reaches here (send_loop_run drives bridge.run).
-M.send = function(method, params, _is_notification, callback)
+M.send = function(method, params, _is_notification, callback, options)
   local bridge = require("plurnk.bridge")
-  local thread = state.get_active_workspace_name() or "nvim"
+  local binding = options and options.binding or require("plurnk.workspace_context").binding()
   if method == "loop.resolve" then
-    bridge.resolve(thread, params or {}, function(_, problem)
+    bridge.resolve(binding, params or {}, function(_, problem)
       if callback then callback(problem == nil and {} or nil, problem) end
     end)
   else
@@ -54,10 +54,21 @@ M.send = function(method, params, _is_notification, callback)
     -- bridge.rpc has already surfaced the error. `result or {}` here converted every
     -- contract violation into silent half-behavior; that fallback shipped the
     -- workspace-door disaster and is permanently banned.
-    bridge.rpc(thread, method, params, function(result, problem)
+    bridge.rpc(binding, method, params, function(result, problem)
       if callback then callback(result, problem) end
-    end)
+    end, options)
   end
+end
+
+-- Capture a command's destination before any asynchronous lookup or UI choice.
+M.scoped = function(binding)
+  binding = binding or require("plurnk.workspace_context").binding()
+  return setmetatable({
+    binding = binding,
+    send = function(method, params, notification, callback, options)
+      return M.send(method, params, notification, callback, vim.tbl_extend("force", options or {}, { binding = binding }))
+    end,
+  }, { __index = M })
 end
 
 -- ── Client-level actions ────────────────────────────────────────────

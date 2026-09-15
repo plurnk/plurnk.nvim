@@ -53,7 +53,7 @@ while pre-1.0, a minor bump may carry breaking changes (see the tag message).
 | `:AI??` / `::` | new workspace, then prompt |
 | `:AI???` | new headless workspace (no project root) |
 | `:AI????` | new worker in the current workspace (fork) |
-| `:AI... {text}` | inject into the running loop (a mid-loop prompt steers too) |
+| `:AI... {text}` | inject into this conversation; continue observing it if a new loop is admitted |
 | `:AI/attach {name}` | bind this tab to a conversation worker by name (`:AI/workers` picks from the topology) |
 | `:AI/parent` `:AI/enter` `:AI/older` `:AI/newer` | hop the worker tree — parent, newest child, older/newer sibling (`<leader>ah` `al` `aj` `ak`); the tab then speaks to that worker, the winbar shows its lineage `[/main/fork-1/~recheck]` |
 | `:AI/` | show the compact grouped command index |
@@ -86,11 +86,11 @@ for the Worker; `/help mcp` shows the complete lifecycle.
 
 ## Layout
 
-One tab per **worker** (a conversation); a **workspace** is the world containing workers. One workspace is live per Neovim instance; switching notifies. Each worker tab: the waterfall on top (the worker's log, exactly what the model sees), 3-line input below — `<CR>` in normal mode submits; `? `/`: `/`! ` prefixes and raw `# PLAN_` / `## OP0` PLURNK work there too. Readable provider reasoning appears before its SEND as a distinct streaming `💭` block; multiline blocks begin folded. Each model body is independent, so its Markdown cannot style later Plurnk rows. When `plurnk render` is available, tables wrap with row separators, task boxes render once, code fences retain their language, and Mermaid uses Beautiful Mermaid; otherwise the semantic source remains visible. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.
+One tab per **worker** (a conversation); a **workspace** is the world containing workers. Running conversations remain attached across tab switches, including in different workspaces. Each worker tab has its waterfall above a 3-line input — `<CR>` in normal mode submits. The input and `:AI` share slash commands, `? `/`: `/`! ` prefixes, and named PLURNK fences. Ordinary prompts during a run become injections; changing that run's proposal policy requires stopping it first. Readable provider reasoning appears before its SEND as a distinct streaming `💭` block; multiline blocks begin folded. Each model body is independent, so its Markdown cannot style later Plurnk rows. When `plurnk render` is available, tables wrap with row separators, task boxes render once, code fences retain their language, and Mermaid uses Beautiful Mermaid; otherwise the semantic source remains visible. Streams (exec output) open as `1│`/`2│`-prefixed splits; wiping a live stream buffer cancels it.
 
 ## Proposals
 
-Proposals are accepted automatically by default (`yolo = true` in `setup`); `:PlurnkYolo` toggles that, and `:AI? …` reviews one prompt regardless. Under review, side-effecting ops pause. EDIT opens a diffsplit (left disk, right proposed): `<localleader>a` accept, `<localleader>e` accept-with-edits, `r` reject, `c` cancel. An execution opens a scratch: `a`/`r`/`c`. Global: `<leader>ay/ae/an`, `<leader>a]`/`a[` cycle pending; `:AI/accept`, `/edit`, `/reject`, and `/cancel` expose the same decisions.
+Proposals are accepted automatically by default (`yolo = true` in `setup`); `:PlurnkYolo` toggles that, and `:AI? …` reviews one prompt regardless. Under review, side-effecting ops pause. EDIT opens a diffsplit (left disk, right proposed): `<localleader>a` accept, `<localleader>e` accept-with-edits, `r` reject, `c` cancel. An execution opens a scratch: `a`/`r`/`c`. Global: `<leader>ay/ae/an`, `<leader>a]`/`a[` cycle pending; `:AI/accept`, `/edit`, `/reject`, and `/cancel` expose the same decisions. Each review retains its originating conversation even after navigation. `/stop` cancels the selected worker's loop, not other conversations or independently submitted client actions.
 
 ## Statusline
 
@@ -102,7 +102,7 @@ vim.opt.statusline = "%f %{v:lua.require('plurnk').statusline()} %l/%L"
 
 ## Internals (for agents)
 
-- Transport: AG-UI+ over HTTP/SSE (`curl -N` under `vim.system`) against the daemon's in-process module; events un-project to the daemon shapes dispatch renders. The threadId is the workspace name, verbatim; the workspace (world) rides `forwardedProps.plurnk.workspace` on every run.
+- Transport: AG-UI+ over HTTP/SSE (`curl -N` under `vim.system`). Each request and resume retains its workspace in `forwardedProps.plurnk.workspace` and its conversation in `threadId`; using the workspace name as `threadId` selects the durable default conversation.
 - Presentation: optional `plurnk render --width <columns>` over stdin/stdout, cached by semantic source and live width. It is never used for transport.
 - Client contract: `SPEC.md` (this repo). External protocol: the plurnk-agui SPEC. Runtime model: the plurnk-service SPEC.
 - Notifications consumed: `log/entry` (routed per worker by `entry.worker_id`), client-owned `loop/proposal`, `loop/terminated`, `notice/event`, `stream/event`, `stream/concluded`. Loop-owned proposal dispositions settle before AG-UI projection.

@@ -41,9 +41,9 @@ local function candidate_line(candidate)
   )
 end
 
-local function notify_mutation(result, verb, alias_hint)
+local function notify_mutation(result, verb, alias_hint, binding)
   if type(result) ~= "table" then return end
-  require("plurnk.functionality").invalidate_aliases("env")
+  require("plurnk.functionality").invalidate_aliases("env", binding)
   local client = require("plurnk.client")
   local alias = type(result.alias) == "string" and result.alias or alias_hint
   local definition = type(result.definition) == "table" and result.definition or {}
@@ -62,10 +62,11 @@ M.run = function(args, with_workspace)
   local client = require("plurnk.client")
 
   if raw == "" then
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("worker.env.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
-        require("plurnk.functionality").remember_aliases("env", result.definitions)
+        require("plurnk.functionality").remember_aliases("env", result.definitions, binding)
         if #result.definitions == 0 then
           client.notify("environment: none", vim.log.levels.INFO)
           return
@@ -83,7 +84,8 @@ M.run = function(args, with_workspace)
 
   if command == "discover" then
     local query = table.concat(argv, " ", 2)
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("worker.env.discover", query == "" and {} or { query = query }, false, function(result)
         if type(result) ~= "table" or type(result.candidates) ~= "table" then return end
         if #result.candidates == 0 then
@@ -105,9 +107,10 @@ M.run = function(args, with_workspace)
       usage("add")
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("worker.env.add", { alias = name, definition = { value = value } }, false, function(result)
-        notify_mutation(result, "added", name)
+        notify_mutation(result, "added", name, binding)
       end)
     end)
   end
@@ -117,9 +120,10 @@ M.run = function(args, with_workspace)
       usage(command)
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("worker.env." .. command, { alias = alias }, false, function(result)
-        notify_mutation(result, command == "enable" and "enabled" or "disabled", alias)
+        notify_mutation(result, command == "enable" and "enabled" or "disabled", alias, binding)
       end)
     end)
   end
@@ -129,10 +133,11 @@ M.run = function(args, with_workspace)
       usage("remove")
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("worker.env.remove", { alias = alias }, false, function(result)
         if type(result) == "table" then
-          require("plurnk.functionality").invalidate_aliases("env")
+          require("plurnk.functionality").invalidate_aliases("env", binding)
           client.notify("removed: " .. alias, vim.log.levels.INFO)
         end
       end)

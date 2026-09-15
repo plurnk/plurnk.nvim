@@ -23,20 +23,53 @@ local function ensure_workspace(name)
     workspace_states[name] = {
       id = nil,                -- daemon-side workspace id
       worker_id = nil,            -- attached worker id (per-connection)
-      worker_name = nil,          -- attached worker name
-      model_selector = nil,    -- daemon-resolved alias or exact provider/model route
-      child_selector = nil,    -- durable spawn override, or "inherit"
-      reasoning_policy = nil,  -- daemon-owned durable policy
-      reasoning_policies = {}, -- daemon-supported choices for this worker
-      model_display = nil,     -- "(no model)" or "alias=provider/model"
-      runtime_gauge = nil,     -- exact latest AG-UI STATE snapshot after deltas
-      transport_status = nil,  -- client-owned reconnecting/stale overlay; nil means connected
       last_seen_log_ids = {}, -- worker id → highest durable row observed
+      seen_log_ids = {}, -- durable row identities already delivered to this editor
       pending_proposals = {},  -- keyed by logEntryId
-      search_progress = nil,   -- aggregate page acquisition percent; nil when idle
     }
   end
   return workspace_states[name]
+end
+
+-- Selection belongs to the workspace; runtime and policy belong to a conversation.
+local function ensure_conversation(name, worker_id)
+  local workspace = ensure_workspace(name)
+  if not workspace then return nil end
+  workspace.conversations = workspace.conversations or {}
+  local key = worker_id or workspace.worker_id or "pending"
+  local conversation = workspace.conversations[key]
+  if not conversation then
+    conversation = { workspace = name, workerId = type(key) == "number" and key or nil }
+    workspace.conversations[key] = conversation
+  end
+  return conversation
+end
+
+-- Capture once, before yielding. The same object owns a conversation's requests
+-- even when its initially unknown numeric worker id is learned from the stream.
+function M.binding(name, worker_id)
+  local conversation = ensure_conversation(name, worker_id)
+  assert(conversation, "A conversation requires a workspace")
+  if not conversation.threadId then
+    local id = conversation.workerId
+    conversation.threadId = id and M.get_worker_label(name, id) or name
+    assert(conversation.threadId, "The selected worker's name has not been resolved")
+  end
+  return conversation
+end
+
+function M.identify(binding, worker_id)
+  if binding.workerId then
+    assert(binding.workerId == worker_id, "Conversation stream changed worker")
+    return
+  end
+  local workspace = ensure_workspace(binding.workspace)
+  assert(workspace.conversations[worker_id] == nil or workspace.conversations[worker_id] == binding,
+    "Conversation identity was already bound")
+  binding.workerId = worker_id
+  workspace.conversations[worker_id] = binding
+  workspace.conversations.pending = nil
+  if workspace.worker_id == nil then workspace.worker_id = worker_id end
 end
 
 -- ── Project ─────────────────────────────────────────────────────────
@@ -99,8 +132,12 @@ M.set_workspace_id = function(name, id) local s = ensure_workspace(name); if s t
 M.get_worker_id = function(name) local s = ensure_workspace(name); return s and s.worker_id end
 M.set_worker_id = function(name, id) local s = ensure_workspace(name); if s then s.worker_id = id end end
 
-M.get_worker_name = function(name) local s = ensure_workspace(name); return s and s.worker_name end
-M.set_worker_name = function(name, worker) local s = ensure_workspace(name); if s then s.worker_name = worker end end
+M.get_worker_name = function(name)
+  return M.get_worker_label(name, M.get_worker_id(name))
+end
+M.set_worker_name = function(name, worker)
+  M.set_worker_label(name, M.get_worker_id(name), worker)
+end
 
 -- Per-worker display labels (worker_id → name) for waterfall titles/winbars —
 -- the current worker_name only covers the bound worker.
@@ -124,16 +161,16 @@ M.model_route_selector = function(route)
   end
   return nil
 end
-M.get_model_selector = function(name) local s = ensure_workspace(name); return s and s.model_selector end
-M.set_model_selector = function(name, selector) local s = ensure_workspace(name); if s then s.model_selector = selector end end
-M.set_model_route = function(name, route) M.set_model_selector(name, M.model_route_selector(route)) end
-M.get_child_selector = function(name) local s = ensure_workspace(name); return s and s.child_selector end
-M.set_child_selector = function(name, selector) local s = ensure_workspace(name); if s then s.child_selector = selector end end
-M.set_child_route = function(name, route) M.set_child_selector(name, M.model_route_selector(route)) end
-M.get_reasoning_policy = function(name) local s = ensure_workspace(name); return s and s.reasoning_policy end
-M.get_reasoning_policies = function(name) local s = ensure_workspace(name); return s and s.reasoning_policies or {} end
-M.set_reasoning = function(name, reasoning)
-  local s = ensure_workspace(name)
+M.get_model_selector = function(name, worker_id) local s = ensure_conversation(name, worker_id); return s and s.model_selector end
+M.set_model_selector = function(name, selector, worker_id) local s = ensure_conversation(name, worker_id); if s then s.model_selector = selector end end
+M.set_model_route = function(name, route, worker_id) M.set_model_selector(name, M.model_route_selector(route), worker_id) end
+M.get_child_selector = function(name, worker_id) local s = ensure_conversation(name, worker_id); return s and s.child_selector end
+M.set_child_selector = function(name, selector, worker_id) local s = ensure_conversation(name, worker_id); if s then s.child_selector = selector end end
+M.set_child_route = function(name, route, worker_id) M.set_child_selector(name, M.model_route_selector(route), worker_id) end
+M.get_reasoning_policy = function(name, worker_id) local s = ensure_conversation(name, worker_id); return s and s.reasoning_policy end
+M.get_reasoning_policies = function(name, worker_id) local s = ensure_conversation(name, worker_id); return s and s.reasoning_policies or {} end
+M.set_reasoning = function(name, reasoning, worker_id)
+  local s = ensure_conversation(name, worker_id)
   if not s or type(reasoning) ~= "table" then return end
   s.reasoning_policy = reasoning.policy
   s.reasoning_policies = type(reasoning.supportedPolicies) == "table" and reasoning.supportedPolicies or {}
@@ -143,8 +180,8 @@ end
 -- small providers.list directory, else nil. Shared
 -- by the winbar (the header) and the statusline so both name the same model the
 -- TUI header does. Converges with @plurnk/plurnk buildHeader's resolution.
-M.get_active_model = function(name)
-  local s = name and workspace_states[name]
+M.get_active_model = function(name, worker_id)
+  local s = ensure_conversation(name, worker_id)
   if s and s.model_selector then return s.model_selector end
   for _, a in ipairs(available_aliases) do
     if a.active then return a.alias end
@@ -152,56 +189,55 @@ M.get_active_model = function(name)
   return nil
 end
 
-M.get_model_display = function(name)
-  local s = name and workspace_states[name]
+M.get_model_display = function(name, worker_id)
+  local s = ensure_conversation(name, worker_id)
   if s and s.model_display then return s.model_display end
   return "plurnk"
 end
-M.set_model_display = function(name, display)
-  local s = ensure_workspace(name); if s then s.model_display = display end
+M.set_model_display = function(name, display, worker_id)
+  local s = ensure_conversation(name, worker_id); if s then s.model_display = display end
 end
 
-M.get_runtime_gauge = function(name)
-  local s = ensure_workspace(name)
+M.get_runtime_gauge = function(name, worker_id)
+  local s = ensure_conversation(name, worker_id)
   return s and s.runtime_gauge or nil
 end
-M.set_runtime_gauge = function(name, gauge)
-  local s = ensure_workspace(name)
+M.set_runtime_gauge = function(name, gauge, worker_id)
+  local s = ensure_conversation(name, worker_id)
   if s then s.runtime_gauge = gauge end
 end
-M.get_runtime_status = function(name)
-  local gauge = M.get_runtime_gauge(name)
+M.get_runtime_status = function(name, worker_id)
+  local gauge = M.get_runtime_gauge(name, worker_id)
   return gauge and require("plurnk.runtime_status").project(gauge) or nil
 end
-M.get_transport_status = function(name)
-  local s = ensure_workspace(name)
+M.get_transport_status = function(name, worker_id)
+  local s = ensure_conversation(name, worker_id)
   return s and s.transport_status or nil
 end
-M.set_transport_status = function(name, status)
-  local s = ensure_workspace(name)
+M.set_transport_status = function(name, status, worker_id)
+  local s = ensure_conversation(name, worker_id)
   if s then s.transport_status = type(status) == "table" and status or nil end
 end
 
 -- The exact usage/accounting envelope from the last plurnk.terminated event.
-M.get_usage = function(name) local s = ensure_workspace(name); return s and s.usage end
+M.get_usage = function(name, worker_id) local s = ensure_conversation(name, worker_id); return s and s.usage end
 -- Record one complete snapshot. Do not rename fields, sum requests, convert exact
 -- decimal strings, or retain pieces from a prior loop: those would establish a
 -- second accounting representation in the client.
-M.record_loop_usage = function(name, u)
+M.record_loop_usage = function(name, u, worker_id)
   if type(u) ~= "table" then return end
-  local s = ensure_workspace(name)
+  local s = ensure_conversation(name, worker_id)
   if not s then return end
   s.usage = u
 end
 
--- True between loop.run dispatch and loop/terminated — drives the
--- "switching away from a live loop" notify.
-M.is_loop_inflight = function(name) local s = ensure_workspace(name); return s and s.loop_inflight or false end
-M.set_loop_inflight = function(name, v) local s = ensure_workspace(name); if s then s.loop_inflight = not not v end end
+-- True while a logical conversation run is being observed, including interruptions.
+M.is_loop_inflight = function(name, worker_id) local s = ensure_conversation(name, worker_id); return s and s.loop_inflight or false end
+M.set_loop_inflight = function(name, v, worker_id) local s = ensure_conversation(name, worker_id); if s then s.loop_inflight = not not v end end
 
-M.get_search_progress = function(name) local s = ensure_workspace(name); return s and s.search_progress or nil end
-M.set_search_progress = function(name, percent)
-  local s = ensure_workspace(name)
+M.get_search_progress = function(name, worker_id) local s = ensure_conversation(name, worker_id); return s and s.search_progress or nil end
+M.set_search_progress = function(name, percent, worker_id)
+  local s = ensure_conversation(name, worker_id)
   if s then s.search_progress = type(percent) == "number" and math.max(0, math.min(100, math.floor(percent))) or nil end
 end
 
@@ -217,6 +253,11 @@ M.set_last_seen_log_id = function(name, worker_id, id)
   if s and key and type(id) == "number" and id > (s.last_seen_log_ids[key] or 0) then
     s.last_seen_log_ids[key] = id
   end
+  if s and type(id) == "number" then s.seen_log_ids[id] = true end
+end
+M.has_seen_log_id = function(name, id)
+  local s = ensure_workspace(name)
+  return s and s.seen_log_ids[id] == true
 end
 
 -- ── Proposal tracking ───────────────────────────────────────────────
@@ -252,9 +293,15 @@ end
 M.rename_workspace = function(old_name, new_name)
   if not old_name or not new_name or old_name == new_name then return end
   if workspace_states[old_name] then
+    for _, binding in pairs(workspace_states[old_name].conversations or {}) do
+      if binding.threadId == old_name then binding.threadId = new_name end
+      binding.workspace = new_name
+    end
     workspace_states[new_name] = workspace_states[old_name]
     workspace_states[old_name] = nil
   end
+  worker_names[new_name], worker_names[old_name] = worker_names[old_name], nil
+  worker_directory[new_name], worker_directory[old_name] = worker_directory[old_name], nil
 end
 
 M.all_workspace_names = function()

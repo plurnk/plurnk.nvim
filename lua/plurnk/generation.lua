@@ -15,6 +15,7 @@ end
 
 function M.persist_picked_policies(client, workspace, on_done)
   local state = require("plurnk.state")
+  local binding = client.binding or state.binding(workspace)
   local model = client.consume_selected_model_selector()
   local child = client.consume_selected_child_selector()
   local reasoning = client.consume_selected_reasoning_policy()
@@ -37,7 +38,7 @@ function M.persist_picked_policies(client, workspace, on_done)
         if problem ~= nil then refuse("Model selection"); return end
         local resolved = state.model_route_selector(result)
         if resolved == nil then refuse("Model selection"); return end
-        state.set_model_selector(workspace, resolved)
+        state.set_model_selector(workspace, resolved, binding.workerId)
         next_step()
       end)
     end
@@ -49,11 +50,11 @@ function M.persist_picked_policies(client, workspace, on_done)
       }, false, function(result, problem)
         if problem ~= nil then refuse("Child model selection"); return end
         if child == "inherit" then
-          state.set_child_selector(workspace, "inherit")
+          state.set_child_selector(workspace, "inherit", binding.workerId)
         else
           local resolved = state.model_route_selector(result)
           if resolved == nil then refuse("Child model selection"); return end
-          state.set_child_selector(workspace, resolved)
+          state.set_child_selector(workspace, resolved, binding.workerId)
         end
         next_step()
       end)
@@ -66,7 +67,7 @@ function M.persist_picked_policies(client, workspace, on_done)
           refuse("Reasoning policy")
           return
         end
-        state.set_reasoning(workspace, result)
+        state.set_reasoning(workspace, result, binding.workerId)
         next_step()
       end)
     end
@@ -83,27 +84,29 @@ function M.persist_picked_policies(client, workspace, on_done)
 end
 
 function M.hydrate(workspace_name)
-  local client = require("plurnk.client")
+  local binding = require("plurnk.state").binding(workspace_name)
+  local client = require("plurnk.client").scoped(binding)
   client.send("worker.model.get", {}, false, function(result)
     if type(result) ~= "table" then return end
     local state = require("plurnk.state")
-    state.set_model_route(workspace_name, result.model)
+    state.set_model_route(workspace_name, result.model, binding.workerId)
     if type(result.spawnModel) == "table" then
-      state.set_child_route(workspace_name, result.spawnModel)
+      state.set_child_route(workspace_name, result.spawnModel, binding.workerId)
     elseif result.spawnModel == nil then
-      state.set_child_selector(workspace_name, "inherit")
+      state.set_child_selector(workspace_name, "inherit", binding.workerId)
     end
     pcall(vim.cmd, "redrawstatus!")
   end)
   client.send("worker.reasoning.get", {}, false, function(result)
     if type(result) ~= "table" then return end
-    require("plurnk.state").set_reasoning(workspace_name, result)
+    require("plurnk.state").set_reasoning(workspace_name, result, binding.workerId)
     require("plurnk.worker_tab").refresh_winbar(workspace_name)
   end)
 end
 
 function M.models(args)
-  local client = require("plurnk.client")
+  local client = require("plurnk.client").scoped()
+  local binding = client.binding
   local state = require("plurnk.state")
   local search = normalize(args)
 
@@ -152,7 +155,7 @@ function M.models(args)
       }, function(choice)
         if not choice then return end
         if choice.next_offset then select_page(choice.next_offset, aliases); return end
-        M.set_model(choice.selector)
+        M.set_model(choice.selector, binding)
       end)
     end)
   end
@@ -167,12 +170,13 @@ function M.models(args)
   end)
 end
 
-function M.set_model(args)
+function M.set_model(args, captured_binding)
   local selector = normalize(args)
   if selector == "" then M.models(); return end
   local state = require("plurnk.state")
-  local client = require("plurnk.client")
-  local workspace = require("plurnk.workspace_context").active()
+  local client = require("plurnk.client").scoped(captured_binding)
+  local binding = client.binding
+  local workspace = captured_binding and captured_binding.workspace or require("plurnk.workspace_context").active()
   if not workspace then
     state.set_selected_model_selector(selector)
     client.notify("Model: " .. selector .. " (applies on workspace create)", vim.log.levels.INFO)
@@ -185,10 +189,10 @@ function M.set_model(args)
       client.notify("Model set failed: " .. selector, vim.log.levels.ERROR)
       return
     end
-    state.set_model_selector(workspace, resolved)
+    state.set_model_selector(workspace, resolved, binding.workerId)
     client.notify("Model: " .. resolved, vim.log.levels.INFO)
     client.send("worker.reasoning.get", {}, false, function(reasoning)
-      if type(reasoning) == "table" then state.set_reasoning(workspace, reasoning) end
+      if type(reasoning) == "table" then state.set_reasoning(workspace, reasoning, binding.workerId) end
       require("plurnk.worker_tab").refresh_winbar(workspace)
     end)
     pcall(vim.cmd, "redrawstatus!")
@@ -198,7 +202,8 @@ end
 function M.set_reasoning(args)
   local policy = normalize(args)
   local state = require("plurnk.state")
-  local client = require("plurnk.client")
+  local client = require("plurnk.client").scoped()
+  local binding = client.binding
   local workspace = require("plurnk.workspace_context").active()
   if not workspace then
     if policy == "" then
@@ -213,7 +218,7 @@ function M.set_reasoning(args)
   local params = policy == "" and {} or { policy = policy }
   client.send(method, params, false, function(result, problem)
     if problem ~= nil or type(result) ~= "table" then return end
-    state.set_reasoning(workspace, result)
+    state.set_reasoning(workspace, result, binding.workerId)
     local supported = type(result.supportedPolicies) == "table"
       and table.concat(result.supportedPolicies, ", ")
       or "none"
@@ -227,7 +232,8 @@ end
 function M.set_child(args)
   local selector = normalize(args)
   local state = require("plurnk.state")
-  local client = require("plurnk.client")
+  local client = require("plurnk.client").scoped()
+  local binding = client.binding
   local workspace = require("plurnk.workspace_context").active()
   if selector == "" then
     local current = (workspace and state.get_child_selector(workspace)) or "inherit"
@@ -245,9 +251,9 @@ function M.set_child(args)
     if problem ~= nil then return end
     local resolved = state.model_route_selector(result)
     if resolved ~= nil then
-      state.set_child_selector(workspace, resolved)
+      state.set_child_selector(workspace, resolved, binding.workerId)
     elseif selector == "inherit" then
-      state.set_child_selector(workspace, "inherit")
+      state.set_child_selector(workspace, "inherit", binding.workerId)
     end
     client.notify("Child model: " .. (resolved or selector), vim.log.levels.INFO)
   end)

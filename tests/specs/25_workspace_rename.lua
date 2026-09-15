@@ -17,6 +17,9 @@ local ok, err = pcall(function()
   local state = require("plurnk.state")
   state.set_active_workspace_name("old")
   state.set_workspace_id("old", 9)
+  state.set_worker_label("old", 11, "alice")
+  local original_default = state.binding("old")
+  local original_alice = state.binding("old", 11)
 
   local cmds = require("plurnk.workspaces")
 
@@ -28,6 +31,18 @@ local ok, err = pcall(function()
   H.assert_eq(r.params.name, "fresh", "carries the new name")
   H.assert_eq(state.get_active_workspace_name(), "fresh", "active workspace adopts the new name")
   H.assert_eq(state.get_workspace_id("fresh"), 9, "workspace id follows the rename")
+  H.assert_eq(state.binding("fresh"), original_default, "default conversation retains its identity")
+  H.assert_eq(original_default.threadId, "fresh", "default routing follows the renamed workspace")
+  H.assert_eq(original_alice.threadId, "alice", "named conversation retains its immutable name")
+  H.assert_eq(original_alice.workspace, "fresh", "named conversation follows the workspace handle")
+
+  local agui = require("plurnk.agui")
+  agui.run = function() return {} end
+  require("plurnk.bridge").run(original_alice, "active", {}, function() end)
+  sent = {}
+  cmds.rename({ args = "unsafe" })
+  H.assert_eq(#sent, 0, "identity mutation is unavailable while this workspace has a running request")
+  H.assert_eq(original_alice.workspace, "fresh", "refused rename changes no binding")
 
   -- empty name → no rpc
   sent = {}

@@ -39,7 +39,7 @@ local function probe(target, timeout_ms)
   local segment
   local handle = require("plurnk.agui").rpc(
     target,
-    "nvim-health",
+    { workspace = "nvim-health", threadId = "nvim-health" },
     "discover",
     {},
     function(value) segment = value end

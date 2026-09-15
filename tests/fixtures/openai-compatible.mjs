@@ -68,6 +68,7 @@ const streamProgram = async (response, program, index) => {
         choices: [{ index: 0, delta, finish_reason: finishReason }],
     });
     response.write(frame(chunk({ reasoning_content: program.reasoning })));
+    if (program.ready !== undefined) await program.ready;
     await delay(10);
     const midpoint = Math.ceil(program.content.length / 2);
     response.write(frame(chunk({ content: program.content.slice(0, midpoint) })));
@@ -86,18 +87,19 @@ const streamProgram = async (response, program, index) => {
     response.end("data: [DONE]\n\n");
 };
 
-export const startOpenAiCompatibleFixture = async () => {
+export const startOpenAiCompatibleFixture = async ({ selectProgram, control } = {}) => {
     const requests = [];
     const server = createServer(async (request, response) => {
         try {
             const url = new URL(request.url ?? "/", "http://fixture.invalid");
+            if (control !== undefined && await control(request, response, url)) return;
             if (request.method !== "POST" || url.pathname !== "/v1/chat/completions") {
                 response.writeHead(404, { "content-type": "application/json" });
                 response.end(JSON.stringify({ error: { message: "fixture route not found" } }));
                 return;
             }
             const body = await readJson(request);
-            const program = programs[requests.length];
+            const program = selectProgram?.(body, requests.length) ?? programs[requests.length];
             requests.push(body);
             if (program === undefined) {
                 response.writeHead(409, { "content-type": "application/json" });
@@ -121,6 +123,7 @@ export const startOpenAiCompatibleFixture = async () => {
     if (address === null || typeof address === "string") throw new Error("fixture did not bind a TCP port");
     return {
         baseUrl: `http://127.0.0.1:${address.port}/v1`,
+        url: `http://127.0.0.1:${address.port}`,
         requests,
         close: async () => {
             server.close();

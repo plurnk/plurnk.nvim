@@ -20,11 +20,14 @@ local ok, err = pcall(function()
     table.insert(sent, { method = method, params = params })
     -- workspace.create returns the worker identity directly.
     if method == "workspace.create" and cb then cb({ id = 7, name = "lang-" .. #sent, workerId = 42, workerName = "auto-run" }) end
-    if method == "workspace.attach" and cb then cb({ id = 7, workerId = 42, workerName = "auto-run" }) end
+    if method == "workspace.attach" and cb then cb({ id = 7, workerId = params.workerId }) end
     if method == "loop.cancel" and cb then cb({ cancelled = true, workerId = 9 }) end
     if method == "run.fork" and cb then cb({ workerId = 99, workerName = "fork-run" }) end
     if method == "providers.list" and cb then cb({ aliases = {} }) end
     if method == "models.list" and cb then cb({ items = {}, offset = 0, total = 0 }) end
+  end
+  require("plurnk.bridge").rpc = function(_, method, params, cb)
+    return require("plurnk.client").send(method, params, false, cb)
   end
   vim.ui.select = function(_, _, cb) if cb then cb(nil) end end
   local function find(list, method)

@@ -88,7 +88,9 @@
     "workspace.attach": {
       "posture": "native",
       "evidence": [
-        "tests/specs/36_workspace_door.lua"
+        "tests/specs/36_workspace_door.lua",
+        "tests/concurrent-journey.lua",
+        "tests/specs/65_concurrent_conversations.lua"
       ],
       "dimensions": [
         "admission",
@@ -101,7 +103,9 @@
     "workspace.workers": {
       "posture": "native",
       "evidence": [
-        "tests/specs/19_worker_routing.lua"
+        "tests/specs/19_worker_routing.lua",
+        "tests/concurrent-journey.lua",
+        "tests/specs/65_concurrent_conversations.lua"
       ],
       "dimensions": [
         "admission",
@@ -114,7 +118,9 @@
     "log.read": {
       "posture": "native",
       "evidence": [
-        "tests/specs/13_worker_tab_layout.lua"
+        "tests/specs/13_worker_tab_layout.lua",
+        "tests/concurrent-journey.lua",
+        "tests/specs/65_concurrent_conversations.lua"
       ],
       "dimensions": [
         "admission",
@@ -127,7 +133,10 @@
     "loop.inject": {
       "posture": "native",
       "evidence": [
-        "tests/specs/39_policy_steer.lua"
+        "tests/specs/39_policy_steer.lua",
+        "tests/concurrent-journey.lua",
+        "tests/specs/65_concurrent_conversations.lua",
+        "tests/specs/66_injection_boundary.lua"
       ],
       "dimensions": [
         "admission",
@@ -141,7 +150,9 @@
     "loop.cancel": {
       "posture": "native",
       "evidence": [
-        "tests/specs/09_ai_command.lua"
+        "tests/specs/09_ai_command.lua",
+        "tests/concurrent-journey.lua",
+        "tests/specs/65_concurrent_conversations.lua"
       ],
       "dimensions": [
         "admission",
@@ -194,7 +205,9 @@
     "op.exec": {
       "posture": "native",
       "evidence": [
-        "tests/specs/17_exec_live.lua"
+        "tests/specs/17_exec_live.lua",
+        "tests/concurrent-journey.lua",
+        "tests/specs/65_concurrent_conversations.lua"
       ],
       "dimensions": [
         "admission",
@@ -236,7 +249,9 @@
       "posture": "native",
       "evidence": [
         "tests/specs/26_worker_fork.lua",
-        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls",
+        "tests/concurrent-journey.lua",
+        "tests/specs/65_concurrent_conversations.lua"
       ],
       "dimensions": [
         "admission",
@@ -264,7 +279,8 @@
       "posture": "native",
       "evidence": [
         "tests/specs/47_model_selection_live.lua",
-        "tests/specs/49_durable_controls.lua — separate-connection durable controls"
+        "tests/specs/49_durable_controls.lua — separate-connection durable controls",
+        "tests/specs/67_async_destinations.lua"
       ],
       "dimensions": [
         "admission",

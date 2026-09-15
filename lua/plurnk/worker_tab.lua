@@ -65,11 +65,11 @@ local function build_winbar(workspace, key)
   local state = require("plurnk.state")
   local render = require("plurnk.render")
   local rid = type(key) == "number" and key or nil
-  local runtime = state.get_runtime_status(workspace)
+  local runtime = state.get_runtime_status(workspace, rid)
   -- {§nvim-worker-hops} — where this tab is in the tree, with the loop and its turn, then whose it is.
-  local parts = { "plurnk · " .. workspace .. " · " .. require("plurnk.workers").position_label(workspace, runtime) .. " " .. worker_label(workspace, rid) }
+  local parts = { "plurnk · " .. workspace .. " · " .. require("plurnk.workers").position_label(workspace, runtime, rid) .. " " .. worker_label(workspace, rid) }
 
-  local transport = state.get_transport_status(workspace)
+  local transport = state.get_transport_status(workspace, rid)
   if transport and transport.phase == "reconnecting" then
     parts[#parts + 1] = "↻ reconnecting"
   elseif transport and transport.phase == "stale" then
@@ -79,16 +79,16 @@ local function build_winbar(workspace, key)
     if lifecycle ~= "" then parts[#parts + 1] = lifecycle end
   end
 
-  local model = runtime and runtime.model or state.get_active_model(workspace)
+  local model = runtime and runtime.model or state.get_active_model(workspace, rid)
   if model then parts[#parts + 1] = "🤖 " .. model end
   -- The ant is the daemon's count of alive direct children ({§nvim-status-children}).
   if runtime and runtime.children ~= nil then parts[#parts + 1] = "🐜" .. tostring(runtime.children) end
 
-  local reasoning = state.get_reasoning_policy(workspace)
+  local reasoning = state.get_reasoning_policy(workspace, rid)
   if reasoning then parts[#parts + 1] = "🧠 " .. reasoning end
 
   -- The daemon's conventional aggregate for the LAST loop, not a client tally.
-  local usage = state.get_usage(workspace)
+  local usage = state.get_usage(workspace, rid)
   local accounting = type(usage) == "table" and type(usage.accounting) == "table" and usage.accounting or nil
   if accounting then
     local aggregate = type(accounting.usage) == "table" and accounting.usage or nil
@@ -751,9 +751,10 @@ M.entry_at = function(buf, line)
 end
 
 -- Free-text line (Notice headlines etc.) — current worker's waterfall.
-M.append_line = function(workspace, text)
+M.append_line = function(workspace, text, worker_id)
   if not workspace or not text or text == "" then return end
-  local rec = M.get_record(workspace) or ensure_record(workspace, "pending")
+  local rec = worker_id and record_for_worker(workspace, worker_id)
+    or M.get_record(workspace) or ensure_record(workspace, "pending")
   append_block(rec, { kind = "text", text = text })
   autoscroll(rec)
 end

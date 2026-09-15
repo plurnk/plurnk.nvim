@@ -16,10 +16,10 @@ end
 -- Any valid STATE on a fresh action Run proves a previously stale connection
 -- live. An active reconciliation retains its stronger reconnecting overlay until
 -- it observes a non-running daemon lifecycle.
-function M.observed(thread_id, dispatch)
-  local transport = require("plurnk.state").get_transport_status(thread_id)
+function M.observed(binding, dispatch)
+  local transport = require("plurnk.state").get_transport_status(binding.workspace, binding.workerId)
   if transport ~= nil and transport.phase == "stale" then
-    project_status(dispatch, thread_id, "connected")
+    project_status(dispatch, binding.workspace, "connected", { workerId = binding.workerId })
   end
 end
 
@@ -39,7 +39,8 @@ end
 -- observed again a bounded number of times. Nothing here replays inference.
 function M.reconcile(thread_id, options, cb)
   options = options or {}
-  local existing = reconciliations[thread_id]
+  local binding = options.binding or require("plurnk.state").binding(thread_id, options.workerId)
+  local existing = reconciliations[binding]
   if existing ~= nil then
     if cb then existing.callbacks[#existing.callbacks + 1] = cb end
     return
@@ -47,15 +48,16 @@ function M.reconcile(thread_id, options, cb)
 
   local dispatch = require("plurnk.dispatch")
   local state = require("plurnk.state")
-  local worker_id = options.workerId or state.get_worker_id(thread_id)
+  local worker_id = binding.workerId
+  local since_id = options.sinceId or state.get_last_seen_log_id(thread_id, worker_id)
   local attempts = math.max(1, math.floor(tonumber(options.attempts) or DEFAULT_ATTEMPTS))
   local delay_ms = math.max(0, math.floor(tonumber(options.delay_ms) or DEFAULT_DELAY_MS))
   local recovery = { callbacks = cb and { cb } or {}, attempt = 0 }
-  reconciliations[thread_id] = recovery
+  reconciliations[binding] = recovery
 
   local function finish(status, problem)
-    if reconciliations[thread_id] ~= recovery then return end
-    reconciliations[thread_id] = nil
+    if reconciliations[binding] ~= recovery then return end
+    reconciliations[binding] = nil
     for _, callback in ipairs(recovery.callbacks) do pcall(callback, status, problem) end
   end
 
@@ -73,6 +75,7 @@ function M.reconcile(thread_id, options, cb)
       }
     )
     project_status(dispatch, thread_id, "stale", {
+      workerId = worker_id,
       detail = problem.detail,
       recovery = problem.recovery,
     })
@@ -87,15 +90,16 @@ function M.reconcile(thread_id, options, cb)
   attempt = function()
     recovery.attempt = recovery.attempt + 1
     project_status(dispatch, thread_id, "reconnecting", {
+      workerId = worker_id,
       attempt = recovery.attempt,
       attempts = attempts,
     })
-    require("plurnk.bridge").rpc(thread_id, "log.read", {
+    require("plurnk.bridge").rpc(binding, "log.read", {
       workerId = worker_id,
-      sinceId = state.get_last_seen_log_id(thread_id, worker_id),
+      sinceId = since_id,
       limit = 1000,
     }, function(result, problem, gauge)
-      if reconciliations[thread_id] ~= recovery then return end
+      if reconciliations[binding] ~= recovery then return end
       local projected
       if problem == nil and type(gauge) == "table" then
         local ok, value = pcall(require("plurnk.runtime_status").project, gauge)
@@ -130,8 +134,13 @@ function M.reconcile(thread_id, options, cb)
         )
       end
 
-      if problem ~= nil or projected == nil or projected.lifecycle == "running" then
-        local retryable = projected ~= nil and projected.lifecycle == "running"
+      local awaiting_cancel = options.cancelledLoopId ~= nil and projected ~= nil
+        and projected.loop_id == options.cancelledLoopId
+        and (projected.lifecycle == "queued" or projected.lifecycle == "running" or projected.lifecycle == "parked")
+      local awaiting_run = projected ~= nil and projected.lifecycle == "running"
+        and (options.cancelledLoopId == nil or projected.loop_id == options.cancelledLoopId)
+      if problem ~= nil or projected == nil or awaiting_run or awaiting_cancel then
+        local retryable = awaiting_run or awaiting_cancel
           or type(problem) == "table" and problem.retryable == true
         if retryable and recovery.attempt < attempts then
           vim.defer_fn(attempt, delay_ms * recovery.attempt)
@@ -142,7 +151,8 @@ function M.reconcile(thread_id, options, cb)
         return
       end
 
-      local entries = type(result.entries) == "table" and result.entries or {}
+      local entries = vim.tbl_filter(function(entry) return not state.has_seen_log_id(thread_id, entry.id) end,
+        type(result.entries) == "table" and result.entries or {})
       table.sort(entries, function(a, b)
         return (tonumber(a.id) or 0) < (tonumber(b.id) or 0)
       end)
@@ -150,7 +160,7 @@ function M.reconcile(thread_id, options, cb)
         for _, entry in ipairs(entries) do
           if type(entry.worker_id) == "number" then
             worker_id = entry.worker_id
-            require("plurnk.workspace_context").note_model_worker(thread_id, worker_id)
+            state.identify(binding, worker_id)
             break
           end
         end
@@ -161,7 +171,7 @@ function M.reconcile(thread_id, options, cb)
           state.set_last_seen_log_id(thread_id, worker_id, entry.id)
         end
       end
-      project_status(dispatch, thread_id, "connected")
+      project_status(dispatch, thread_id, "connected", { workerId = worker_id })
       finish(recovered_status(projected.lifecycle), nil)
     end, { quiet = true })
   end

@@ -47,8 +47,9 @@ end
 -- fires when we are NOT driving a loop, so its client-worker events are never
 -- adopted. Once known, route strictly by worker_id (catches wake-loop events
 -- too, which share the model worker).
-local function conversation_entry(workspace_name, entry)
+local function conversation_entry(workspace_name, entry, binding)
   if type(entry.worker_id) ~= "number" then return false end
+  if binding then return entry.worker_id == binding.workerId end
   local conv = state.get_worker_id(workspace_name)
   if conv then return entry.worker_id == conv end
   if state.is_loop_inflight(workspace_name) then
@@ -73,7 +74,7 @@ M.handle_log_entry = function(params, workspace_name)
   local entry = params.entry
   -- Only the conversation (model worker) is shown; client-worker housekeeping
   -- is silent in the waterfall.
-  if not workspace_name or not conversation_entry(workspace_name, entry) then return end
+  if not workspace_name or not conversation_entry(workspace_name, entry, params.binding) then return end
   apply_entry_to_state(workspace_name, entry)
 
   vim.schedule(function()
@@ -90,7 +91,7 @@ end
 -- snapshot and deltas before projecting the resulting gauge here.
 M.handle_loop_packet = function(params, workspace_name)
   if not workspace_name or type(params) ~= "table" or type(params.gauge) ~= "table" then return end
-  state.set_runtime_gauge(workspace_name, params.gauge)
+  state.set_runtime_gauge(workspace_name, params.gauge, params.workerId)
   vim.schedule(function()
     local ok, worker_tab = pcall(require, "plurnk.worker_tab")
     if ok then worker_tab.refresh_winbar(workspace_name) end
@@ -114,7 +115,7 @@ M.handle_transport_status = function(params, workspace_name)
       recovery = params.recovery,
     }
   end
-  state.set_transport_status(workspace_name, status)
+  state.set_transport_status(workspace_name, status, params.workerId)
   vim.schedule(function()
     local ok, worker_tab = pcall(require, "plurnk.worker_tab")
     if ok then worker_tab.refresh_winbar(workspace_name) end
@@ -144,17 +145,22 @@ end
 --
 -- AG-UI projects only client-owned proposals onto this surface. Loop-owned
 -- accept/reject dispositions settle in Core and never become review work here.
--- One daemon proposal fans out to EVERY open SSE of the workspace (each in-flight
--- action run is a live stream) — process once per logEntryId; the log is
--- append-only, so an id never legitimately recurs.
-local seen_proposals = {}
+local pending_reviews = {}
+local function queue_review(params, workspace_name, id, show)
+  local key = params.binding or workspace_name
+  pending_reviews[key] = pending_reviews[key] or {}
+  local reviews = pending_reviews[key]
+  if reviews[id] then return end
+  reviews[id] = params
+  vim.schedule(function()
+    if reviews[id] == params then show() end
+  end)
+end
 
 M.handle_loop_proposal = function(params, workspace_name)
   if not params or type(params.logEntryId) ~= "number" then return end
-  if seen_proposals[params.logEntryId] then return end
-  seen_proposals[params.logEntryId] = true
   if workspace_name then state.add_proposal(workspace_name, params.logEntryId, params) end
-  vim.schedule(function()
+  queue_review(params, workspace_name, "prop:" .. params.logEntryId, function()
     local ok, resolve = pcall(require, "plurnk.resolve")
     if ok then resolve.process(workspace_name, params) end
   end)
@@ -162,10 +168,8 @@ end
 
 -- loop/terminated: the model loop is done. Reflect final state.
 M.handle_loop_terminated = function(params, workspace_name)
-  require("plurnk.diff").request_review(false)
   if not params or not workspace_name then return end
-  state.set_loop_inflight(workspace_name, false)
-  state.record_loop_usage(workspace_name, params.usage)  -- exact last-loop envelope; never a client tally
+  state.record_loop_usage(workspace_name, params.usage, params.workerId)
   vim.schedule(function()
     local ok, worker_tab = pcall(require, "plurnk.worker_tab")
     if ok then
@@ -183,7 +187,7 @@ M.handle_problem_event = function(params, workspace_name)
   vim.schedule(function()
     if workspace_name then
       local ok, worker_tab = pcall(require, "plurnk.worker_tab")
-      if ok then worker_tab.append_line(workspace_name, line) end
+      if ok then worker_tab.append_line(workspace_name, line, params.workerId) end
     end
     local ok, hud = pcall(require, "plurnk.hud")
     if ok then hud.show(line) end
@@ -214,7 +218,7 @@ M.handle_notice_event = function(params, workspace_name)
       and notice.kind == "search_progress" then
     if workspace_name then
       local active = notice.phase ~= "complete" and notice.phase ~= "failed"
-      state.set_search_progress(workspace_name, active and tonumber(notice.percent) or nil)
+      state.set_search_progress(workspace_name, active and tonumber(notice.percent) or nil, params.workerId)
       redraw_statusline()
     end
     return
@@ -223,7 +227,7 @@ M.handle_notice_event = function(params, workspace_name)
     local headline = require("plurnk.render").render_diagnostic(notice)
     if workspace_name then
       local ok, worker_tab = pcall(require, "plurnk.worker_tab")
-      if ok then worker_tab.append_line(workspace_name, headline) end
+      if ok then worker_tab.append_line(workspace_name, headline, params.workerId) end
     end
     local ok, hud = pcall(require, "plurnk.hud")
     if ok then hud.show(headline) end
@@ -240,10 +244,7 @@ end
 
 -- ── Notification dispatch ───────────────────────────────────────────
 
--- The transport doesn't know which workspace a notification belongs to
--- beyond the connection scope. For v0.1 we pass nil workspace_name to
--- handlers that don't already carry one; future work can attach a
--- connection→workspace map.
+-- Live notifications retain the request binding, never the currently focused tab.
 M.handle_notification = function(payload)
   local method = payload.method
   if not method then return end
@@ -263,6 +264,16 @@ M.handle_notification = function(payload)
   elseif method == "reasoning/event" then M.handle_reasoning_event(params, workspace_name)
   elseif method == "loop/proposal" then M.handle_loop_proposal(params, workspace_name)
   elseif method == "loop/interaction" then M.handle_loop_interaction(params, workspace_name)
+  elseif method == "interrupt/ended" then
+    local reviews = pending_reviews[params.binding]
+    if reviews then
+      reviews[params.interruptId] = nil
+      if next(reviews) == nil then pending_reviews[params.binding] = nil end
+    end
+    local proposal_id = tonumber(params.interruptId:match("^prop:(%d+)$"))
+    if proposal_id then state.remove_proposal(workspace_name, proposal_id) end
+    require("plurnk.resolve").retire(params.binding, params.interruptId)
+    require("plurnk.question").retire(params.binding, params.interruptId)
   elseif method == "loop/terminated" then M.handle_loop_terminated(params, workspace_name)
   elseif method == "problem/event" then M.handle_problem_event(params, workspace_name)
   elseif method == "notice/event" then M.handle_notice_event(params, workspace_name)
@@ -279,12 +290,9 @@ end
 
 -- {§question-tool} — a client interaction pauses its owning loop: present the
 -- standard message + response schema and answer through the interaction resume.
-local seen_interactions = {}
 M.handle_loop_interaction = function(params, workspace_name)
   if not params or type(params.interactionId) ~= "number" then return end
-  if seen_interactions[params.interactionId] then return end
-  seen_interactions[params.interactionId] = true
-  vim.schedule(function()
+  queue_review(params, workspace_name, "int:" .. params.interactionId, function()
     local ok, question = pcall(require, "plurnk.question")
     if ok then question.review(workspace_name, params) end
   end)

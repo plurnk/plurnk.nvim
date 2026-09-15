@@ -55,23 +55,17 @@ function M.next() require("plurnk.resolve").next() end
 function M.prev() require("plurnk.resolve").prev() end
 
 function M.stop()
-  local count = require("plurnk.resolve").cancel_all()
   local client = require("plurnk.client")
   if not require("plurnk.workspace_context").active() then
-    client.notify(string.format(
-      "Cancelled %d pending proposal%s (no active workspace)",
-      count,
-      count == 1 and "" or "s"), vim.log.levels.INFO)
+    client.notify("No active workspace", vim.log.levels.INFO)
     return
   end
-  client.send("loop.cancel", { reason = "user_stop" }, false, function(result)
+  require("plurnk.bridge").cancel(require("plurnk.workspace_context").binding(), function(result, problem)
+    if problem then return end
     if type(result) == "table" and result.cancelled then
       client.notify("Loop cancelled", vim.log.levels.INFO)
     else
-      client.notify(string.format(
-        "No loop in flight; cancelled %d proposal%s",
-        count,
-        count == 1 and "" or "s"), vim.log.levels.INFO)
+      client.notify("No loop in flight", vim.log.levels.INFO)
     end
   end)
 end

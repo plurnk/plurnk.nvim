@@ -46,9 +46,9 @@ local function candidate_line(candidate)
   )
 end
 
-local function notify_mutation(result, verb, alias_hint)
+local function notify_mutation(result, verb, alias_hint, binding)
   if type(result) ~= "table" then return end
-  require("plurnk.functionality").invalidate_aliases("skills")
+  require("plurnk.functionality").invalidate_aliases("skills", binding)
   local client = require("plurnk.client")
   local alias = type(result.alias) == "string" and result.alias or alias_hint
   local definition = type(result.definition) == "table" and result.definition or {}
@@ -70,10 +70,11 @@ M.run = function(args, with_workspace)
   local client = require("plurnk.client")
 
   if raw == "" then
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.skills.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
-        require("plurnk.functionality").remember_aliases("skills", result.definitions)
+        require("plurnk.functionality").remember_aliases("skills", result.definitions, binding)
         if #result.definitions == 0 then
           client.notify("Agent Skills: none", vim.log.levels.INFO)
           return
@@ -98,7 +99,8 @@ M.run = function(args, with_workspace)
       return
     end
     local query = (#argv == 2 and M.is_source(term)) and { source = term } or { query = term }
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.skills.discover", query, false, function(result)
         if type(result) ~= "table" or type(result.candidates) ~= "table" then return end
         if #result.candidates == 0 then
@@ -123,9 +125,10 @@ M.run = function(args, with_workspace)
     end
     local alias, source = positional[1], positional[2]
     local params = { alias = alias, definition = { name = alias, scope = global and "global" or "project", source = source } }
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.skills.add", params, false, function(result)
-        notify_mutation(result, "added", alias)
+        notify_mutation(result, "added", alias, binding)
       end)
     end)
   end
@@ -135,9 +138,10 @@ M.run = function(args, with_workspace)
       usage(command)
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.skills." .. command, { alias = name }, false, function(result)
-        notify_mutation(result, command == "enable" and "enabled" or "disabled", name)
+        notify_mutation(result, command == "enable" and "enabled" or "disabled", name, binding)
       end)
     end)
   end
@@ -147,10 +151,11 @@ M.run = function(args, with_workspace)
       usage("remove")
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.skills.remove", { alias = name }, false, function(result)
         if type(result) == "table" then
-          require("plurnk.functionality").invalidate_aliases("skills")
+          require("plurnk.functionality").invalidate_aliases("skills", binding)
           client.notify("removed: " .. name, vim.log.levels.INFO)
         end
       end)

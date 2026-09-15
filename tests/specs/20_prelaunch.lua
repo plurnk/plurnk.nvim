@@ -19,7 +19,7 @@ local ok, err = pcall(function()
   ai({ args = "/help", range = 0 })
   H.assert_eq(#sent, 0, ":AI/ help sends nothing")
 
-  -- ── In-flight switch warns; idle switch is silent ──────────────────
+  -- {§nvim-conversation-requests}: navigation leaves observation attached.
   local state = require("plurnk.state")
   state.set_workspace_id("busy", 9)
   state.set_active_workspace_name("busy")
@@ -34,7 +34,8 @@ local ok, err = pcall(function()
   for _, n in ipairs(notes) do
     if n.msg:match("continues on the daemon") and n.msg:match("busy·main%-thread") then warned = true end
   end
-  H.assert_truthy(warned, "in-flight switch warns with workspace·run")
+  H.assert_eq(warned, false, "navigation does not claim a still-observed worker became static")
+  H.assert_truthy(state.is_loop_inflight("busy"), "navigation does not clear the running worker")
 
   state.set_loop_inflight("busy", false)
   notes = {}

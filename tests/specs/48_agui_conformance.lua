@@ -79,7 +79,7 @@ local ok, err = pcall(function()
   local target = require("plurnk.bridge").target()
   for name in pairs(discovery.actions) do
     local segment
-    agui.rpc(target, "nvim-conformance-invalid", name, { unadvertised = true }, function(value)
+    agui.rpc(target, { workspace = "nvim-conformance-invalid", threadId = "nvim-conformance-invalid" }, name, { unadvertised = true }, function(value)
       segment = value
     end)
     H.wait_for(function() return segment ~= nil end, 10000, name .. " invalid action")
@@ -146,7 +146,7 @@ local ok, err = pcall(function()
         H.assert_eq(status, specimen.expect.action.status, specimen.name .. " action status")
       end
     else
-      bridge.run("fixture", "fixture", {}, function(status) final = status end)
+      bridge.run(require("plurnk.state").binding(specimen.name), "fixture", {}, function(status) final = status end)
       if specimen.expect.completion == "interrupt" then
         H.assert_eq(final, nil, specimen.name .. " remains paused for client resolution")
       else
@@ -173,7 +173,7 @@ local ok, err = pcall(function()
   dispatch.handle_notification = function(notification)
     invalid_notifications[#invalid_notifications + 1] = notification
   end
-  bridge.run("fixture", "fixture", {}, function(status) invalid_final = status end)
+  bridge.run(require("plurnk.state").binding("fixture"), "fixture", {}, function(status) invalid_final = status end)
   H.assert_eq(invalid_final, 502, "a state delta without its stream snapshot fails the run")
   H.assert_eq(invalid_notifications[1].method, "problem/event", "invalid state becomes a transport Problem")
   H.assert_match(invalid_notifications[1].params.problem.type, "/state%-invalid$", "invalid state has a stable Problem type")

@@ -87,9 +87,9 @@ local function candidate_line(candidate)
   return string.format("%s  candidate  %s%s", alias, transport, target ~= nil and ("  " .. target) or "")
 end
 
-local function notify_mutation(result, verb, alias_hint)
+local function notify_mutation(result, verb, alias_hint, binding)
   if type(result) ~= "table" then return end
-  require("plurnk.functionality").invalidate_aliases("mcp")
+  require("plurnk.functionality").invalidate_aliases("mcp", binding)
   local client = require("plurnk.client")
   local alias = type(result.alias) == "string" and result.alias or alias_hint
   local definition = type(result.definition) == "table" and result.definition or {}
@@ -136,10 +136,11 @@ M.run = function(args, with_workspace)
   local client = require("plurnk.client")
 
   if raw == "" then
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.mcp.list", {}, false, function(result)
         if type(result) ~= "table" or type(result.definitions) ~= "table" then return end
-        require("plurnk.functionality").remember_aliases("mcp", result.definitions)
+        require("plurnk.functionality").remember_aliases("mcp", result.definitions, binding)
         if #result.definitions == 0 then
           client.notify("MCP servers: none", vim.log.levels.INFO)
           return
@@ -160,7 +161,8 @@ M.run = function(args, with_workspace)
       usage("discover")
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.mcp.discover", { source = alias }, false, notify_candidates)
     end)
   end
@@ -173,9 +175,10 @@ M.run = function(args, with_workspace)
     local options = argv[4] ~= nil and read_options(argv[4]) or nil
     if argv[4] ~= nil and options == nil then return end
     local params = { alias = alias, definition = M.compose_definition(alias, argv[3], options) }
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.mcp.add", params, false, function(result)
-        notify_mutation(result, "added", alias)
+        notify_mutation(result, "added", alias, binding)
       end)
     end)
   end
@@ -188,11 +191,12 @@ M.run = function(args, with_workspace)
     if argv[3] ~= nil then
       local options = read_options(argv[3])
       if options == nil then return end
-      return with_workspace(function()
+      return with_workspace(function(_, binding)
+        local client = require("plurnk.client").scoped(binding)
         client.send("workspace.mcp.list", {}, false, function(result)
           local definitions = type(result) == "table" and result.definitions or nil
           if type(definitions) ~= "table" then return end
-          require("plurnk.functionality").remember_aliases("mcp", definitions)
+          require("plurnk.functionality").remember_aliases("mcp", definitions, binding)
           local current = nil
           for _, entry in ipairs(definitions) do
             if entry.alias == alias and type(entry.definition) == "table" then current = entry.definition; break end
@@ -205,23 +209,25 @@ M.run = function(args, with_workspace)
           for key, value in pairs(current) do definition[key] = value end
           for key, value in pairs(options) do definition[key] = value end
           client.send("workspace.mcp.add", { alias = alias, definition = definition }, false, function(mutation)
-            notify_mutation(mutation, "added", alias)
+            notify_mutation(mutation, "added", alias, binding)
           end)
         end)
       end)
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.mcp.enable", { alias = alias }, false, function(result)
-        notify_mutation(result, "enabled", alias)
+        notify_mutation(result, "enabled", alias, binding)
       end)
     end)
   end
 
   if command == "disable" then
     if #argv ~= 2 or alias == "" then usage("disable"); return end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.mcp.disable", { alias = alias }, false, function(result)
-        notify_mutation(result, "disabled", alias)
+        notify_mutation(result, "disabled", alias, binding)
       end)
     end)
   end
@@ -231,10 +237,11 @@ M.run = function(args, with_workspace)
       usage("remove")
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.mcp.remove", { alias = alias }, false, function(result)
         if type(result) == "table" then
-          require("plurnk.functionality").invalidate_aliases("mcp")
+          require("plurnk.functionality").invalidate_aliases("mcp", binding)
           client.notify("removed: " .. alias, vim.log.levels.INFO)
         end
       end)
@@ -246,9 +253,10 @@ M.run = function(args, with_workspace)
       usage("oauth")
       return
     end
-    return with_workspace(function()
+    return with_workspace(function(_, binding)
+      local client = require("plurnk.client").scoped(binding)
       client.send("workspace.mcp.oauth.complete", { alias = alias, callbackUrl = argv[3] }, false, function(result)
-        notify_mutation(result, "authorized", alias)
+        notify_mutation(result, "authorized", alias, binding)
       end)
     end)
   end
