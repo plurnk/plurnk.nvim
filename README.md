@@ -1,5 +1,14 @@
 # plurnk.nvim
 
+> [!WARNING]
+> Retired and no longer maintained. Use the [Plurnk terminal client](https://github.com/plurnk/plurnk).
+
+This repository is preserved as historical source. It no longer participates
+in Plurnk's gates or releases, and compatibility with current service versions
+is not maintained. The documentation below describes the retired implementation.
+
+## Historical documentation
+
 Neovim client for [plurnk-service](https://github.com/plurnk/plurnk-service).
 It consumes the daemon's AG-UI+ HTTP/SSE interface directly; protocol traffic
 never passes through the terminal client. The pitch: **use LLMs the vim way** —
